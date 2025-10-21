@@ -42,7 +42,7 @@ const SideNav = () => {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <Link href="/" passHref>
+            <Link href="/">
               <SidebarMenuButton isActive={isActive("/")} tooltip="Inicio">
                 <Home />
                 <span>Inicio</span>
@@ -54,7 +54,7 @@ const SideNav = () => {
             <SidebarGroupLabel>Categorías</SidebarGroupLabel>
             {mockCategories.map((category) => (
               <SidebarMenuItem key={category.id}>
-                <Link href={`/category/${category.id}`} passHref>
+                <Link href={`/category/${category.id}`}>
                   <SidebarMenuButton
                     isActive={isActive(`/category/${category.id}`)}
                     tooltip={category.name}
@@ -71,7 +71,7 @@ const SideNav = () => {
             <SidebarGroup>
                 <SidebarGroupLabel>Administración</SidebarGroupLabel>
                 <SidebarMenuItem>
-                    <Link href="/admin" passHref>
+                    <Link href="/admin">
                         <SidebarMenuButton isActive={pathname.startsWith("/admin")} tooltip="Panel de Admin">
                             <ShieldCheck />
                             <span>Admin</span>
@@ -79,7 +79,7 @@ const SideNav = () => {
                     </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                    <Link href="/admin/documents" passHref>
+                    <Link href="/admin/documents">
                         <SidebarMenuButton isActive={isActive("/admin/documents")} tooltip="Documentos">
                             <FileText />
                             <span>Documentos</span>
@@ -87,7 +87,7 @@ const SideNav = () => {
                     </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                    <Link href="/admin/users" passHref>
+                    <Link href="/admin/users">
                         <SidebarMenuButton isActive={isActive("/admin/users")} tooltip="Usuarios">
                             <Users />
                             <span>Usuarios</span>
@@ -95,7 +95,7 @@ const SideNav = () => {
                     </Link>
                 </SidebarMenuItem>
                  <SidebarMenuItem>
-                    <Link href="/admin/upload" passHref>
+                    <Link href="/admin/upload">
                         <SidebarMenuButton isActive={isActive("/admin/upload")} tooltip="Subir Material">
                             <Upload />
                             <span>Subir Material</span>
