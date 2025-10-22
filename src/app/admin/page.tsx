@@ -2,20 +2,25 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
-import type { User, Document, Category } from "@/lib/types";
+import type { User as AppUser, Document, Category } from "@/lib/types";
+import { useEffect, useState } from "react";
+
+type UserClaims = {
+  role?: string;
+  [key: string]: any;
+};
 
 function TotalUsersCardContent() {
   const firestore = useFirestore();
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // This query is now safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
   
-  const { data: users, isLoading: areUsersLoading } = useCollection<User>(usersQuery);
+  const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
   const totalUsers = users?.length ?? 0;
 
   return (
@@ -28,8 +33,22 @@ function TotalUsersCardContent() {
   );
 }
 
-export default function AdminDashboardPage({ claims }: { claims?: { role?: string } }) {
+export default function AdminDashboardPage() {
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
+  const [claims, setClaims] = useState<UserClaims | null>(null);
+  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      user.getIdTokenResult().then(token => {
+        setClaims(token.claims);
+        setIsLoadingClaims(false);
+      });
+    } else if (!isUserLoading) {
+      setIsLoadingClaims(false);
+    }
+  }, [user, isUserLoading]);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -48,6 +67,10 @@ export default function AdminDashboardPage({ claims }: { claims?: { role?: strin
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
+
+  if (isLoadingClaims || isUserLoading) {
+    return <div className="container mx-auto"><p>Cargando panel...</p></div>;
+  }
 
   return (
     <div className="container mx-auto">

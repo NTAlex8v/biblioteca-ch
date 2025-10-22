@@ -6,17 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
+import { useEffect, useState } from "react";
+
+type UserClaims = {
+  role?: string;
+  [key: string]: any;
+};
 
 function UsersTable() {
   const firestore = useFirestore();
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // This query is now safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
 
@@ -64,8 +69,27 @@ function UsersTable() {
   );
 }
 
-export default function AdminUsersPage({ claims }: { claims?: { role?: string } }) {
+export default function AdminUsersPage() {
+  const { user, isUserLoading } = useUser();
+  const [claims, setClaims] = useState<UserClaims | null>(null);
+  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
+
+   useEffect(() => {
+    if (user) {
+      user.getIdTokenResult().then(token => {
+        setClaims(token.claims);
+        setIsLoadingClaims(false);
+      });
+    } else if (!isUserLoading) {
+      setIsLoadingClaims(false);
+    }
+  }, [user, isUserLoading]);
+
   const isAdmin = claims?.role === 'Admin';
+  
+  if (isLoadingClaims || isUserLoading) {
+      return <div className="container mx-auto"><p>Verificando permisos...</p></div>
+  }
 
   return (
     <div className="container mx-auto">

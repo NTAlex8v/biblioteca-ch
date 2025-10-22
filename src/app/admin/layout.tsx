@@ -32,7 +32,6 @@ export default function AdminLayout({
         setClaims(idTokenResult.claims);
       })
       .catch(() => {
-        // Handle error fetching claims if necessary
         setClaims(null);
       })
       .finally(() => {
@@ -40,7 +39,6 @@ export default function AdminLayout({
       });
   }, [user, isUserLoading]);
 
-  
   if (isUserLoading || isLoadingClaims) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
@@ -51,7 +49,6 @@ export default function AdminLayout({
 
   const isAdmin = claims?.role === 'Admin';
   const isEditor = claims?.role === 'Editor';
-
 
   if (!user || (!isAdmin && !isEditor)) {
     return (
@@ -66,13 +63,5 @@ export default function AdminLayout({
     );
   }
 
-  // Pass claims to children
-  const childrenWithProps = React.Children.map(children, child => {
-    if (React.isValidElement(child)) {
-      return React.cloneElement(child, { claims } as { claims: UserClaims });
-    }
-    return child;
-  });
-
-  return <>{childrenWithProps}</>;
+  return <>{children}</>;
 }
