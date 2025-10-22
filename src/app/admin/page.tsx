@@ -38,6 +38,11 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
+  // Guard clause to prevent rendering if user data is not yet available.
+  if (!user) {
+    return null; 
+  }
+
   return (
     <div className="container mx-auto">
       <h1 className="text-3xl font-bold tracking-tight mb-8">Panel de Administración</h1>
