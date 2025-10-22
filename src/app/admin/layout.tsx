@@ -24,7 +24,7 @@ export default function AdminLayout({
   if (isUserLoading || isUserDataLoading) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
-            <p>Cargando...</p>
+            <p>Verificando permisos...</p>
         </div>
     );
   }
@@ -42,17 +42,7 @@ export default function AdminLayout({
     );
   }
 
-  // Clona el elemento hijo y le pasa los datos definitivos del usuario desde Firestore.
-  // La 'key' es crucial para asegurar que React vuelva a renderizar el hijo cuando 'userData' cambie,
-  // resolviendo el problema de la carga infinita.
-  const childrenWithProps = React.Children.map(children, child => {
-    if (React.isValidElement(child)) {
-      // Usar el ID del usuario en la 'key' asegura que sea estable una vez cargado, 
-      // pero fuerza una nueva renderización la primera vez que el hijo recibe la prop.
-      return React.cloneElement(child, { user: userData, key: userData.id } as any);
-    }
-    return child;
-  });
-
-  return <>{childrenWithProps}</>;
+  // Una vez que los permisos están verificados, simplemente renderiza los hijos.
+  // Las páginas hijas serán responsables de obtener sus propios datos si los necesitan.
+  return <>{children}</>;
 }

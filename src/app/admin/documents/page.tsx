@@ -8,20 +8,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import type { Document, Category, User } from "@/lib/types";
+import type { Document, Category } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 
-interface AdminDocumentsPageProps {
-  user: User;
-}
 
-export default function AdminDocumentsPage({ user }: AdminDocumentsPageProps) {
+export default function AdminDocumentsPage() {
   const firestore = useFirestore();
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // Admins and Editors can see documents
     return collection(firestore, 'documents');
   }, [firestore]);
 

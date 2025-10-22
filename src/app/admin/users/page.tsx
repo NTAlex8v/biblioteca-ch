@@ -6,45 +6,37 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
-import type { User } from "@/lib/types";
+import type { User as AppUser } from "@/lib/types";
 
-interface AdminUsersPageProps {
-  user: User; // El usuario admin/editor logueado
-}
-
-export default function AdminUsersPage({ user }: AdminUsersPageProps) {
-  // Defensive check: If user data hasn't been passed down from the layout yet,
-  // show a loading state. This prevents any attempts to access `user.role`.
-  if (!user) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <p>Cargando datos de usuario...</p>
-      </div>
-    );
-  }
-
-  // All hooks must be called unconditionally at the top of the component.
+export default function AdminUsersPage() {
   const firestore = useFirestore();
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
+    return doc(firestore, 'users', authUser.uid);
+  }, [firestore, authUser]);
+
+  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(userDocRef);
 
   const usersQuery = useMemoFirebase(() => {
-    // Safe query: it's only created if the logged-in user is an Admin.
-    // The conditional logic is inside the hook, not around it.
-    if (!firestore || user?.role !== 'Admin') {
+    // Solo crea la consulta si el usuario es Admin
+    if (!firestore || currentUserData?.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
-  }, [firestore, user]);
+  }, [firestore, currentUserData]);
 
-  const { data: users, isLoading } = useCollection<User>(usersQuery);
+  const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
 
-  // The conditional rendering logic is now placed after all hooks have been called.
-  // The AdminLayout already prevents non-admins from reaching this page,
-  // but this provides an extra layer of visual safety.
-  if (user.role !== 'Admin') {
-    return (
+  const isLoading = isAuthLoading || isCurrentUserDataLoading || areUsersLoading;
+
+  // Si el rol no es Admin, no muestra nada (el layout ya bloqueó el acceso, esto es una doble seguridad).
+  if (!isLoading && currentUserData?.role !== 'Admin') {
+     return (
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
         <p className="text-muted-foreground mt-4">Solo los administradores pueden ver esta sección.</p>
