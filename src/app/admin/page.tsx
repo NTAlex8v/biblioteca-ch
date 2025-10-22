@@ -8,8 +8,8 @@ import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 import React from 'react';
 
-// This component ONLY renders if the user is a verified Admin.
-// It is safe to query the 'users' collection here.
+// Este componente SOLO se renderiza si el usuario es un administrador verificado.
+// Es seguro hacer la consulta a la colección 'users' aquí.
 function TotalUsersCardContent() {
   const firestore = useFirestore();
 
@@ -78,8 +78,21 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
         
-        { // This section will only render its content once the user's role is confirmed.
-          !isLoading && currentUserData?.role === 'Admin' && (
+        { // Esta sección solo renderiza su contenido si el rol del usuario está confirmado como Admin.
+          isLoading ? (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">...</div>
+                <p className="text-xs text-muted-foreground">
+                  Verificando permisos...
+                </p>
+              </CardContent>
+            </Card>
+          ) : currentUserData?.role === 'Admin' ? (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
@@ -89,7 +102,7 @@ export default function AdminDashboardPage() {
                 <TotalUsersCardContent />
               </CardContent>
             </Card>
-          )
+          ) : null
         }
 
         <Card>

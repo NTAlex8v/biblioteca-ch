@@ -12,8 +12,8 @@ import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
 import React from 'react';
 
-// This component ONLY renders if the user is a verified Admin.
-// It is safe to query the 'users' collection here.
+// Este componente SOLO se renderiza si el usuario es un administrador verificado.
+// Es seguro hacer la consulta a la colección 'users' aquí.
 function UsersTable() {
   const firestore = useFirestore();
 
