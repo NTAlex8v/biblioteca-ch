@@ -68,9 +68,10 @@ export default function SignupPage() {
             role: 'User', // Assign a default role
             createdAt: new Date().toISOString(),
         };
-        // Use { merge: true } to prevent overwriting existing user data (e.g. role)
-        // if an account with this UID somehow already exists.
-        setDocumentNonBlocking(userRef, userData, { merge: true });
+        
+        // Use setDoc without merge to create the new user document.
+        // This is safe because createUserWithEmailAndPassword guarantees a new user.
+        setDocumentNonBlocking(userRef, userData, {});
 
         toast({
           title: "¡Cuenta Creada!",

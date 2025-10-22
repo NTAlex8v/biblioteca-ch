@@ -53,7 +53,7 @@ export default function LoginPage() {
     const docSnap = await getDoc(userRef);
 
     // If the user document does not exist, create it.
-    // This prevents overwriting existing user data (like roles) on every login.
+    // This is for social logins where a user might not have a DB record yet.
     if (!docSnap.exists()) {
         const userData = {
             id: user.uid,
@@ -63,7 +63,9 @@ export default function LoginPage() {
             role: 'User', // Assign default role ONLY on creation
             createdAt: new Date().toISOString(),
         };
-        setDocumentNonBlocking(userRef, userData, { merge: false }); // Use merge:false as it's a new doc
+        // Use setDoc without merge to ensure it's a creation operation.
+        // It's safe because we already checked docSnap.exists().
+        setDocumentNonBlocking(userRef, userData, {}); 
     }
     
     toast({
@@ -95,7 +97,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     signInWithPopup(auth, provider)
-      .then(handleSignInSuccess)
+      .then(handleSignInSuccess) // Use the same robust success handler
       .catch((error) => {
         let description = "No se pudo iniciar sesión con Google.";
         if (error.code === 'auth/popup-closed-by-user') {
