@@ -2,69 +2,34 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc, getDocs } from "firebase/firestore";
+import { useFirestore, useUser, useMemoFirebase, useDoc, useCollection } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
-import React, { useState, useEffect } from 'react';
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
-import { useCollection } from "@/firebase/firestore/use-collection";
 
-
-// --- Componente Aislado para la Consulta ---
-function TotalUsersCardContent() {
-  const firestore = useFirestore();
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUserCount = async () => {
-      if (!firestore) return;
-      setIsLoading(true);
-      try {
-        const usersCollectionRef = collection(firestore, 'users');
-        const querySnapshot = await getDocs(usersCollectionRef);
-        setTotalUsers(querySnapshot.size);
-      } catch (error: any) {
-        // NO console.error aquí.
-        if (error.code === 'permission-denied') {
-            const contextualError = new FirestorePermissionError({
-                path: 'users',
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', contextualError);
-        }
-        setTotalUsers(0); // Default to 0 on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchUserCount();
-  }, [firestore]);
-
-
-  return (
-    <>
-      <div className="text-2xl font-bold">{isLoading ? '...' : totalUsers}</div>
-      <p className="text-xs text-muted-foreground">
-        Usuarios registrados en el sistema
-      </p>
-    </>
-  );
-}
-
-// --- Componente Principal ---
+// --- Main component ---
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
 
+  // The AdminLayout already ensures the user is an Admin or Editor.
+  // We can fetch data based on the specific role.
   const currentUserDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
+  const { data: currentUserData } = useDoc<AppUser>(currentUserDocRef);
+
+  // This query will only execute if the user is an Admin,
+  // because the `renderUsersCard` function will only render the component that uses it if the role is Admin.
+  // The firestore rules should align with this logic.
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || currentUserData?.role !== 'Admin') return null;
+    return collection(firestore, 'users');
+  }, [firestore, currentUserData?.role]);
+
+  const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -81,27 +46,10 @@ export default function AdminDashboardPage() {
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
-
-  const isLoading = isUserLoading || isCurrentUserDataLoading;
+  const totalUsers = users?.length ?? 0;
 
   const renderUsersCard = () => {
-    if (isLoading) {
-      return (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">...</div>
-            <p className="text-xs text-muted-foreground">
-              Verificando permisos...
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-    
+    // Only Admins can see the user count.
     if (currentUserData?.role === 'Admin') {
       return (
         <Card>
@@ -110,7 +58,10 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <TotalUsersCardContent />
+             <div className="text-2xl font-bold">{areUsersLoading ? '...' : totalUsers}</div>
+              <p className="text-xs text-muted-foreground">
+                Usuarios registrados en el sistema
+              </p>
           </CardContent>
         </Card>
       );
