@@ -16,10 +16,12 @@ interface AdminUsersPageProps {
 }
 
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
+  // All hooks must be called unconditionally at the top of the component.
   const firestore = useFirestore();
 
   const usersQuery = useMemoFirebase(() => {
-    // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
+    // Safe query: it's only created if the logged-in user is an Admin.
+    // The conditional logic is inside the hook, not around it.
     if (!firestore || user?.role !== 'Admin') {
       return null;
     }
@@ -28,9 +30,9 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // Si el usuario logueado no es un admin pero la página se renderiza,
-  // la consulta será nula y `isLoading` será falso, `users` será nulo.
-  // El AdminLayout ya previene el acceso, pero esta es una capa extra de seguridad visual.
+  // The conditional rendering logic is now placed after all hooks have been called.
+  // The AdminLayout already prevents non-admins from reaching this page,
+  // but this provides an extra layer of visual safety.
   if (user.role !== 'Admin') {
     return (
       <div className="container mx-auto">

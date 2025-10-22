@@ -14,8 +14,9 @@ interface AdminDashboardPageProps {
 export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const firestore = useFirestore();
 
+  // Hooks must be called unconditionally at the top level.
   const usersQuery = useMemoFirebase(() => {
-    // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
+    // The query is only created if the logged-in user is an Admin.
     if (!firestore || user?.role !== 'Admin') return null;
     return collection(firestore, 'users');
   }, [firestore, user]);
