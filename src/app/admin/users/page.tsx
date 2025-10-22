@@ -30,9 +30,7 @@ function UsersTable() {
                 const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser));
                 setUserList(users);
             } catch (error: any) {
-                console.error("Error fetching users:", error);
-                
-                // Emit a contextual error for permission issues
+                // NO console.error aquí.
                 if (error.code === 'permission-denied') {
                     const contextualError = new FirestorePermissionError({
                         path: 'users',
@@ -56,7 +54,7 @@ function UsersTable() {
         );
     }
 
-    if (userList.length === 0) {
+    if (userList.length === 0 && !isLoading) {
         return (
             <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">No se encontraron usuarios.</TableCell>

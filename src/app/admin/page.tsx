@@ -9,6 +9,8 @@ import type { User as AppUser, Document, Category } from "@/lib/types";
 import React, { useState, useEffect } from 'react';
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { useCollection } from "@/firebase/firestore/use-collection";
+
 
 // --- Componente Aislado para la Consulta ---
 function TotalUsersCardContent() {
@@ -25,10 +27,7 @@ function TotalUsersCardContent() {
         const querySnapshot = await getDocs(usersCollectionRef);
         setTotalUsers(querySnapshot.size);
       } catch (error: any) {
-        console.error("Error fetching user count:", error);
-        setTotalUsers(0); // Default to 0 on error
-        
-        // Emit a contextual error if it's a permission issue
+        // NO console.error aquí.
         if (error.code === 'permission-denied') {
             const contextualError = new FirestorePermissionError({
                 path: 'users',
@@ -36,6 +35,7 @@ function TotalUsersCardContent() {
             });
             errorEmitter.emit('permission-error', contextualError);
         }
+        setTotalUsers(0); // Default to 0 on error
       } finally {
         setIsLoading(false);
       }
