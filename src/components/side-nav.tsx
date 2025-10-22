@@ -18,6 +18,9 @@ import {
   BookCopy,
   Home,
   Shapes,
+  Users,
+  FileText,
+  LayoutDashboard,
 } from "lucide-react";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
@@ -44,6 +47,8 @@ const SideNav = () => {
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
+  const isAdminOrEditor = userData?.role === 'Admin' || userData?.role === 'Editor';
+
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
@@ -65,6 +70,38 @@ const SideNav = () => {
 
           {user && (
             <>
+              {isAdminOrEditor && (
+                <SidebarGroup>
+                  <SidebarGroupLabel>Administración</SidebarGroupLabel>
+                  <SidebarMenuItem>
+                    <Link href="/admin">
+                      <SidebarMenuButton isActive={isActive("/admin")} tooltip="Panel">
+                        <LayoutDashboard />
+                        <span>Panel</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <Link href="/admin/documents">
+                      <SidebarMenuButton isActive={pathname.startsWith("/admin/documents")} tooltip="Documentos">
+                        <FileText />
+                        <span>Documentos</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                  {userData?.role === 'Admin' && (
+                    <SidebarMenuItem>
+                      <Link href="/admin/users">
+                        <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">
+                          <Users />
+                          <span>Usuarios</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+                </SidebarGroup>
+              )}
+
               <SidebarGroup>
                 <SidebarGroupLabel>Categorías</SidebarGroupLabel>
                 {isLoading ? (

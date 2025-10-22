@@ -1,134 +1,136 @@
 /**
- * @file Firebase Security Rules for the virtual library application.
+ * @fileOverview Firestore Security Rules for the virtual library application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles,
- * and leverages separate collections for roles and public data (categories, tags, documents).
- * Authorization is enforced via the `request.auth` context.
+ * This ruleset enforces a role-based access control model.  Users have roles (Admin, Editor, User) which determine their access to different collections and documents. User documents are private and only accessible to the user themselves.
  *
  * Data Structure:
- * - `/users/{userId}`: User profile information. Only the authenticated user can access their own profile.
- * - `/categories/{categoryId}`: Categories for organizing documents. Publicly readable.
- * - `/tags/{tagId}`: Tags for cross-classification of documents. Publicly readable.
- * - `/documents/{documentId}`: Details of each document. Publicly readable.
- * - `/roles_admin/{userId}`: Collection to manage admin roles.
+ * - /users/{userId}: Stores user profile information, where userId is the Firebase Auth UID.
+ * - /categories/{categoryId}: Stores categories for documents. Publicly readable.
+ * - /tags/{tagId}: Stores tags for documents. Publicly readable.
+ * - /documents/{documentId}: Stores document metadata and file URLs. Publicly readable, but write access is restricted based on role.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Listing of all users is disallowed to protect privacy.
- * - Categories, tags, and documents are publicly readable, but writes are restricted.
- * - Admin privileges are granted by the existence of a document in `/roles_admin/{userId}`.
+ * - Users can only read and write their own user documents.
+ * - Listing users is disallowed to prevent enumeration attacks.
+ * - Categories and tags are publicly readable.
+ * - Documents are publicly readable. Write access to documents is role-based, either Admin or Editor.
  *
  * Denormalization for Authorization:
- * No denormalization is used in this version.
- *
- * Structural Segregation:
- * Admin roles are managed via a separate `roles_admin` collection, enabling simpler and more performant security rules.
+ *  - User roles are stored in the user document itself to simplify authorization checks.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
+     * @description Checks if the user is signed in.
+     * @param {string} userId The user ID to check against the request.auth.uid.
+     * @returns {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @description Checks if the user is the owner of the document.
+     * @param {string} userId The user ID to check against the request.auth.uid.
+     * @returns {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is an existing owner.
+     * @description Checks if the user is the owner of the document and the document exists.
+     * @param {string} userId The user ID to check against the request.auth.uid.
+     * @returns {boolean} True if the user is the owner and the document exists, false otherwise.
      */
     function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource);
+      return isOwner(userId) && resource != null;
+    }
+    /**
+     * @description Checks if the user has the specified role.
+     * @param {string} role The role to check for.
+     * @returns {boolean} True if the user has the role, false otherwise.
+     */
+    function hasRole(role) {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
     /**
-     * @description Checks if the user has admin privileges.
+     * @description Checks if the user is an Admin.
+     * @returns {boolean} True if the user is an Admin, false otherwise.
      */
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return hasRole('Admin');
     }
 
     /**
-     * @description Rules for user profile documents.
+     * @description Checks if the user is an Editor.
+     * @returns {boolean} True if the user is an Editor, false otherwise.
+     */
+    function isEditor() {
+      return hasRole('Editor');
+    }
+
+    /**
+     * @description Rules for user documents.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' creates their profile with matching ID.
-     * @allow (get, update, delete) Authenticated user with UID 'user123' accesses their own profile.
-     * @deny (get, update, delete) Authenticated user with UID 'user456' tries to access profile of 'user123'.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) User with matching ID can create their own document.
+     * @allow (get) User can read their own document.
+     * @deny (create) User tries to create a document with a mismatched ID.
+     * @deny (get) User tries to read another user's document.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false; // Do not allow listing all users
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow list: if false; // Disallow listing users for security.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id; // Enforce immutability of user ID.
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Rules for categories.
      * @path /categories/{categoryId}
-     * @allow (get, list) Any user can read categories.
-     * @deny (create, update, delete) Only admins can modify categories.
-     * @principle Public read access with restricted writes.
+     * @allow (get, list) All users can read categories.
+     * @allow (create, update, delete) Only Admins can create, update, or delete categories.
+     * @principle Public read, admin-only write.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
      * @description Rules for tags.
      * @path /tags/{tagId}
-     * @allow (get, list) Any user can read tags.
-     * @deny (create, update, delete) Only admins can modify tags.
-     * @principle Public read access with restricted writes.
+     * @allow (get, list) All users can read tags.
+     * @allow (create, update, delete) Only Admins can create, update, or delete tags.
+     * @principle Public read, admin-only write.
      */
     match /tags/{tagId} {
       allow get, list: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
      * @description Rules for documents.
      * @path /documents/{documentId}
-     * @allow (get, list) Any user can read documents.
-     * @deny (create, update, delete) Only admins can modify documents.
-     * @principle Public read access with restricted writes.
+     * @allow (get, list) All users can read documents.
+     * @allow (create, update, delete) Only Admins or Editors can create, update, or delete documents.
+     * @principle Public read, role-based write.
      */
     match /documents/{documentId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Rules for admin roles.
-     * @path /roles_admin/{userId}
-     * @allow (create) Only admins can assign admin roles.
-     * @allow (get) Only the user or an admin can read the role.
-     * @deny (list) Listing of admin roles is not allowed.
-     * @principle DBAC: Only admins can manage admin roles.
-     */
-    match /roles_admin/{userId} {
-        allow get: if isOwner(userId) || isAdmin();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if false;
-        allow delete: if isAdmin();
+      allow create: if isAdmin() || isEditor();
+      allow update: if (isAdmin() || isEditor()) && resource != null;
+      allow delete: if (isAdmin() || isEditor()) && resource != null;
     }
   }
 }

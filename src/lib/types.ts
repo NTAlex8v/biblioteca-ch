@@ -20,7 +20,7 @@ export type Document = {
 export type Category = {
     id: string;
     name: string;
-    description: string;
+    description:string;
     parentCategoryId?: string;
     icon?: LucideIcon; // Icon is optional now
 };
