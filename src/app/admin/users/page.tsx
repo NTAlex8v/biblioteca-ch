@@ -17,7 +17,12 @@ interface AdminUsersPageProps {
 
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
-  
+
+  // Guard clause to prevent rendering if user data is not yet available.
+  if (!user) {
+    return <p>Cargando datos de usuario...</p>;
+  }
+
   const usersQuery = useMemoFirebase(() => {
     // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
     if (!firestore || user?.role !== 'Admin') {
@@ -28,25 +33,26 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // Si el usuario logueado no es un admin, muestra un mensaje en lugar de una tabla vacía.
-  // Esta comprobación es ahora principalmente ilustrativa, ya que el layout maneja la denegación estricta.
-  if (user?.role !== 'Admin') {
+  // Si el usuario logueado no es un admin pero la página se renderiza,
+  // la consulta será nula y `isLoading` será falso, `users` será nulo.
+  // Mostramos el estado correspondiente.
+  if (user.role !== 'Admin') {
     return (
-        <div className="container mx-auto">
-            <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-            <p className="text-muted-foreground mt-4">Solo los administradores pueden ver esta sección.</p>
-        </div>
+      <div className="container mx-auto">
+        <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
+        <p className="text-muted-foreground mt-4">Solo los administradores pueden ver esta sección.</p>
+      </div>
     );
   }
 
   return (
     <div className="container mx-auto">
-        <div className="flex items-center justify-between mb-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-                <p className="text-muted-foreground">Administra los roles y el acceso de los usuarios.</p>
-            </div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
+          <p className="text-muted-foreground">Administra los roles y el acceso de los usuarios.</p>
         </div>
+      </div>
       <Card>
         <CardContent className="pt-6">
           <Table>
