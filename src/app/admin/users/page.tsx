@@ -30,10 +30,8 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   // The hook will receive a null query for non-admins, and won't fetch data.
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // If the user prop is not yet available, render nothing to avoid errors.
-  if (!user) {
-    return null; 
-  }
+  // The parent AdminLayout guarantees the user prop is available here.
+  // No need for a !user check.
 
   // If the user is not an admin, show a message instead of an empty table.
   if (user.role !== 'Admin') {

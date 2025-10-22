@@ -16,6 +16,7 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
 
   // Conditionally create queries based on the user's role
   const usersQuery = useMemoFirebase(() => {
+    // Important: check for user object before accessing role
     if (!firestore || !user || user.role !== 'Admin') return null;
     return collection(firestore, 'users');
   }, [firestore, user]);
@@ -38,10 +39,8 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
-  // Guard clause to prevent rendering if user data is not yet available.
-  if (!user) {
-    return null; 
-  }
+  // The parent AdminLayout guarantees the user prop is available here.
+  // No need for a !user check.
 
   return (
     <div className="container mx-auto">
