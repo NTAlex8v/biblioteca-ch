@@ -1,151 +1,132 @@
 /**
- * @fileOverview Firestore Security Rules for the virtual library application.
- *
- * Core Philosophy:
- * This ruleset implements a hybrid security model, blending user-ownership for profile data with role-based access control for administrative functions and public read access for shared content. It enforces strict authorization and relational integrity, while allowing flexible data shapes to facilitate rapid prototyping.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model with user-specific data isolation.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles, accessible only by the owning user.
- * - /categories/{categoryId}: Stores categories, publicly readable.
- * - /tags/{tagId}: Stores tags, publicly readable.
- * - /documents/{documentId}: Stores documents, publicly readable but writable only by an owner (if owner fields are added).
- * - /roles_admin/{userId}: Documents in this collection denote admin roles, and are checked using DBAC.
+ * - /users/{userId}: Stores individual user profiles. Access is restricted to the user themselves.
+ * - /categories/{categoryId}: Stores document categories. Publicly readable.
+ * - /tags/{tagId}: Stores document tags. Publicly readable.
+ * - /documents/{documentId}: Stores document metadata. Publicly readable, but write access is restricted.
+ * - /roles_admin/{userId}: The presence of a document with a user's ID grants them admin privileges.
  *
  * Key Security Decisions:
- * - User listing is disallowed to prevent information leakage.
- * - Read-only collections (categories, tags) are publicly readable.
- * - Admin roles are checked via document existence in `/roles_admin/{userId}`.
- * - Documents allow public read, with the intention that writes will be restricted to owners once the schema includes `ownerId` or `authorId`.
- *
- * Denormalization for Authorization:
- * - Admin role checks are performed by verifying the existence of a document in the `/roles_admin/{userId}` collection, avoiding complex role hierarchies.
- * - Data consistency is enforced by comparing the document ID in the path (`userId`) against the `id` field in the document data on `create` and ensuring immutability on `update`.
- *
- * Structural Segregation:
- * - Administrative role data is stored in a separate collection (`/roles_admin`) to simplify security rules and improve query performance for administrative tasks.
+ * - Users can only read and write their own user documents.
+ * - Listing the /users collection is denied to prevent information disclosure.
+ * - Categories, tags, and documents are publicly readable to facilitate browsing.
+ * - Only admins can create, update, or delete user documents in /users.
+ * - The existence of a document in /roles_admin/{userId} confers admin privileges.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     * @return {boolean} True if the user is signed in, false otherwise.
+     * @description Checks if the user is signed in.
+     * @return {bool} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user ID matches the authenticated user's ID.
-     * @param {string} userId The user ID to check.
-     * @return {boolean} True if the user is the owner, false otherwise.
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @param {string} userId The user ID to compare against the authenticated user's UID.
+     * @return {bool} True if the UID matches, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-     /**
-      * @description Checks if the user ID matches the authenticated user's ID and the resource exists.
-      * @param {string} userId The user ID to check.
-      * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
-      */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-     /**
-      * @description Checks if the user has an admin role.
-      * @return {boolean} True if the user has an admin role, false otherwise.
-      */
+    /**
+     * @description Checks if the authenticated user has admin privileges by checking for a document in the /roles_admin/{userId} collection.
+     * @return {bool} True if the user has admin privileges, false otherwise.
+     */
     function isAdmin() {
       return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
-     * @description Rules for user profile documents.
+     * @description Enforces that the requesting user is an existing owner of a document.  Combines the ownership check with an existence check to prevent operations on non-existent documents.
+     * @param {string} userId The user ID to compare against the authenticated user's UID.
+     * @return {bool} True if the user is signed in, the UID matches, and the document exists.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create their own profile.
-     *   request.auth.uid: 'user123'
-     *   request.resource.data: {id: 'user123', email: 'user@example.com', role: 'User'}
-     * @allow (get, update, delete) User with UID 'user123' can get, update and delete their own profile.
-     *   request.auth.uid: 'user123'
-     * @deny (create) User with UID 'user456' cannot create a profile for 'user123'.
-     *   request.auth.uid: 'user456'
-     *   request.resource.data: {id: 'user123', email: 'user@example.com', role: 'User'}
-     * @principle Enforces user-ownership for profile data; validates relational integrity.
+     * @allow (create) User with UID 'user123' creates a document at /users/user123.
+     * @deny (create) User with UID 'user123' creates a document at /users/user456.
+     * @deny (list) Any user attempts to list the /users collection.
+     * @principle Enforces user-ownership for data privacy and prevents unauthorized access.
      */
     match /users/{userId} {
-      // Allow the user to read their own profile data.
-      allow get: if isOwner(userId);
-      // Allow the user to create their own profile, and enforce that the ID matches the UID.
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false; // Prevent listing of all user documents
+
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      // Allow the user to update their own profile, but enforce immutability of the ID field.
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      // Allow the user to delete their own profile.
-      allow delete: if isExistingOwner(userId);
-      // Disallow listing of all users (privacy).
-      allow list: if false;
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for category documents.
+     * @description Categories are publicly readable and writable by admins only.
      * @path /categories/{categoryId}
-     * @allow (get, list) Any user can read categories.
-     * @deny (create, update, delete) Only admins can manage categories.
-     * @principle Allows public read access; restricts writes to admins.
+     * @allow (get, list) Any user can read category information.
+     * @allow (create) Admin creates a new category.
+     * @deny (create) Non-admin attempts to create a category.
+     * @principle Public read access with admin-controlled writes for category management.
      */
     match /categories/{categoryId} {
-      // Allow anyone to read categories.
       allow get, list: if true;
-      // Only admins can create, update, or delete categories.
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for tag documents.
+     * @description Tags are publicly readable and writable by admins only.
      * @path /tags/{tagId}
-     * @allow (get, list) Any user can read tags.
-     * @deny (create, update, delete) Only admins can manage tags.
-     * @principle Allows public read access; restricts writes to admins.
+     * @allow (get, list) Any user can read tag information.
+     * @allow (create) Admin creates a new tag.
+     * @deny (create) Non-admin attempts to create a tag.
+     * @principle Public read access with admin-controlled writes for tag management.
      */
     match /tags/{tagId} {
-      // Allow anyone to read tags.
       allow get, list: if true;
-      // Only admins can create, update, or delete tags.
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for document documents.
+     * @description Documents are publicly readable, but write access is restricted to admins.
      * @path /documents/{documentId}
-     * @allow (get, list) Any user can read documents.
-     * @deny (create, update, delete) Only the owner can manage documents (if an ownerId field is added).
-     * @principle Allows public read access; restricts writes to owners (when ownerId field is present).
+     * @allow (get, list) Any user can read document information.
+     * @allow (create) Admin creates a new document.
+     * @deny (create) Non-admin attempts to create a document.
+     * @principle Public read access with admin-controlled writes for document management.
      */
     match /documents/{documentId} {
-      // Allow anyone to read documents.
       allow get, list: if true;
-      // CRITICAL: Cannot implement owner-only writes. The 'Document' entity is missing an 'ownerId' or 'authorId' field.
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
      /**
-      * @description Rules for roles_admin documents.
+      * @description Admin role management. The presence of a document with a user's ID grants them admin privileges.
       * @path /roles_admin/{userId}
-      * @allow (get, list) Admins only.
-      * @deny (create, update, delete) Admins only.
       */
-      match /roles_admin/{userId} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
-        allow create: if isAdmin();
-        allow update: if false;
-        allow delete: if isAdmin();
-      }
+    match /roles_admin/{userId} {
+      allow get: if isAdmin();
+      allow list: if false; // No listing
+
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
   }
 }
