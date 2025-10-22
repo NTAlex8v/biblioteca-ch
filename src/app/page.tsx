@@ -3,39 +3,59 @@
 import * as React from 'react';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockDocuments, mockCategories } from "@/lib/data";
 import DocumentCard from "@/components/document-card";
-import type { Document } from "@/lib/types";
+import type { Document, Category } from "@/lib/types";
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 
 export default function Home() {
-  const [documents, setDocuments] = React.useState<Document[]>(mockDocuments);
+  const firestore = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [yearFilter, setYearFilter] = React.useState("all");
 
-  React.useEffect(() => {
-    let filtered = mockDocuments;
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'documents');
+  }, [firestore]);
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'categories');
+  }, [firestore]);
+
+  const { data: documentsData, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
+  const { data: categoriesData, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+
+  const filteredDocuments = React.useMemo(() => {
+    if (!documentsData) return [];
+
+    let filtered = documentsData;
 
     if (searchTerm) {
+      const lowercasedTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(doc =>
-        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.description.toLowerCase().includes(searchTerm.toLowerCase())
+        doc.title.toLowerCase().includes(lowercasedTerm) ||
+        doc.author.toLowerCase().includes(lowercasedTerm) ||
+        doc.description.toLowerCase().includes(lowercasedTerm)
       );
     }
 
     if (categoryFilter !== "all") {
-      filtered = filtered.filter(doc => doc.category === categoryFilter);
+      filtered = filtered.filter(doc => doc.categoryId === categoryFilter);
     }
     
     if (yearFilter !== "all") {
       filtered = filtered.filter(doc => doc.year === parseInt(yearFilter));
     }
 
-    setDocuments(filtered);
-  }, [searchTerm, categoryFilter, yearFilter]);
+    return filtered;
+  }, [documentsData, searchTerm, categoryFilter, yearFilter]);
 
-  const uniqueYears = [...new Set(mockDocuments.map(doc => doc.year))].sort((a, b) => b - a);
+  const uniqueYears = React.useMemo(() => {
+    if (!documentsData) return [];
+    return [...new Set(documentsData.map(doc => doc.year))].sort((a, b) => b - a);
+  }, [documentsData]);
 
   return (
     <div className="container mx-auto">
@@ -59,8 +79,8 @@ export default function Home() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas las Categorías</SelectItem>
-              {mockCategories.map(cat => (
-                <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+              {categoriesData?.map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -78,9 +98,13 @@ export default function Home() {
         </div>
       </div>
       
-      {documents.length > 0 ? (
+      {isLoadingDocuments ? (
+        <div className="text-center py-16">
+          <p>Cargando documentos...</p>
+        </div>
+      ) : filteredDocuments.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {documents.map(doc => (
+          {filteredDocuments.map(doc => (
             <DocumentCard key={doc.id} document={doc} />
           ))}
         </div>

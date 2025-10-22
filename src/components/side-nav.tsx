@@ -21,15 +21,26 @@ import {
   Upload,
   Users,
   FileText,
+  Shapes,
 } from "lucide-react";
-import { mockCategories } from "@/lib/data";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Category } from "@/lib/types";
 
 const SideNav = () => {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   
-  // In a real app, this would come from an auth context
-  const userRole = 'Admin'; 
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const userRole = 'Admin'; // Mock role, should be replaced with user.customClaims.role or similar
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'categories');
+  }, [firestore]);
+
+  const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -52,19 +63,23 @@ const SideNav = () => {
 
           <SidebarGroup>
             <SidebarGroupLabel>Categorías</SidebarGroupLabel>
-            {mockCategories.map((category) => (
-              <SidebarMenuItem key={category.id}>
-                <Link href={`/category/${category.id}`}>
-                  <SidebarMenuButton
-                    isActive={isActive(`/category/${category.id}`)}
-                    tooltip={category.name}
-                  >
-                    <category.icon />
-                    <span>{category.name}</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
-            ))}
+            {isLoading ? (
+              <p className="px-2 text-xs text-muted-foreground">Cargando...</p>
+            ) : (
+              categories?.map((category) => (
+                <SidebarMenuItem key={category.id}>
+                  <Link href={`/category/${category.id}`}>
+                    <SidebarMenuButton
+                      isActive={isActive(`/category/${category.id}`)}
+                      tooltip={category.name}
+                    >
+                      <Shapes />
+                      <span>{category.name}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))
+            )}
           </SidebarGroup>
           
           {userRole === 'Admin' && (

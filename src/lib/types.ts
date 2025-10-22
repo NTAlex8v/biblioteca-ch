@@ -11,6 +11,10 @@ export type Document = {
     tagIds?: string[];
     lastUpdated: string; // Should be a date-time string
     versionHistory?: string[];
+    thumbnailUrl?: string; // Added for card display
+    subject?: string; // Added for document info
+    version?: string; // Added for document info
+    tags?: string[]; // To hold tag names for display
 };
 
 export type Category = {
@@ -18,7 +22,7 @@ export type Category = {
     name: string;
     description: string;
     parentCategoryId?: string;
-    icon: LucideIcon;
+    icon?: LucideIcon; // Icon is optional now
 };
 
 export type Tag = {
@@ -30,8 +34,8 @@ export type User = {
     id: string;
     email: string;
     role: 'Admin' | 'Editor' | 'User';
-    avatarUrl?: string; // Made optional
-    lastActivity?: string; // Made optional
-    createdAt?: string; // Made optional
-    name?: string; // Made optional
+    avatarUrl?: string; 
+    lastActivity?: string;
+    createdAt?: string; 
+    name?: string;
 };

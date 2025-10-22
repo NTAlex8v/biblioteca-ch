@@ -1,13 +1,36 @@
+"use client";
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { mockDocuments } from "@/lib/data";
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Document, Category } from "@/lib/types";
 
 export default function AdminDocumentsPage() {
+  const firestore = useFirestore();
+
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'documents');
+  }, [firestore]);
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'categories');
+  }, [firestore]);
+
+  const { data: documents, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+
+  const getCategoryName = (categoryId: string) => {
+    return categories?.find(c => c.id === categoryId)?.name || 'Sin categoría';
+  }
+
   return (
     <div className="container mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -38,31 +61,37 @@ export default function AdminDocumentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockDocuments.map((doc) => (
-                <TableRow key={doc.id}>
-                  <TableCell className="font-medium">{doc.title}</TableCell>
-                  <TableCell className="hidden md:table-cell">{doc.author}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{doc.category}</Badge>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">{doc.year}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+              {isLoadingDocuments || isLoadingCategories ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                documents?.map((doc) => (
+                  <TableRow key={doc.id}>
+                    <TableCell className="font-medium">{doc.title}</TableCell>
+                    <TableCell className="hidden md:table-cell">{doc.author}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{getCategoryName(doc.categoryId)}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">{doc.year}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem>Editar</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

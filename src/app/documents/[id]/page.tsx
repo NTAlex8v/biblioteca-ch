@@ -1,19 +1,61 @@
+"use client";
+
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { mockDocuments } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Download, Eye } from 'lucide-react';
 import Link from 'next/link';
+import { useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
+import { useMemo } from 'react';
+import type { Document, Category, Tag } from '@/lib/types';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function DocumentPage({ params }: { params: { id: string } }) {
-  const document = mockDocuments.find((doc) => doc.id === params.id);
+  const firestore = useFirestore();
+
+  const docRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, 'documents', params.id);
+  }, [firestore, params.id]);
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'categories');
+  }, [firestore]);
+
+  const tagsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'tags');
+  }, [firestore]);
+
+  const { data: document, isLoading: isLoadingDocument } = useDoc<Document>(docRef);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+  const { data: allTags, isLoading: isLoadingTags } = useCollection<Tag>(tagsQuery);
+
+  const categoryName = useMemo(() => {
+    if (!document || !categories) return '...';
+    return categories.find(c => c.id === document.categoryId)?.name || 'Sin categoría';
+  }, [document, categories]);
+
+  const documentTags = useMemo(() => {
+    if (!document?.tagIds || !allTags) return [];
+    return allTags.filter(tag => document.tagIds?.includes(tag.id));
+  }, [document, allTags]);
+
+  if (isLoadingDocument || isLoadingCategories || isLoadingTags) {
+    return <div>Cargando...</div>;
+  }
 
   if (!document) {
     notFound();
   }
+
+  // Find a placeholder image. Fallback to a default one.
+  const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
+  const thumbnailUrl = document.thumbnailUrl || randomImage.imageUrl;
 
   return (
     <div className="container mx-auto max-w-5xl">
@@ -22,7 +64,7 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
           <Card className="overflow-hidden sticky top-24">
             <div className="relative aspect-[2/3] w-full">
               <Image
-                src={document.thumbnailUrl}
+                src={thumbnailUrl}
                 alt={`Cover of ${document.title}`}
                 fill
                 className="object-cover"
@@ -36,15 +78,15 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
           <h1 className="text-3xl lg:text-4xl font-bold tracking-tight mb-2">{document.title}</h1>
           <p className="text-xl text-muted-foreground mb-4">{document.author}</p>
           <div className="flex items-center gap-4 mb-6">
-            <Badge variant="default">{document.category}</Badge>
+            <Badge variant="default">{categoryName}</Badge>
             <span className="text-sm text-muted-foreground">Año: {document.year}</span>
           </div>
 
           <p className="text-base leading-relaxed mb-8">{document.description}</p>
 
           <div className="flex flex-wrap gap-2 mb-8">
-            {document.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">{tag}</Badge>
+            {documentTags.map((tag) => (
+              <Badge key={tag.id} variant="secondary">{tag.name}</Badge>
             ))}
           </div>
 
@@ -56,11 +98,11 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <p className="font-medium">Materia</p>
-                        <p className="text-muted-foreground">{document.subject}</p>
+                        <p className="text-muted-foreground">{document.subject || 'N/A'}</p>
                     </div>
                     <div>
                         <p className="font-medium">Versión</p>
-                        <p className="text-muted-foreground">{document.version}</p>
+                        <p className="text-muted-foreground">{document.version || '1.0'}</p>
                     </div>
                     <div>
                         <p className="font-medium">Última Actualización</p>
