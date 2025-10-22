@@ -2,26 +2,27 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Shapes } from "lucide-react";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const documentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'documents');
-  }, [firestore]);
+  }, [firestore, user]);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'users');
-  }, [firestore]);
+  }, [firestore, user]);
 
   const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'categories');
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: documents } = useCollection(documentsQuery);
   const { data: users } = useCollection(usersQuery);
