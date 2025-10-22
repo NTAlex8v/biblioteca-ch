@@ -12,19 +12,14 @@ import { MoreHorizontal } from "lucide-react";
 import type { User } from "@/lib/types";
 
 interface AdminUsersPageProps {
-  user: User; // The currently logged-in admin/editor user
+  user: User; // El usuario admin/editor logueado
 }
 
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
-
-  // Defensive check: Wait for user prop to be passed before proceeding.
-  if (!user) {
-    return <p>Cargando datos de usuario...</p>;
-  }
   
   const usersQuery = useMemoFirebase(() => {
-    // Securely check for user and role before creating the query
+    // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
     if (!firestore || user.role !== 'Admin') {
       return null;
     }
@@ -33,8 +28,8 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // If the logged-in user is not an admin, show a message instead of an empty table.
-  // This check is now mostly for illustrative purposes, as the layout handles the hard denial.
+  // Si el usuario logueado no es un admin, muestra un mensaje en lugar de una tabla vacía.
+  // Esta comprobación es ahora principalmente ilustrativa, ya que el layout maneja la denegación estricta.
   if (user.role !== 'Admin') {
     return (
         <div className="container mx-auto">
