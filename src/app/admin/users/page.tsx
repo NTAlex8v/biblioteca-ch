@@ -28,12 +28,8 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // If the user prop from the layout is not yet available, show a loading state.
-  if (!user) {
-    return <p>Cargando datos de usuario...</p>;
-  }
-
   // If the logged-in user is not an admin, show a message instead of an empty table.
+  // This check is now mostly for illustrative purposes, as the layout handles the hard denial.
   if (user.role !== 'Admin') {
     return (
         <div className="container mx-auto">

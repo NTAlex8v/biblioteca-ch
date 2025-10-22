@@ -34,11 +34,6 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const { data: documents } = useCollection<Document>(documentsQuery);
   const { data: categories } = useCollection<Category>(categoriesQuery);
 
-  // If the user prop is not yet available, show a loading state.
-  if (!user) {
-    return <p>Cargando datos de usuario...</p>;
-  }
-
   const totalDocuments = documents?.length ?? 0;
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;

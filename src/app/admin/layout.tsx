@@ -44,10 +44,11 @@ export default function AdminLayout({
 
   // Clone the child element and pass the definitive user data from Firestore.
   // This ensures the child page always has the correct user prop.
+  // The key is important to ensure React re-renders the child when userData changes.
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
-      // The key is important to ensure React re-renders the child when userData changes.
-      // We use the user's UID to ensure stability once loaded.
+      // Using the user's ID in the key ensures it's stable once loaded, but forces a re-render
+      // when the child initially receives the prop.
       return React.cloneElement(child, { user: userData, key: userData.id } as any);
     }
     return child;
