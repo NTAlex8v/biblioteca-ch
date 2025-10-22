@@ -88,10 +88,6 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {showAccessDenied && (
-         <p className="text-muted-foreground mt-4">Solo los administradores pueden ver esta sección.</p>
-      )}
-
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -112,6 +108,11 @@ export default function AdminUsersPage() {
                   <TableCell colSpan={5} className="text-center">Verificando permisos...</TableCell>
                 </TableRow>
               )}
+              {showAccessDenied && (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">Solo los administradores pueden ver esta sección.</TableCell>
+                </TableRow>
+              )}
               {isRoleVerified && <UsersTable />}
             </TableBody>
           </Table>
@@ -120,4 +121,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-

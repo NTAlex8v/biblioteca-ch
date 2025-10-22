@@ -9,7 +9,11 @@ import type { User, Document, Category } from "@/lib/types";
 
 function TotalUsersCardContent() {
   const firestore = useFirestore();
-  const usersQuery = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'users');
+  }, [firestore]);
+  
   const { data: users, isLoading: areUsersLoading } = useCollection<User>(usersQuery);
   const totalUsers = users?.length ?? 0;
 
@@ -47,8 +51,8 @@ export default function AdminDashboardPage() {
   const { data: documents, isLoading: areDocumentsLoading } = useCollection<Document>(documentsQuery);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection<Category>(categoriesQuery);
 
-  const isLoading = isAuthLoading || isCurrentUserDataLoading || areDocumentsLoading || areCategoriesLoading;
-  const isRoleVerified = !isCurrentUserDataLoading && currentUserData?.role === 'Admin';
+  const isLoading = isAuthLoading || isCurrentUserDataLoading;
+  const isRoleVerified = !isLoading && currentUserData?.role === 'Admin';
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
