@@ -1,10 +1,13 @@
 
 "use client";
 
-import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import type { User as AppUser } from "@/lib/types";
-import { doc } from "firebase/firestore";
-import React from "react";
+import { useUser } from "@/firebase";
+import React, { useEffect, useState } from "react";
+
+type UserClaims = {
+  role?: string;
+  [key: string]: any;
+};
 
 export default function AdminLayout({
   children,
@@ -12,16 +15,33 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
+  const [claims, setClaims] = useState<UserClaims | null>(null);
+  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
+  useEffect(() => {
+    if (isUserLoading) {
+      return;
+    }
+    if (!user) {
+      setIsLoadingClaims(false);
+      return;
+    }
 
-  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
+    user.getIdTokenResult()
+      .then((idTokenResult) => {
+        setClaims(idTokenResult.claims);
+      })
+      .catch(() => {
+        // Handle error fetching claims if necessary
+        setClaims(null);
+      })
+      .finally(() => {
+        setIsLoadingClaims(false);
+      });
+  }, [user, isUserLoading]);
+
   
-  if (isUserLoading || isUserDataLoading) {
+  if (isUserLoading || isLoadingClaims) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
             <p>Verificando permisos...</p>
@@ -29,7 +49,11 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) {
+  const isAdmin = claims?.role === 'Admin';
+  const isEditor = claims?.role === 'Editor';
+
+
+  if (!user || (!isAdmin && !isEditor)) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <div className="text-center">
@@ -42,7 +66,13 @@ export default function AdminLayout({
     );
   }
 
-  // Una vez que los permisos están verificados, simplemente renderiza los hijos.
-  // Las páginas hijas serán responsables de obtener sus propios datos si los necesitan.
-  return <>{children}</>;
+  // Pass claims to children
+  const childrenWithProps = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { claims } as { claims: UserClaims });
+    }
+    return child;
+  });
+
+  return <>{childrenWithProps}</>;
 }

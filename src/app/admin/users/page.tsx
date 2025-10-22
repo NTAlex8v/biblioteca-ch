@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
 
@@ -16,6 +16,7 @@ function UsersTable() {
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is now safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
 
@@ -63,21 +64,8 @@ function UsersTable() {
   );
 }
 
-
-export default function AdminUsersPage() {
-  const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser]);
-
-  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(userDocRef);
-
-  const isLoading = isAuthLoading || isCurrentUserDataLoading;
-  const isRoleVerified = !isLoading && currentUserData?.role === 'Admin';
-  const showAccessDenied = !isLoading && currentUserData?.role !== 'Admin';
+export default function AdminUsersPage({ claims }: { claims?: { role?: string } }) {
+  const isAdmin = claims?.role === 'Admin';
 
   return (
     <div className="container mx-auto">
@@ -103,17 +91,13 @@ export default function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center">Verificando permisos...</TableCell>
-                </TableRow>
-              )}
-              {showAccessDenied && (
-                <TableRow>
+              {!isAdmin ? (
+                 <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">Solo los administradores pueden ver esta sección.</TableCell>
                 </TableRow>
+              ) : (
+                <UsersTable />
               )}
-              {isRoleVerified && <UsersTable />}
             </TableBody>
           </Table>
         </CardContent>

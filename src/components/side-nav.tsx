@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -22,23 +23,34 @@ import {
   FileText,
   Shapes,
 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
-import type { Category, User as AppUser } from "@/lib/types";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Category } from "@/lib/types";
+import { useEffect, useState } from "react";
+
+type UserClaims = {
+  role?: string;
+  [key: string]: any;
+};
 
 const SideNav = () => {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+  const [claims, setClaims] = useState<UserClaims | null>(null);
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
+  useEffect(() => {
+    if (!user) {
+      setClaims(null);
+      return;
+    }
+    user.getIdTokenResult().then((idTokenResult) => {
+      setClaims(idTokenResult.claims);
+    });
+  }, [user]);
 
-  const { data: userData } = useDoc<AppUser>(userDocRef);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -47,7 +59,7 @@ const SideNav = () => {
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
-  const userRole = userData?.role;
+  const userRole = claims?.role;
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -110,14 +122,16 @@ const SideNav = () => {
                             </SidebarMenuButton>
                         </Link>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
-                        <Link href="/admin/users">
-                            <SidebarMenuButton isActive={isActive("/admin/users")} tooltip="Usuarios">
-                                <Users />
-                                <span>Usuarios</span>
-                            </SidebarMenuButton>
-                        </Link>
-                    </SidebarMenuItem>
+                    {userRole === 'Admin' && (
+                        <SidebarMenuItem>
+                            <Link href="/admin/users">
+                                <SidebarMenuButton isActive={isActive("/admin/users")} tooltip="Usuarios">
+                                    <Users />
+                                    <span>Usuarios</span>
+                                </SidebarMenuButton>
+                            </Link>
+                        </SidebarMenuItem>
+                    )}
                      <SidebarMenuItem>
                         <Link href="/admin/upload">
                             <SidebarMenuButton isActive={isActive("/admin/upload")} tooltip="Subir Material">

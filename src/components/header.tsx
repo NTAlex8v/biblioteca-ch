@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -13,7 +14,7 @@ import {
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
 import { doc } from "firebase/firestore";
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,11 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import type { User as AppUser } from "@/lib/types";
 import SearchInputHandler from "./search-input-handler";
+
+type UserClaims = {
+  role?: string;
+  [key: string]: any;
+};
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -63,14 +69,17 @@ const Header = () => {
   const { isMobile } = useSidebar();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
+  const [claims, setClaims] = useState<UserClaims | null>(null);
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "users", user.uid);
-  }, [firestore, user]);
-
-  const { data: userData } = useDoc<AppUser>(userDocRef);
+   useEffect(() => {
+    if (!user) {
+      setClaims(null);
+      return;
+    }
+    user.getIdTokenResult().then((idTokenResult) => {
+      setClaims(idTokenResult.claims);
+    });
+  }, [user]);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,7 +108,7 @@ const Header = () => {
         )
     }
 
-    if (!user || !userData) {
+    if (!user) {
       return (
           <Button asChild variant="outline">
               <Link href="/login">Iniciar Sesión</Link>
@@ -112,9 +121,9 @@ const Header = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src={userData.avatarUrl} alt={userData.name} />
+                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || ""} />
                 <AvatarFallback>
-                  {userData.name?.charAt(0) || user.email?.charAt(0)}
+                  {user.displayName?.charAt(0) || user.email?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -123,7 +132,7 @@ const Header = () => {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  {userData.name || 'Usuario'}
+                  {user.displayName || 'Usuario'}
                 </p>
                 <p className="text-xs leading-none text-muted-foreground">
                   {user.email}
@@ -138,7 +147,7 @@ const Header = () => {
                   <span>Perfil</span>
                 </DropdownMenuItem>
               </Link>
-              {userData.role === 'Admin' && (
+              {(claims?.role === 'Admin' || claims?.role === 'Editor') && (
                 <Link href="/admin">
                     <DropdownMenuItem>
                     <UserCog className="mr-2 h-4 w-4" />

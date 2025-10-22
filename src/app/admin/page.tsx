@@ -2,8 +2,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User, Document, Category } from "@/lib/types";
 
@@ -11,6 +11,7 @@ function TotalUsersCardContent() {
   const firestore = useFirestore();
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is now safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
   
@@ -27,17 +28,9 @@ function TotalUsersCardContent() {
   );
 }
 
-export default function AdminDashboardPage() {
+export default function AdminDashboardPage({ claims }: { claims?: { role?: string } }) {
   const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser]);
-  
-  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
-  
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'documents');
@@ -51,15 +44,10 @@ export default function AdminDashboardPage() {
   const { data: documents, isLoading: areDocumentsLoading } = useCollection<Document>(documentsQuery);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection<Category>(categoriesQuery);
 
-  const isLoading = isAuthLoading || isCurrentUserDataLoading;
-  const isRoleVerified = !isLoading && currentUserData?.role === 'Admin';
+  const isAdmin = claims?.role === 'Admin';
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
-
-  if (isLoading && !currentUserData) {
-      return <p>Cargando datos del panel...</p>
-  }
 
   return (
     <div className="container mx-auto">
@@ -79,7 +67,7 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
         
-        {isRoleVerified && (
+        {isAdmin && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
