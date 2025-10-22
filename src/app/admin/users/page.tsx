@@ -14,7 +14,7 @@ interface AdminUsersPageProps {
 }
 
 export default function AdminUsersPage({ users }: AdminUsersPageProps) {
-  const isLoading = !users;
+  const isLoading = users === undefined;
 
   return (
     <div className="container mx-auto">

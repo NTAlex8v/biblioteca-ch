@@ -16,7 +16,7 @@ interface AdminDocumentsPageProps {
 }
 
 export default function AdminDocumentsPage({ documents, categories }: AdminDocumentsPageProps) {
-  const isLoading = !documents || !categories;
+  const isLoading = documents === undefined || categories === undefined;
 
   const getCategoryName = (categoryId: string) => {
     if (!categories) return '...';

@@ -2,7 +2,7 @@
 "use client";
 
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from "@/firebase";
-import type { User as AppUser, Document, Category, Tag } from "@/lib/types";
+import type { User as AppUser, Document, Category } from "@/lib/types";
 import { doc, collection } from "firebase/firestore";
 import React from "react";
 
@@ -21,18 +21,26 @@ export default function AdminLayout({
 
   const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
 
+  // IMPORTANT: Queries are now conditional on userData and role.
+  // They will be null if the user is not an admin/editor, preventing the hooks from running.
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !userData || userData.role !== 'Admin') return null;
+    if (!firestore || !userData || userData.role !== 'Admin') {
+      return null;
+    }
     return collection(firestore, 'users');
   }, [firestore, userData]);
 
   const documentsQuery = useMemoFirebase(() => {
-    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) return null;
+    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) {
+      return null;
+    }
     return collection(firestore, 'documents');
   }, [firestore, userData]);
 
   const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) return null;
+    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) {
+      return null;
+    }
     return collection(firestore, 'categories');
   }, [firestore, userData]);
   
@@ -42,7 +50,8 @@ export default function AdminLayout({
 
   const isLoading = isUserLoading || isUserDataLoading || isLoadingUsers || isLoadingDocuments || isLoadingCategories;
   
-  if (isLoading) {
+  // Primary loading state until user role is determined
+  if (isUserLoading || isUserDataLoading) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
             <p>Cargando...</p>
@@ -50,7 +59,8 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || (userData?.role !== 'Admin' && userData?.role !== 'Editor')) {
+  // Strict access control. If not an Admin or Editor, deny access and DO NOT render children.
+  if (!user || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <div className="text-center">
@@ -63,12 +73,24 @@ export default function AdminLayout({
     );
   }
 
+  // If authorized, clone the child element and pass the fetched data as props.
+  // This ensures the child page has the data it needs without fetching it again.
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
-      return React.cloneElement(child, { users, documents, categories } as any);
+      // Pass only the necessary data to each child.
+      // This prevents, for example, an Editor from getting a list of users.
+      const props: any = {
+        documents,
+        categories,
+      };
+      if (userData.role === 'Admin') {
+        props.users = users;
+      }
+      return React.cloneElement(child, props);
     }
     return child;
   });
 
+  // Render children only after all checks have passed
   return <>{childrenWithProps}</>;
 }
