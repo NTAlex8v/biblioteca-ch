@@ -20,12 +20,12 @@ export default function AdminDashboardPage() {
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
   
   const usersQuery = useMemoFirebase(() => {
-    // Solo crea la consulta si la carga de datos del usuario ha finalizado y el rol es 'Admin'.
-    // Esto previene errores de permisos por condiciones de carrera.
+    // Only create the query if the user data has finished loading and the role is 'Admin'.
+    // This prevents permission errors from race conditions.
     if (firestore && !isCurrentUserDataLoading && currentUserData?.role === 'Admin') {
       return collection(firestore, 'users');
     }
-    return null;
+    return null; // Return null if conditions are not met
   }, [firestore, isCurrentUserDataLoading, currentUserData?.role]);
 
   const documentsQuery = useMemoFirebase(() => {
@@ -42,9 +42,10 @@ export default function AdminDashboardPage() {
   const { data: documents, isLoading: areDocumentsLoading } = useCollection<Document>(documentsQuery);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection<Category>(categoriesQuery);
 
-  const isLoading = isAuthLoading || isCurrentUserDataLoading || areUsersLoading || areDocumentsLoading || areCategoriesLoading;
+  const isLoading = isAuthLoading || isCurrentUserDataLoading || areDocumentsLoading || areCategoriesLoading;
   
   const totalDocuments = documents?.length ?? 0;
+  // If users query is not executed (not admin), users will be null, and totalUsers will be 0
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
@@ -76,7 +77,7 @@ export default function AdminDashboardPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalUsers}</div>
+              <div className="text-2xl font-bold">{areUsersLoading ? '...' : totalUsers}</div>
               <p className="text-xs text-muted-foreground">
                 Usuarios registrados en el sistema
               </p>

@@ -23,18 +23,18 @@ export default function AdminUsersPage() {
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(userDocRef);
 
   const usersQuery = useMemoFirebase(() => {
-    // Solo crea la consulta si la carga de datos del usuario ha finalizado y el rol es 'Admin'.
-    // Esto previene errores de permisos por condiciones de carrera.
-    if (!isCurrentUserDataLoading && currentUserData?.role === 'Admin') {
+    // Only create the query if the user data has finished loading and the role is 'Admin'.
+    // This prevents permission errors from race conditions.
+    if (firestore && !isCurrentUserDataLoading && currentUserData?.role === 'Admin') {
       return collection(firestore, 'users');
     }
-    return null;
+    return null; // Return null if conditions are not met
   }, [firestore, isCurrentUserDataLoading, currentUserData?.role]);
 
 
   const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
 
-  const isLoading = isAuthLoading || isCurrentUserDataLoading || areUsersLoading;
+  const isLoading = isAuthLoading || isCurrentUserDataLoading;
 
   if (!isLoading && currentUserData?.role !== 'Admin') {
      return (
@@ -68,7 +68,7 @@ export default function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && !users ? (
+              {isLoading || areUsersLoading ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center">Cargando usuarios...</TableCell>
                 </TableRow>
