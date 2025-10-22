@@ -18,20 +18,22 @@ interface AdminUsersPageProps {
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
   
-  // The parent AdminLayout guarantees the user prop is available and correct.
-  // No need for an additional loading check here.
-
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || user.role !== 'Admin') {
+    // Securely check for user and role before creating the query
+    if (!firestore || !user || user.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
-  }, [firestore, user.role]);
+  }, [firestore, user]);
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
+  // If the user prop from the layout is not yet available, show a loading state.
+  if (!user) {
+    return <p>Cargando datos de usuario...</p>;
+  }
 
-  // If the user is not an admin, show a message instead of an empty table.
+  // If the logged-in user is not an admin, show a message instead of an empty table.
   if (user.role !== 'Admin') {
     return (
         <div className="container mx-auto">
