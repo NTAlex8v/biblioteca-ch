@@ -6,9 +6,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { doc } from "firebase/firestore";
-import React, { useEffect } from "react";
+import React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -35,8 +35,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isRedirecting, setIsRedirecting] = React.useState(true);
-
+  
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -68,31 +67,6 @@ export default function LoginPage() {
     router.push('/');
   };
 
-  useEffect(() => {
-    if (!auth) {
-        setIsRedirecting(false);
-        return;
-    };
-
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          handleUserCreation(result);
-        } else {
-          setIsRedirecting(false);
-        }
-      })
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Error con Google",
-          description: error.message || "No se pudo completar el inicio de sesión con Google.",
-        });
-        setIsRedirecting(false);
-      });
-  }, [auth, firestore, router, toast]);
-
-
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
     if (!auth) return;
     setIsSubmitting(true);
@@ -112,17 +86,20 @@ export default function LoginPage() {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
     setIsSubmitting(true);
-    signInWithRedirect(auth, provider);
+    
+    signInWithPopup(auth, provider)
+      .then(handleUserCreation)
+      .catch((error) => {
+        toast({
+          variant: "destructive",
+          title: "Error con Google",
+          description: error.message || "No se pudo completar el inicio de sesión con Google.",
+        });
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
-  
-  if (isRedirecting) {
-      return (
-          <div className="flex min-h-screen items-center justify-center bg-background px-4">
-              <p>Comprobando autenticación...</p>
-          </div>
-      )
-  }
-
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
