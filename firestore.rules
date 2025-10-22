@@ -1,26 +1,23 @@
 /**
- * @fileOverview Firestore Security Rules for the virtual library application.
- *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles, allows public read access to categories, tags, and documents, and restricts write access to authorized users. Administrative roles are managed through the `roles_admin` collection.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model with user-specific data isolation.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile data, accessible only by the user themselves.
- * - /categories/{categoryId}: Stores category data, publicly readable.
- * - /tags/{tagId}: Stores tag data, publicly readable.
- * - /documents/{documentId}: Stores document data, publicly readable, writeable by owner.
- * - /roles_admin/{userId}: Indicates admin privileges for a user; presence of a document grants admin access.
+ * - /users/{userId}: Stores individual user profiles. Access is restricted to the owning user.
+ * - /categories/{categoryId}: Stores categories for documents. Publicly readable.
+ * - /tags/{tagId}: Stores tags for documents. Publicly readable.
+ * - /documents/{documentId}: Stores document metadata. Publicly readable.
+ * - /roles_admin/{userId}: Used to grant admin privileges based on the existence of a document.
  *
  * Key Security Decisions:
- * - User listing is disallowed to protect user privacy.
- * - Read-only collections (categories, tags, documents) are publicly readable to allow for a seamless browsing experience.
- * - Default security posture for ambiguous relationships is strict owner-only access.
+ * - Users can only read and write their own user documents.
+ * - Listing of all users is denied to prevent information disclosure.
+ * - Categories, Tags, and Documents are publicly readable, but writes are not permitted in this prototyping phase.
+ * - Admin privileges are granted by the existence of a document in the `/roles_admin/{userId}` collection.
+ * - Data validation is minimal to allow for rapid prototyping. Only authorization-critical fields are validated.
  *
  * Denormalization for Authorization:
- *  - Admin privileges are determined by the existence of a document in `/roles_admin/{userId}`, avoiding the need for complex queries.
- *
- * Structural Segregation:
- *  - Administrative roles are stored in a separate collection (`roles_admin`) to enable secure filtering based on role membership without exposing sensitive data in the user documents themselves.
+ * - Admin privileges are determined by the presence of a document in the `/roles_admin/{userId}` collection.  This avoids the need for complex role lookups during rule evaluation.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -28,124 +25,108 @@ service cloud.firestore {
 
     /**
      * @description Checks if the user is signed in.
-     * @returns {boolean} True if the user is signed in, false otherwise.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user IDs match, false otherwise.
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @param {string} userId The user ID to compare against the authenticated user's UID.
+     * @return {boolean} True if the UIDs match, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-        /**
-     * @description Checks if the authenticated user is an existing owner of a resource.
-     *              Combines ownership check with existence check to prevent operations on non-existent documents.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user is the owner and the resource exists, false otherwise.
+    /**
+     * @description Checks if the authenticated user is an existing owner of the document.
+     * @param {string} userId The user ID to compare against the authenticated user's UID.
+     * @return {boolean} True if the UIDs match and the document exists, false otherwise.
      */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the requesting user has admin privileges.
-     * @returns {boolean} True if the user has admin privileges, false otherwise.
+     * @description Checks if the authenticated user has admin privileges by checking for a document in `/roles_admin/{userId}`.
+     * @return {boolean} True if the user is an admin, false otherwise.
      */
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return exists(/databases/(default)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
-     * @description Security rules for user profiles.
+     * @description Rules for user profile documents.
      * @path /users/{userId}
-     * @allow (create) User '2bIAW4LIstaHXKSSRhr2nRpvKr02' can create their own profile.
-     * @deny (create) User 'attackerId' cannot create a profile for user 'victimId'.
-     * @allow (get) User '2bIAW4LIstaHXKSSRhr2nRpvKr02' can get their profile.
-     * @deny (get) User 'attackerId' cannot get profile for user 'victimId'.
-     * @allow (update) User '2bIAW4LIstaHXKSSRhr2nRpvKr02' can update their own profile.
-     * @deny (update) User 'attackerId' cannot update the profile of user 'victimId'.
-     * @allow (delete) User '2bIAW4LIstaHXKSSRhr2nRpvKr02' can delete their own profile.
-     * @deny (delete) User 'attackerId' cannot delete the profile of user 'victimId'.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - Authenticated user with matching UID can create their own profile.
+     * @allow (get, update, delete) - Authenticated user with matching UID can read, update, and delete their own profile.
+     * @deny (list) - Listing all users is not allowed.
+     * @deny (create) - Unauthenticated users cannot create user profiles.
+     * @deny (update, delete) - Non-owners cannot update or delete user profiles.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Prevent listing all users.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Security rules for categories.
+     * @description Rules for categories.
      * @path /categories/{categoryId}
-     * @allow (get) Any user can read a category.
-     * @allow (list) Any user can list categories.
-     * @deny (create) Only admins can create categories.
-     * @deny (update) Only admins can update categories.
-     * @deny (delete) Only admins can delete categories.
-     * @principle Public read access, admin-only writes.
+     * @allow (get, list) - All users can read categories.
+     * @deny (create, update, delete) - No one can create, update, or delete categories in this prototype.
+     * @principle Public read access for categories.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create, update, delete: if false; // TODO: Add role-based write access later.
     }
 
     /**
-     * @description Security rules for tags.
+     * @description Rules for tags.
      * @path /tags/{tagId}
-     * @allow (get) Any user can read a tag.
-     * @allow (list) Any user can list tags.
-     * @deny (create) Only admins can create tags.
-     * @deny (update) Only admins can update tags.
-     * @deny (delete) Only admins can delete tags.
-     * @principle Public read access, admin-only writes.
+     * @allow (get, list) - All users can read tags.
+     * @deny (create, update, delete) - No one can create, update, or delete tags in this prototype.
+     * @principle Public read access for tags.
      */
     match /tags/{tagId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create, update, delete: if false; // TODO: Add role-based write access later.
     }
 
     /**
-     * @description Security rules for documents.
+     * @description Rules for documents.
      * @path /documents/{documentId}
-     * @allow (get) Any user can read a document.
-     * @allow (list) Any user can list documents.
-     * // CRITICAL: Cannot implement owner-only writes. The 'Document' entity is missing an 'ownerId' or 'authorId' field.
-     * allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @principle Public read access, owner-only writes (currently unimplemented).
+     * @allow (get, list) - All users can read documents.
+     * @deny (create, update, delete) - No one can create, update, or delete documents in this prototype.
+     * @principle Public read access for documents.
      */
     match /documents/{documentId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add role-based write access later.
     }
 
     /**
-     * @description Security rules for admin roles.
+     * @description Rules for admin roles.
      * @path /roles_admin/{userId}
-     * @allow (create) Only a service account (or other trusted source) can grant admin roles.
-     * @allow (get) Any authenticated user can check if they have admin role.
-     * @allow (list) No one can list documents in the `/roles_admin` collection.
-     * @deny (update) No one can update admin roles through the client.
-     * @deny (delete) Only a service account (or other trusted source) can revoke admin roles.
-     * @principle Database-Based Access Control (DBAC): The presence of a document in this collection grants admin privileges.
+     * @allow get: if isAdmin();
+     * @allow list: if false;
+     * @allow create: if isAdmin();
+     * @allow update: if false;
+     * @allow delete: if isAdmin();
+     * @principle Grants admin privileges based on the existence of a document in this collection.
      */
     match /roles_admin/{userId} {
-        allow create: if false; // Only trusted server environments
-        allow get: if isSignedIn() && request.auth.uid == userId;
-        allow list: if false;
-        allow update: if false; // No one can update roles
-        allow delete: if false; // Only trusted server environments
+      allow get: if isAdmin();
+      allow list: if false;
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if isAdmin();
     }
   }
 }
