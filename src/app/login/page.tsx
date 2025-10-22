@@ -35,7 +35,15 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isRedirecting, setIsRedirecting] = React.useState(true); // Start with true to check for redirect result
+  const [isRedirecting, setIsRedirecting] = React.useState(true);
+
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
   const handleUserCreation = (userCred: UserCredential) => {
     const user = userCred.user;
@@ -50,7 +58,7 @@ export default function LoginPage() {
         role: 'User', // Default role
         createdAt: new Date().toISOString(),
     };
-    // Use non-blocking write to create/update user document
+    
     setDocumentNonBlocking(userRef, userData, { merge: true });
     
     toast({
@@ -60,7 +68,6 @@ export default function LoginPage() {
     router.push('/');
   };
 
-  // Handle redirect result from Google sign-in
   useEffect(() => {
     if (!auth) {
         setIsRedirecting(false);
@@ -70,15 +77,12 @@ export default function LoginPage() {
     getRedirectResult(auth)
       .then((result) => {
         if (result) {
-          // This is the successfully signed in user.
           handleUserCreation(result);
         } else {
-          // No redirect result, so the user has not just signed in.
           setIsRedirecting(false);
         }
       })
       .catch((error) => {
-        // Handle Errors here.
         toast({
           variant: "destructive",
           title: "Error con Google",
@@ -86,7 +90,7 @@ export default function LoginPage() {
         });
         setIsRedirecting(false);
       });
-  }, [auth]); // Run this effect when auth service is available
+  }, [auth, firestore, router, toast]);
 
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
@@ -107,8 +111,8 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
-    setIsSubmitting(true); // Show loading state
-    signInWithRedirect(auth, provider); // This will redirect the page
+    setIsSubmitting(true);
+    signInWithRedirect(auth, provider);
   };
   
   if (isRedirecting) {
