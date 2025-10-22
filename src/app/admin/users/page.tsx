@@ -6,73 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
+import { collection, doc, getDocs } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
-import React from 'react';
-
-// --- Componente Aislado para la Tabla de Usuarios ---
-// Este componente SOLO se renderiza si el usuario es un administrador verificado.
-// Es seguro hacer la consulta a la colección 'users' aquí.
-function UsersTable() {
-  const firestore = useFirestore();
-
-  // La consulta a 'users' solo existe dentro de este componente.
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'users');
-  }, [firestore]);
-
-  const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
-
-  if (areUsersLoading) {
-    return (
-      <TableRow>
-        <TableCell colSpan={5} className="text-center">Cargando usuarios...</TableCell>
-      </TableRow>
-    );
-  }
-
-  return (
-    <>
-      {users?.map((user) => (
-        <TableRow key={user.id}>
-          <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
-          <TableCell className="hidden sm:table-cell">{user.email}</TableCell>
-          <TableCell>
-            <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>
-              {user.role}
-            </Badge>
-          </TableCell>
-          <TableCell className="hidden md:table-cell">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
-          <TableCell>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button aria-haspopup="true" size="icon" variant="ghost">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">Toggle menu</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuItem>Editar Rol</DropdownMenuItem>
-                <DropdownMenuItem>Ver Actividad</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">Eliminar Usuario</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
-  );
-}
+import React, { useState, useEffect } from 'react';
 
 // --- Componente Principal ---
-// Solo se encarga de verificar los permisos y decidir si renderizar la tabla.
+// Verifica permisos y luego decide si renderizar la tabla.
 export default function AdminUsersPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const [userList, setUserList] = useState<AppUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const currentUserDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -81,26 +28,95 @@ export default function AdminUsersPage() {
 
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
   
-  // Función que decide qué renderizar basado en los permisos.
-  const renderContent = () => {
+  useEffect(() => {
+    // No hacer nada hasta que la información del usuario actual esté lista.
     if (isUserLoading || isCurrentUserDataLoading) {
+      return;
+    }
+
+    // Si tenemos los datos del usuario actual...
+    if (currentUserData) {
+      // Y si es Admin...
+      if (currentUserData.role === 'Admin') {
+        const fetchUsers = async () => {
+          if (!firestore) return;
+          try {
+            const usersCollectionRef = collection(firestore, 'users');
+            const querySnapshot = await getDocs(usersCollectionRef);
+            const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser));
+            setUserList(users);
+          } catch (error) {
+            console.error("Error fetching users:", error);
+            setPermissionDenied(true); // Asumimos error de permisos si la carga falla.
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        fetchUsers();
+      } else {
+        // Si no es Admin, denegar permiso y detener carga.
+        setPermissionDenied(true);
+        setIsLoading(false);
+      }
+    } else {
+        // Si no hay datos de usuario (o el usuario no existe en la DB), denegar.
+        setPermissionDenied(true);
+        setIsLoading(false);
+    }
+
+  }, [isUserLoading, isCurrentUserDataLoading, currentUserData, firestore]);
+
+  const renderContent = () => {
+    if (isLoading) {
         return (
             <TableRow>
-                <TableCell colSpan={5} className="text-center">Verificando permisos...</TableCell>
+                <TableCell colSpan={5} className="text-center">Verificando permisos y cargando...</TableCell>
             </TableRow>
         );
     }
 
-    // Confirma el rol ANTES de decidir si renderizar el componente de consulta.
-    if (currentUserData?.role === 'Admin') {
-      return <UsersTable />;
+    if (permissionDenied) {
+       return (
+          <TableRow>
+            <TableCell colSpan={5} className="text-center text-muted-foreground">
+              Solo los administradores pueden ver esta sección.
+            </TableCell>
+          </TableRow>
+        );
     }
 
-    // Si no es Admin, muestra un mensaje y NUNCA renderiza UsersTable.
     return (
-      <TableRow>
-        <TableCell colSpan={5} className="text-center text-muted-foreground">Solo los administradores pueden ver esta sección.</TableCell>
-      </TableRow>
+      <>
+        {userList.map((user) => (
+          <TableRow key={user.id}>
+            <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
+            <TableCell className="hidden sm:table-cell">{user.email}</TableCell>
+            <TableCell>
+              <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>
+                {user.role}
+              </Badge>
+            </TableCell>
+            <TableCell className="hidden md:table-cell">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+            <TableCell>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button aria-haspopup="true" size="icon" variant="ghost">
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                  <DropdownMenuItem>Editar Rol</DropdownMenuItem>
+                  <DropdownMenuItem>Ver Actividad</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive">Eliminar Usuario</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </>
     );
   };
 

@@ -3,29 +3,38 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, getDocs } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 // --- Componente Aislado para la Consulta ---
-// Este componente SOLO se renderiza si el usuario es un administrador verificado.
-// Es seguro hacer la consulta a la colección 'users' aquí.
 function TotalUsersCardContent() {
   const firestore = useFirestore();
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // La consulta a 'users' solo existe dentro de este componente.
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'users');
+  useEffect(() => {
+    const fetchUserCount = async () => {
+      if (!firestore) return;
+      try {
+        const usersCollectionRef = collection(firestore, 'users');
+        const querySnapshot = await getDocs(usersCollectionRef);
+        setTotalUsers(querySnapshot.size);
+      } catch (error) {
+        console.error("Error fetching user count:", error);
+        setTotalUsers(0); // Mostrar 0 en caso de error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUserCount();
   }, [firestore]);
-  
-  const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
-  const totalUsers = users?.length ?? 0;
+
 
   return (
     <>
-      <div className="text-2xl font-bold">{areUsersLoading ? '...' : totalUsers}</div>
+      <div className="text-2xl font-bold">{isLoading ? '...' : totalUsers}</div>
       <p className="text-xs text-muted-foreground">
         Usuarios registrados en el sistema
       </p>
@@ -34,7 +43,6 @@ function TotalUsersCardContent() {
 }
 
 // --- Componente Principal ---
-// Solo se encarga de la lógica de UI y de decidir si renderizar el componente de consulta.
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -64,7 +72,6 @@ export default function AdminDashboardPage() {
 
   const isLoading = isUserLoading || isCurrentUserDataLoading;
 
-  // Renderiza el componente que hace la consulta SOLO si el usuario es Admin.
   const renderUsersCard = () => {
     if (isLoading) {
       return (
@@ -83,7 +90,6 @@ export default function AdminDashboardPage() {
       );
     }
     
-    // Confirma el rol ANTES de decidir si renderizar el componente de consulta.
     if (currentUserData?.role === 'Admin') {
       return (
         <Card>
