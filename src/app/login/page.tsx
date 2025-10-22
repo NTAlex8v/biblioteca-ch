@@ -6,8 +6,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
+import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { doc } from "firebase/firestore";
+import React, { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import React from "react";
 
 
 const loginSchema = z.object({
@@ -35,15 +35,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isRedirecting, setIsRedirecting] = React.useState(true); // Start with true to check for redirect result
 
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "admin@cayetano.edu",
-      password: "password",
-    },
-  });
-  
   const handleUserCreation = (userCred: UserCredential) => {
     const user = userCred.user;
     if (!firestore || !user) return;
@@ -67,6 +60,34 @@ export default function LoginPage() {
     router.push('/');
   };
 
+  // Handle redirect result from Google sign-in
+  useEffect(() => {
+    if (!auth) {
+        setIsRedirecting(false);
+        return;
+    };
+
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          // This is the successfully signed in user.
+          handleUserCreation(result);
+        } else {
+          // No redirect result, so the user has not just signed in.
+          setIsRedirecting(false);
+        }
+      })
+      .catch((error) => {
+        // Handle Errors here.
+        toast({
+          variant: "destructive",
+          title: "Error con Google",
+          description: error.message || "No se pudo completar el inicio de sesión con Google.",
+        });
+        setIsRedirecting(false);
+      });
+  }, [auth]); // Run this effect when auth service is available
+
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
     if (!auth) return;
@@ -86,20 +107,17 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
-    setIsSubmitting(true);
-    signInWithPopup(auth, provider)
-      .then(handleUserCreation)
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Error con Google",
-          description: error.message || "No se pudo iniciar sesión con Google.",
-        });
-      })
-      .finally(() => {
-        setIsSubmitting(false);
-      });
+    setIsSubmitting(true); // Show loading state
+    signInWithRedirect(auth, provider); // This will redirect the page
   };
+  
+  if (isRedirecting) {
+      return (
+          <div className="flex min-h-screen items-center justify-center bg-background px-4">
+              <p>Comprobando autenticación...</p>
+          </div>
+      )
+  }
 
 
   return (
