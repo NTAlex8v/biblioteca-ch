@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Badge } from "@/components/ui/badge";
@@ -6,20 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal } from "lucide-react";
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection } from "firebase/firestore";
 import type { User } from "@/lib/types";
 
-export default function AdminUsersPage() {
-  const firestore = useFirestore();
-  const { user: authUser } = useUser();
+interface AdminUsersPageProps {
+  users?: User[]; // Data passed from layout
+}
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return collection(firestore, 'users');
-  }, [firestore, authUser]);
-
-  const { data: users, isLoading } = useCollection<User>(usersQuery);
+export default function AdminUsersPage({ users }: AdminUsersPageProps) {
+  const isLoading = !users;
 
   return (
     <div className="container mx-auto">

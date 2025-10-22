@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -7,28 +8,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
 import type { Document, Category } from "@/lib/types";
 
-export default function AdminDocumentsPage() {
-  const firestore = useFirestore();
+interface AdminDocumentsPageProps {
+  documents?: Document[];
+  categories?: Category[];
+}
 
-  const documentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'documents');
-  }, [firestore]);
-
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'categories');
-  }, [firestore]);
-
-  const { data: documents, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
-  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+export default function AdminDocumentsPage({ documents, categories }: AdminDocumentsPageProps) {
+  const isLoading = !documents || !categories;
 
   const getCategoryName = (categoryId: string) => {
-    return categories?.find(c => c.id === categoryId)?.name || 'Sin categoría';
+    if (!categories) return '...';
+    return categories.find(c => c.id === categoryId)?.name || 'Sin categoría';
   }
 
   return (
@@ -61,7 +53,7 @@ export default function AdminDocumentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingDocuments || isLoadingCategories ? (
+              {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
                 </TableRow>

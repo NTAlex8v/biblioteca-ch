@@ -1,8 +1,10 @@
+
 "use client";
 
-import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import type { User } from "@/lib/types";
-import { doc } from "firebase/firestore";
+import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from "@/firebase";
+import type { User as AppUser, Document, Category, Tag } from "@/lib/types";
+import { doc, collection } from "firebase/firestore";
+import React from "react";
 
 export default function AdminLayout({
   children,
@@ -17,9 +19,28 @@ export default function AdminLayout({
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: userData, isLoading: isUserDataLoading } = useDoc<User>(userDocRef);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
 
-  const isLoading = isUserLoading || isUserDataLoading;
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !userData || userData.role !== 'Admin') return null;
+    return collection(firestore, 'users');
+  }, [firestore, userData]);
+
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) return null;
+    return collection(firestore, 'documents');
+  }, [firestore, userData]);
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) return null;
+    return collection(firestore, 'categories');
+  }, [firestore, userData]);
+  
+  const { data: users, isLoading: isLoadingUsers } = useCollection<AppUser>(usersQuery);
+  const { data: documents, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+
+  const isLoading = isUserLoading || isUserDataLoading || isLoadingUsers || isLoadingDocuments || isLoadingCategories;
   
   if (isLoading) {
     return (
@@ -42,5 +63,12 @@ export default function AdminLayout({
     );
   }
 
-  return <>{children}</>;
+  const childrenWithProps = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { users, documents, categories } as any);
+    }
+    return child;
+  });
+
+  return <>{childrenWithProps}</>;
 }

@@ -1,33 +1,17 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Shapes } from "lucide-react";
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection } from "firebase/firestore";
+import type { User, Document, Category } from "@/lib/types";
 
-export default function AdminDashboardPage() {
-  const firestore = useFirestore();
-  const { user } = useUser();
+interface AdminDashboardPageProps {
+  users?: User[];
+  documents?: Document[];
+  categories?: Category[];
+}
 
-  const documentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'documents');
-  }, [firestore, user]);
-
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users');
-  }, [firestore, user]);
-
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'categories');
-  }, [firestore, user]);
-
-  const { data: documents } = useCollection(documentsQuery);
-  const { data: users } = useCollection(usersQuery);
-  const { data: categories } = useCollection(categoriesQuery);
-
+export default function AdminDashboardPage({ users, documents, categories }: AdminDashboardPageProps) {
   const totalDocuments = documents?.length ?? 0;
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
