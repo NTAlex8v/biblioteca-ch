@@ -6,6 +6,7 @@ import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@
 import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
+import React from 'react';
 
 // This component is ONLY rendered if the user is an Admin.
 // It is safe to query the 'users' collection here.
