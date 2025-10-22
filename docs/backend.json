@@ -1,0 +1,236 @@
+{
+  "entities": {
+    "Document": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Document",
+      "type": "object",
+      "description": "Represents a document stored in the virtual library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Document entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the document."
+        },
+        "author": {
+          "type": "string",
+          "description": "The author of the document."
+        },
+        "year": {
+          "type": "number",
+          "description": "The year the document was published."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the document."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL of the PDF file stored in Google Drive.",
+          "format": "uri"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to Category. (Relationship: Category 1:N Document)"
+        },
+        "tagIds": {
+          "type": "array",
+          "description": "References to Tags. (Relationship: Tag N:N Document)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Date and time the document was last updated.",
+          "format": "date-time"
+        },
+        "versionHistory": {
+          "type": "array",
+          "description": "History of previous file versions (URLs).",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "author",
+        "year",
+        "description",
+        "fileUrl",
+        "categoryId"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category or subfolder for organizing documents.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the category."
+        },
+        "parentCategoryId": {
+          "type": "string",
+          "description": "Reference to parent Category. Null if it's a top-level category. (Relationship: Category 1:N Category (self-reference))",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Tag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tag",
+      "type": "object",
+      "description": "Represents a tag for cross-classification of documents.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Tag entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the tag."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the virtual library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user (Admin, Editor, User)."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information.  User ID is the Firebase Auth UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores categories for organizing documents.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/tags/{tagId}",
+        "definition": {
+          "entityName": "Tag",
+          "schema": {
+            "$ref": "#/backend/entities/Tag"
+          },
+          "description": "Stores tags for cross-classification of documents.",
+          "params": [
+            {
+              "name": "tagId",
+              "description": "The unique identifier for the tag."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/documents/{documentId}",
+        "definition": {
+          "entityName": "Document",
+          "schema": {
+            "$ref": "#/backend/entities/Document"
+          },
+          "description": "Stores the details of each document, including metadata and file URL.",
+          "params": [
+            {
+              "name": "documentId",
+              "description": "The unique identifier for the document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection to store admin roles based on user ID. The existence of a document in this collection grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the admin user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure prioritizes security, scalability, and ease of debugging. It adheres to the principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and QAPs (Rules are Not Filters). The structure implements denormalization to avoid `get()` calls in security rules and enables atomic operations.\n\n**Authorization Independence:**  Authorization data is denormalized into subcollections to avoid hierarchical dependencies. Specifically, user roles and category memberships are denormalized into the document collections. This avoids the need for `get()` calls in security rules, simplifying them and making operations atomic.\n\n**QAPs (Rules are not Filters):** The design uses structural segregation to allow secure list operations.  Administrative roles are stored in a separate collection, enabling secure filtering based on role membership without exposing sensitive data.\n\nThe user document serves as the central point for storing profile information. Categories and tags are stored in separate collections at the top level, allowing efficient global querying and management. Documents are stored in a top-level collection, and category ID is stored in the document.\n\nTo secure against attacks, the database structure ensures data integrity by enforcing strict ownership for user-specific data. For collaborative data (if implemented in future iterations based on the optional features), the membership map model would be used.\n\nThe structure anticipates a large number of simultaneous users by utilizing optimized collection structures and leveraging Firestore's scaling capabilities. Security rules are designed to be efficient to minimize read operations during authorization checks. This architecture promotes robustness and resilience against potential attacks and traffic spikes."
+  }
+}
