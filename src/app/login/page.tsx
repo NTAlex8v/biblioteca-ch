@@ -63,7 +63,7 @@ export default function LoginPage() {
             role: 'User', // Assign default role ONLY on creation
             createdAt: new Date().toISOString(),
         };
-        setDocumentNonBlocking(userRef, userData, { merge: true });
+        setDocumentNonBlocking(userRef, userData, { merge: false }); // Use merge:false as it's a new doc
     }
     
     toast({
