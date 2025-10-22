@@ -68,8 +68,9 @@ export default function SignupPage() {
             role: 'User', // Assign a default role
             createdAt: new Date().toISOString(),
         };
-        // This is a new user, so we set the document without merge.
-        setDocumentNonBlocking(userRef, userData, {});
+        // Use { merge: true } to prevent overwriting existing user data (e.g. role)
+        // if an account with this UID somehow already exists.
+        setDocumentNonBlocking(userRef, userData, { merge: true });
 
         toast({
           title: "¡Cuenta Creada!",
@@ -78,10 +79,14 @@ export default function SignupPage() {
         router.push("/");
       })
       .catch((error) => {
+        let description = "Ocurrió un error al registrarse.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "Este correo electrónico ya está en uso. Intenta iniciar sesión.";
+        }
         toast({
           variant: "destructive",
           title: "Error de Registro",
-          description: error.message || "Ocurrió un error al registrarse.",
+          description: description,
         });
       })
       .finally(() => {
