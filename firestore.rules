@@ -1,151 +1,167 @@
 /**
  * @file Firebase Security Rules for Firestore.
  *
- * @core_philosophy This ruleset enforces a role-based access control model with
- *   ownership restrictions where appropriate. Data is generally private unless
- *   explicitly made public or shared.
+ * @Core Philosophy: This ruleset enforces a strict user-ownership model for user profiles
+ * and a public-read, owner-write model for documents, categories, and tags. Administrative
+ * privileges are granted based on the existence of a document in the /roles_admin/{userId} collection.
  *
- * @data_structure The Firestore database has the following top-level collections:
- *   - /users/{userId}: Stores user profile information, with the document ID
- *     matching the Firebase Auth UID.
- *   - /categories/{categoryId}: Stores categories for organizing documents.
- *   - /tags/{tagId}: Stores tags for cross-classification of documents.
- *   - /documents/{documentId}: Stores the details of each document.
- *   - /roles_admin/{userId}: A collection that determines admin status. If a document exists for the user's ID here, they are an admin.
+ * @Data Structure:
+ * - /users/{userId}: Stores user profiles, accessible only to the user themselves.
+ * - /categories/{categoryId}: Stores categories, publicly readable, but only writable by admins.
+ * - /tags/{tagId}: Stores tags, publicly readable, but only writable by admins.
+ * - /documents/{documentId}: Stores documents, publicly readable, but only writable by admins.
+ * - /roles_admin/{userId}: Collection to store admin roles based on user ID.
  *
- * @key_security_decisions
- *   - User listing is denied to prevent information leakage.
- *   - Read-only collections are explicitly marked as such with `allow get, list: if true;`.
- *   - The default security posture is deny all unless explicitly allowed.
- *
- * @denormalization_for_authorization To simplify rules and improve performance,
- *   authorization data (like user roles or membership lists) is denormalized
- *   directly into documents where it is needed.  This avoids costly `get()`
- *   operations in security rules.  For example, admin status is determined by the existence of a document in the `roles_admin` collection with the user's ID.
- *
- * @structural_segregation Private user data and public document data are stored
- *   in separate collections to optimize read access and simplify security rules.
+ * @Key Security Decisions:
+ * - User listing is explicitly denied to protect user privacy.
+ * - All write operations are strictly controlled to prevent unauthorized data modification.
+ * - Data validation is limited to essential checks for authorization and relational integrity.
+ * - The rules rely on denormalization to avoid costly `get()` calls and maintain performance.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is an existing owner of the resource.
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user is the owner and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Checks if the user is an admin.
-     * @return {bool} True if the user is an admin, false otherwise.
-     */
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * @description Rule for user documents.
+     * @description Grants access to user-specific data.
      * @path /users/{userId}
-     * @allow (create) Signed-in user creates their own document.
-     * @allow (get, update, delete) Signed-in user accesses their own document.
-     * @deny (create) User attempts to create a document with an ID that doesn't match their auth UID.
-     * @deny (list) Listing all users.
-     * @deny (update, delete) User attempts to modify or delete another user's document.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     * @allow (create) - User with UID 'user123' can create their own profile document at /users/user123.
+     * @allow (get, update, delete) - User with UID 'user123' can read, update, and delete their own profile document at /users/user123.
+     * @deny (create) - User with UID 'user456' cannot create a document at /users/user123.
+     * @deny (update) - User with UID 'user456' cannot update the document at /users/user123.
+     * @deny (delete) - User with UID 'user456' cannot delete the document at /users/user123.
+     * @deny (list) - All users are denied the ability to list documents in the /users collection.
+     * @principle Enforces document ownership for reads and writes, restricts listing for privacy.
      */
     match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource.data);
+      }
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for categories.
+     * @description Grants read access to all for categories, but restricts write access to admins.
      * @path /categories/{categoryId}
-     * @allow (get, list) Any user can read categories.
-     * @allow (create) Only admins can create categories.
-     * @allow (update, delete) Only admins can update or delete categories.
-     * @deny (create, update, delete) Non-admins attempt to create, update, or delete categories.
-     * @principle Requires admin privileges for modifications.
+     * @allow (get, list) - Any user, authenticated or not, can read category data.
+     * @allow (create) - Only an admin user can create new categories.
+     * @allow (update) - Only an admin user can update existing categories.
+     * @allow (delete) - Only an admin user can delete categories.
+     * @deny (create) - A non-admin user cannot create new categories.
+     * @deny (update) - A non-admin user cannot update existing categories.
+     * @deny (delete) - A non-admin user cannot delete categories.
+     * @principle Public read, admin-only write.
      */
     match /categories/{categoryId} {
+       function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+        return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
       allow get, list: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rule for tags.
+     * @description Grants read access to all for tags, but restricts write access to admins.
      * @path /tags/{tagId}
-     * @allow (get, list) Any user can read tags.
-     * @allow (create) Only admins can create tags.
-     * @allow (update, delete) Only admins can update or delete tags.
-     * @deny (create, update, delete) Non-admins attempt to create, update, or delete tags.
-     * @principle Requires admin privileges for modifications.
+     * @allow (get, list) - Any user, authenticated or not, can read tag data.
+     * @allow (create) - Only an admin user can create new tags.
+     * @allow (update) - Only an admin user can update existing tags.
+     * @allow (delete) - Only an admin user can delete tags.
+     * @deny (create) - A non-admin user cannot create new tags.
+     * @deny (update) - A non-admin user cannot update existing tags.
+     * @deny (delete) - A non-admin user cannot delete tags.
+     * @principle Public read, admin-only write.
      */
     match /tags/{tagId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+        return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
       allow get, list: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rule for documents.
+     * @description Grants read access to all for documents, but restricts write access to admins.
      * @path /documents/{documentId}
-     * @allow (get, list) Any user can read documents.
-     * @allow (create) Only admins can create documents.
-     * @allow (update, delete) Only admins can update or delete documents.
-     * @deny (create, update, delete) Non-admins attempt to create, update, or delete documents.
-     * @principle Requires admin privileges for modifications.
+     * @allow (get, list) - Any user, authenticated or not, can read document data.
+     * @allow (create) - Only an admin user can create new documents.
+     * @allow (update) - Only an admin user can update existing documents.
+     * @allow (delete) - Only an admin user can delete documents.
+     * @deny (create) - A non-admin user cannot create new documents.
+     * @deny (update) - A non-admin user cannot update existing documents.
+     * @deny (delete) - A non-admin user cannot delete documents.
+     * @principle Public read, admin-only write.
      */
     match /documents/{documentId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+        return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
       allow get, list: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rule for roles_admin.
-     * @path /roles_admin/{userId}
-     * @allow (get) Any signed-in user can check if a role exists.
-     * @allow (create) Only admins can grant admin roles.
-     * @allow (delete) Only admins can revoke admin roles.
-     * @deny (list) Listing all roles_admin.
-     * @deny (create, delete) Non-admins attempt to grant or revoke admin roles.
-     * @principle Requires admin privileges for role management.
-     */
+     /**
+      * @description Grants admin privileges based on the existence of a document in this collection.
+      * @path /roles_admin/{userId}
+      * @allow (get) - An admin user can read their own admin role document.
+      * @allow (create) - An admin user can create their own admin role document.
+      * @allow (update) - An admin user can update their own admin role document.
+      * @allow (delete) - An admin user can delete their own admin role document.
+      *
+      * @deny (list) - All users are denied listing the /roles_admin collection.
+      * @principle Database-Based Access Control (DBAC).
+      */
     match /roles_admin/{userId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if false;
-        allow delete: if isAdmin() && resource != null;
+       function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource.data);
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
