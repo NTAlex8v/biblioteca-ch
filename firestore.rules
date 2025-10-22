@@ -43,7 +43,7 @@ service cloud.firestore {
       }
 
       function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource.data);
+        return isOwner(userId) && resource != null;
       }
       allow get: if isOwner(userId);
       allow list: if false;
@@ -154,7 +154,7 @@ service cloud.firestore {
       }
 
       function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource.data);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
