@@ -1,13 +1,8 @@
 
 "use client";
 
-import { useUser } from "@/firebase";
-import React, { useEffect, useState } from "react";
-
-type UserClaims = {
-  role?: string;
-  [key: string]: any;
-};
+import { useUser, useUserClaims } from "@/firebase";
+import React from "react";
 
 export default function AdminLayout({
   children,
@@ -15,29 +10,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const [claims, setClaims] = useState<UserClaims | null>(null);
-  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
-
-  useEffect(() => {
-    if (isUserLoading) {
-      return;
-    }
-    if (!user) {
-      setIsLoadingClaims(false);
-      return;
-    }
-
-    user.getIdTokenResult()
-      .then((idTokenResult) => {
-        setClaims(idTokenResult.claims);
-      })
-      .catch(() => {
-        setClaims(null);
-      })
-      .finally(() => {
-        setIsLoadingClaims(false);
-      });
-  }, [user, isUserLoading]);
+  const { claims, isLoadingClaims } = useUserClaims();
 
   if (isUserLoading || isLoadingClaims) {
     return (

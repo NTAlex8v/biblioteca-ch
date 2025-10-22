@@ -6,16 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
-import { useEffect, useState } from "react";
-
-type UserClaims = {
-  role?: string;
-  [key: string]: any;
-};
 
 function UsersTable() {
   const firestore = useFirestore();
@@ -70,20 +64,8 @@ function UsersTable() {
 }
 
 export default function AdminUsersPage() {
-  const { user, isUserLoading } = useUser();
-  const [claims, setClaims] = useState<UserClaims | null>(null);
-  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
-
-   useEffect(() => {
-    if (user) {
-      user.getIdTokenResult().then(token => {
-        setClaims(token.claims);
-        setIsLoadingClaims(false);
-      });
-    } else if (!isUserLoading) {
-      setIsLoadingClaims(false);
-    }
-  }, [user, isUserLoading]);
+  const { isUserLoading } = useUser();
+  const { claims, isLoadingClaims } = useUserClaims();
 
   const isAdmin = claims?.role === 'Admin';
   

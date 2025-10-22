@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
-import { doc } from "firebase/firestore";
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -28,14 +27,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import type { User as AppUser } from "@/lib/types";
+import { useAuth, useUser, useUserClaims } from "@/firebase";
 import SearchInputHandler from "./search-input-handler";
-
-type UserClaims = {
-  role?: string;
-  [key: string]: any;
-};
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -69,17 +62,7 @@ const Header = () => {
   const { isMobile } = useSidebar();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const [claims, setClaims] = useState<UserClaims | null>(null);
-
-   useEffect(() => {
-    if (!user) {
-      setClaims(null);
-      return;
-    }
-    user.getIdTokenResult().then((idTokenResult) => {
-      setClaims(idTokenResult.claims);
-    });
-  }, [user]);
+  const { claims } = useUserClaims();
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

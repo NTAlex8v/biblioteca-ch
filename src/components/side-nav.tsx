@@ -23,34 +23,17 @@ import {
   FileText,
   Shapes,
 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
 import { collection } from "firebase/firestore";
 import type { Category } from "@/lib/types";
-import { useEffect, useState } from "react";
-
-type UserClaims = {
-  role?: string;
-  [key: string]: any;
-};
 
 const SideNav = () => {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
-  const [claims, setClaims] = useState<UserClaims | null>(null);
-
-  useEffect(() => {
-    if (!user) {
-      setClaims(null);
-      return;
-    }
-    user.getIdTokenResult().then((idTokenResult) => {
-      setClaims(idTokenResult.claims);
-    });
-  }, [user]);
-
+  const { user } = useUser();
+  const { claims } = useUserClaims();
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;

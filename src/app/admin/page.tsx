@@ -2,16 +2,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
-import { useEffect, useState } from "react";
-
-type UserClaims = {
-  role?: string;
-  [key: string]: any;
-};
 
 function TotalUsersCardContent() {
   const firestore = useFirestore();
@@ -35,20 +29,8 @@ function TotalUsersCardContent() {
 
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
-  const [claims, setClaims] = useState<UserClaims | null>(null);
-  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
-
-  useEffect(() => {
-    if (user) {
-      user.getIdTokenResult().then(token => {
-        setClaims(token.claims);
-        setIsLoadingClaims(false);
-      });
-    } else if (!isUserLoading) {
-      setIsLoadingClaims(false);
-    }
-  }, [user, isUserLoading]);
+  const { isUserLoading } = useUser();
+  const { claims, isLoadingClaims } = useUserClaims();
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;

@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, IdTokenResult } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -47,6 +47,12 @@ export interface UserHookResult { // Renamed from UserAuthHookResult for consist
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
+}
+
+// Return type for useUserClaims()
+export interface UserClaimsHookResult {
+    claims: IdTokenResult['claims'] | null;
+    isLoadingClaims: boolean;
 }
 
 // React Context
@@ -173,4 +179,52 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 export const useUser = (): UserHookResult => { // Renamed from useAuthUser
   const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
   return { user, isUserLoading, userError };
+};
+
+
+/**
+ * Hook for accessing the authenticated user's custom claims.
+ * Handles loading state and provides the claims object.
+ * @returns {UserClaimsHookResult} Object with claims and isLoadingClaims.
+ */
+export const useUserClaims = (): UserClaimsHookResult => {
+  const { user, isUserLoading } = useUser();
+  const [claims, setClaims] = useState<IdTokenResult['claims'] | null>(null);
+  const [isLoadingClaims, setIsLoadingClaims] = useState(true);
+
+  useEffect(() => {
+    if (isUserLoading) {
+      setIsLoadingClaims(true);
+      return;
+    }
+    if (!user) {
+      setClaims(null);
+      setIsLoadingClaims(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingClaims(true);
+
+    user.getIdTokenResult()
+      .then((idTokenResult) => {
+        if (isMounted) {
+          setClaims(idTokenResult.claims);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setClaims(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingClaims(false);
+        }
+      });
+      
+    return () => { isMounted = false };
+  }, [user, isUserLoading]);
+
+  return { claims, isLoadingClaims };
 };
