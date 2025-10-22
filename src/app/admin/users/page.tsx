@@ -17,6 +17,7 @@ import React from 'react';
 function UsersTable() {
   const firestore = useFirestore();
 
+  // La consulta a 'users' solo existe dentro de este componente.
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'users');
@@ -66,7 +67,7 @@ function UsersTable() {
   );
 }
 
-
+// El componente principal solo se encarga de verificar los permisos.
 export default function AdminUsersPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -87,10 +88,12 @@ export default function AdminUsersPage() {
         );
     }
 
+    // Solo si el usuario es Admin, renderiza el componente que hace la consulta.
     if (currentUserData?.role === 'Admin') {
       return <UsersTable />;
     }
 
+    // Si no es Admin, muestra un mensaje y NUNCA renderiza UsersTable.
     return (
       <TableRow>
         <TableCell colSpan={5} className="text-center text-muted-foreground">Solo los administradores pueden ver esta sección.</TableCell>

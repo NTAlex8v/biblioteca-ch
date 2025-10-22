@@ -78,6 +78,7 @@ export default function AdminDashboardPage() {
       );
     }
     
+    // Solo renderiza el componente que hace la consulta si el usuario es Admin.
     if (currentUserData?.role === 'Admin') {
       return (
         <Card>
@@ -91,7 +92,7 @@ export default function AdminDashboardPage() {
         </Card>
       );
     }
-
+    // No renderiza nada si no es Admin, evitando la consulta a /users
     return null;
   }
 
