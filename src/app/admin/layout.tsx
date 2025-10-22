@@ -21,7 +21,6 @@ export default function AdminLayout({
 
   const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
   
-  // Primary loading state until user role is determined
   if (isUserLoading || isUserDataLoading) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
@@ -30,7 +29,6 @@ export default function AdminLayout({
     );
   }
 
-  // Strict access control. If not an Admin or Editor, deny access and DO NOT render children.
   if (!user || !userData || (userData.role !== 'Admin' && userData.role !== 'Editor')) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -44,15 +42,16 @@ export default function AdminLayout({
     );
   }
 
-  // If authorized, clone the child element and pass the fetched user data as props.
-  // The child page will be responsible for fetching its own data based on the user's role.
+  // Clone the child element and pass the definitive user data from Firestore.
+  // This ensures the child page always has the correct user prop.
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
-      return React.cloneElement(child, { user: userData } as any);
+      // The key is important to ensure React re-renders the child when userData changes.
+      // We use the user's UID to ensure stability once loaded.
+      return React.cloneElement(child, { user: userData, key: userData.id } as any);
     }
     return child;
   });
 
-  // Render children only after all checks have passed
   return <>{childrenWithProps}</>;
 }
