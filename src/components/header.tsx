@@ -4,16 +4,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookCopy,
-  CircleUser,
   LogOut,
   Search,
-  Settings,
   User,
   UserCog,
   Moon,
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { signOut } from "firebase/auth";
+import { doc } from "firebase/firestore";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,22 +25,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { FormEvent } from "react";
-
-// Mock user data - in a real app, this would come from an auth context
-const loggedInUser = {
-  name: "Ana García",
-  email: "admin@cayetano.edu",
-  avatar: "https://i.pravatar.cc/150?u=admin@cayetano.edu",
-  role: "Admin",
-};
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import type { User as AppUser } from "@/lib/types";
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -73,6 +63,16 @@ const Header = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isMobile } = useSidebar();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "users", user.uid);
+  }, [firestore, user]);
+
+  const { data: userData } = useDoc<AppUser>(userDocRef);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -82,6 +82,81 @@ const Header = () => {
       router.push(`/search?q=${encodeURIComponent(query)}`);
     }
   };
+
+  const handleSignOut = () => {
+    signOut(auth).then(() => {
+        router.push('/login');
+    });
+  };
+
+  const UserMenu = () => {
+    if (isUserLoading) {
+        return (
+             <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled>
+                <Avatar className="h-9 w-9">
+                    <AvatarFallback>?</AvatarFallback>
+                </Avatar>
+            </Button>
+        )
+    }
+
+    if (!user || !userData) {
+      return (
+          <Button asChild variant="outline">
+              <Link href="/login">Iniciar Sesión</Link>
+          </Button>
+      );
+    }
+    
+    return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={userData.avatarUrl} alt={userData.name} />
+                <AvatarFallback>
+                  {userData.name?.charAt(0) || user.email?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">
+                  {userData.name || 'Usuario'}
+                </p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <Link href="/profile">
+                <DropdownMenuItem>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Perfil</span>
+                </DropdownMenuItem>
+              </Link>
+              {userData.role === 'Admin' && (
+                <Link href="/admin">
+                    <DropdownMenuItem>
+                    <UserCog className="mr-2 h-4 w-4" />
+                    <span>Panel de Admin</span>
+                    </DropdownMenuItem>
+                </Link>
+              )}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Cerrar Sesión</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
@@ -108,55 +183,7 @@ const Header = () => {
         </form>
         
         <ThemeToggle />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-              <Avatar className="h-9 w-9">
-                <AvatarImage src={loggedInUser.avatar} alt={loggedInUser.name} />
-                <AvatarFallback>
-                  {loggedInUser.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">
-                  {loggedInUser.name}
-                </p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {loggedInUser.email}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <Link href="/profile">
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Perfil</span>
-                </DropdownMenuItem>
-              </Link>
-              {loggedInUser.role === 'Admin' && (
-                <Link href="/admin">
-                    <DropdownMenuItem>
-                    <UserCog className="mr-2 h-4 w-4" />
-                    <span>Panel de Admin</span>
-                    </DropdownMenuItem>
-                </Link>
-              )}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <Link href="/login">
-                <DropdownMenuItem>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Cerrar Sesión</span>
-                </DropdownMenuItem>
-            </Link>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserMenu />
       </div>
     </header>
   );

@@ -9,7 +9,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarSeparator,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarFooter,
@@ -23,9 +22,9 @@ import {
   FileText,
   Shapes,
 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
-import type { Category } from "@/lib/types";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
+import type { Category, User as AppUser } from "@/lib/types";
 
 const SideNav = () => {
   const pathname = usePathname();
@@ -33,7 +32,13 @@ const SideNav = () => {
   
   const firestore = useFirestore();
   const { user } = useUser();
-  const userRole = 'Admin'; // Mock role, should be replaced with user.customClaims.role or similar
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userData } = useDoc<AppUser>(userDocRef);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -41,6 +46,8 @@ const SideNav = () => {
   }, [firestore]);
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
+
+  const userRole = userData?.role;
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -61,63 +68,67 @@ const SideNav = () => {
             </Link>
           </SidebarMenuItem>
 
-          <SidebarGroup>
-            <SidebarGroupLabel>Categorías</SidebarGroupLabel>
-            {isLoading ? (
-              <p className="px-2 text-xs text-muted-foreground">Cargando...</p>
-            ) : (
-              categories?.map((category) => (
-                <SidebarMenuItem key={category.id}>
-                  <Link href={`/category/${category.id}`}>
-                    <SidebarMenuButton
-                      isActive={isActive(`/category/${category.id}`)}
-                      tooltip={category.name}
-                    >
-                      <Shapes />
-                      <span>{category.name}</span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-              ))
-            )}
-          </SidebarGroup>
-          
-          {userRole === 'Admin' && (
-            <SidebarGroup>
-                <SidebarGroupLabel>Administración</SidebarGroupLabel>
-                <SidebarMenuItem>
-                    <Link href="/admin">
-                        <SidebarMenuButton isActive={pathname.startsWith("/admin")} tooltip="Panel de Admin">
-                            <ShieldCheck />
-                            <span>Admin</span>
+          {user && (
+            <>
+              <SidebarGroup>
+                <SidebarGroupLabel>Categorías</SidebarGroupLabel>
+                {isLoading ? (
+                  <p className="px-2 text-xs text-muted-foreground">Cargando...</p>
+                ) : (
+                  categories?.map((category) => (
+                    <SidebarMenuItem key={category.id}>
+                      <Link href={`/category/${category.id}`}>
+                        <SidebarMenuButton
+                          isActive={isActive(`/category/${category.id}`)}
+                          tooltip={category.name}
+                        >
+                          <Shapes />
+                          <span>{category.name}</span>
                         </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <Link href="/admin/documents">
-                        <SidebarMenuButton isActive={isActive("/admin/documents")} tooltip="Documentos">
-                            <FileText />
-                            <span>Documentos</span>
-                        </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <Link href="/admin/users">
-                        <SidebarMenuButton isActive={isActive("/admin/users")} tooltip="Usuarios">
-                            <Users />
-                            <span>Usuarios</span>
-                        </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-                 <SidebarMenuItem>
-                    <Link href="/admin/upload">
-                        <SidebarMenuButton isActive={isActive("/admin/upload")} tooltip="Subir Material">
-                            <Upload />
-                            <span>Subir Material</span>
-                        </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-            </SidebarGroup>
+                      </Link>
+                    </SidebarMenuItem>
+                  ))
+                )}
+              </SidebarGroup>
+              
+              {(userRole === 'Admin' || userRole === 'Editor') && (
+                <SidebarGroup>
+                    <SidebarGroupLabel>Administración</SidebarGroupLabel>
+                    <SidebarMenuItem>
+                        <Link href="/admin">
+                            <SidebarMenuButton isActive={pathname.startsWith("/admin") && pathname.endsWith('/admin')} tooltip="Panel de Admin">
+                                <ShieldCheck />
+                                <span>Admin</span>
+                            </SidebarMenuButton>
+                        </Link>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <Link href="/admin/documents">
+                            <SidebarMenuButton isActive={isActive("/admin/documents")} tooltip="Documentos">
+                                <FileText />
+                                <span>Documentos</span>
+                            </SidebarMenuButton>
+                        </Link>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <Link href="/admin/users">
+                            <SidebarMenuButton isActive={isActive("/admin/users")} tooltip="Usuarios">
+                                <Users />
+                                <span>Usuarios</span>
+                            </SidebarMenuButton>
+                        </Link>
+                    </SidebarMenuItem>
+                     <SidebarMenuItem>
+                        <Link href="/admin/upload">
+                            <SidebarMenuButton isActive={isActive("/admin/upload")} tooltip="Subir Material">
+                                <Upload />
+                                <span>Subir Material</span>
+                            </SidebarMenuButton>
+                        </Link>
+                    </SidebarMenuItem>
+                </SidebarGroup>
+              )}
+            </>
           )}
         </SidebarMenu>
       </SidebarContent>

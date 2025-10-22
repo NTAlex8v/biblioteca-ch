@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
+import { GoogleAuthProvider, signInWithPopup, UserCredential } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +18,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth } from "@/firebase";
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
 import { useToast } from "@/hooks/use-toast";
+import React from "react";
 
 
 const loginSchema = z.object({
@@ -30,8 +32,10 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -40,24 +44,60 @@ export default function LoginPage() {
       password: "password",
     },
   });
+  
+  const handleUserCreation = (userCred: UserCredential) => {
+    const user = userCred.user;
+    if (!firestore || !user) return;
+
+    const userRef = doc(firestore, "users", user.uid);
+    const userData = {
+        id: user.uid,
+        email: user.email,
+        name: user.displayName,
+        avatarUrl: user.photoURL,
+        role: 'User', // Default role
+        createdAt: new Date().toISOString(),
+    };
+    // Use non-blocking write to create/update user document
+    setDocumentNonBlocking(userRef, userData, { merge: true });
+    
+    toast({
+        title: "Inicio de sesión exitoso",
+        description: "¡Bienvenido de vuelta!",
+    });
+    router.push('/');
+  };
+
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
-    try {
-      initiateEmailSignIn(auth, values.email, values.password);
-      toast({
-        title: "Iniciando sesión...",
-        description: "Serás redirigido en un momento.",
-      });
-      // The onAuthStateChanged listener in FirebaseProvider will handle the redirect
-      // For now, we can optimistically redirect or wait for the user object to be populated.
-      router.push('/');
-    } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "Error de inicio de sesión",
-        description: error.message || "Ocurrió un error al iniciar sesión.",
-      });
-    }
+    if (!auth) return;
+    setIsSubmitting(true);
+    signInWithEmailAndPassword(auth, values.email, values.password)
+        .then(handleUserCreation)
+        .catch(error => {
+            toast({
+                variant: "destructive",
+                title: "Error de inicio de sesión",
+                description: error.message || "Ocurrió un error al iniciar sesión.",
+            });
+        })
+        .finally(() => setIsSubmitting(false));
+  };
+  
+  const handleGoogleSignIn = () => {
+    if (!auth) return;
+    const provider = new GoogleAuthProvider();
+    setIsSubmitting(true);
+    signInWithPopup(auth, provider)
+      .then(handleUserCreation)
+      .catch((error) => {
+        toast({
+          variant: "destructive",
+          title: "Error con Google",
+          description: error.message || "No se pudo iniciar sesión con Google.",
+        });
+      })
+      .finally(() => setIsSubmitting(false));
   };
 
 
@@ -85,7 +125,7 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Correo Electrónico</FormLabel>
                     <FormControl>
-                      <Input placeholder="m@ejemplo.com" {...field} />
+                      <Input placeholder="m@ejemplo.com" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -106,16 +146,16 @@ export default function LoginPage() {
                        </Link>
                      </div>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" {...field} disabled={isSubmitting}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full">
-                Iniciar Sesión
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
               </Button>
-              <Button variant="outline" className="w-full" type="button" onClick={() => alert('Inicio de sesión con Google próximamente!')}>
+              <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isSubmitting}>
                 Iniciar Sesión con Google
               </Button>
             </form>
