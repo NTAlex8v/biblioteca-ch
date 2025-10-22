@@ -53,6 +53,7 @@ export default function LoginPage() {
     const docSnap = await getDoc(userRef);
 
     // If the user document does not exist, create it.
+    // This prevents overwriting existing user data (like roles) on every login.
     if (!docSnap.exists()) {
         const userData = {
             id: user.uid,
@@ -62,7 +63,6 @@ export default function LoginPage() {
             role: 'User', // Assign default role ONLY on creation
             createdAt: new Date().toISOString(),
         };
-        // Use non-blocking write to create the document
         setDocumentNonBlocking(userRef, userData, { merge: true });
     }
     
@@ -79,10 +79,11 @@ export default function LoginPage() {
     signInWithEmailAndPassword(auth, values.email, values.password)
         .then(handleSignInSuccess)
         .catch(error => {
+            console.error("Login Error:", error);
             toast({
                 variant: "destructive",
                 title: "Error de inicio de sesión",
-                description: error.message || "Ocurrió un error al iniciar sesión.",
+                description: "Las credenciales son incorrectas o el usuario no existe.",
             });
         })
         .finally(() => setIsSubmitting(false));
@@ -96,10 +97,17 @@ export default function LoginPage() {
     signInWithPopup(auth, provider)
       .then(handleSignInSuccess)
       .catch((error) => {
+        let description = "No se pudo iniciar sesión con Google.";
+        if (error.code === 'auth/popup-closed-by-user') {
+            description = "La ventana de inicio de sesión fue cerrada. Inténtalo de nuevo.";
+        } else if (error.code === 'auth/cancelled-popup-request') {
+            description = "Se canceló la solicitud de inicio de sesión. Por favor, no tengas dos ventanas de inicio de sesión abiertas.";
+        }
+        console.error("Google Sign-In Error:", error);
         toast({
           variant: "destructive",
           title: "Error con Google",
-          description: error.message || "No se pudo iniciar sesión con Google.",
+          description: description,
         });
       })
       .finally(() => {
