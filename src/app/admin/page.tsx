@@ -16,9 +16,9 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
 
   // Conditionally create queries based on the user's role
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || user.role !== 'Admin') return null;
+    if (!firestore || !user || user.role !== 'Admin') return null;
     return collection(firestore, 'users');
-  }, [firestore, user.role]);
+  }, [firestore, user]);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
