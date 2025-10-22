@@ -21,11 +21,11 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   // The query is now conditional on the user's role.
   // It will only be created if the role is 'Admin'.
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || user.role !== 'Admin') {
+    if (!firestore || !user || user.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
-  }, [firestore, user.role]);
+  }, [firestore, user]);
 
   // The hook will receive a null query for non-admins, and won't fetch data.
   const { data: users, isLoading } = useCollection<User>(usersQuery);
