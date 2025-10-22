@@ -7,10 +7,12 @@ import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 
+// This component is only rendered if the user is an Admin, as enforced by AdminLayout.
 function TotalUsersCardContent() {
   const firestore = useFirestore();
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
   
@@ -50,15 +52,16 @@ export default function AdminDashboardPage() {
 
   const { data: documents, isLoading: areDocumentsLoading } = useCollection<Document>(documentsQuery);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection<Category>(categoriesQuery);
-
-  const isAdmin = currentUserData?.role === 'Admin';
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
   if (isCurrentUserDataLoading || isUserLoading) {
+    // This state is managed by AdminLayout, but as a fallback:
     return <div className="container mx-auto"><p>Cargando panel...</p></div>;
   }
+  
+  const isAdmin = currentUserData?.role === 'Admin';
 
   return (
     <div className="container mx-auto">

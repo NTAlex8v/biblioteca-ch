@@ -11,11 +11,13 @@ import { collection, doc } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
 
+// This component is only rendered if the user is an Admin, as enforced by AdminLayout.
 function UsersTable() {
   const firestore = useFirestore();
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
 
@@ -63,10 +65,12 @@ function UsersTable() {
   );
 }
 
+
 export default function AdminUsersPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
+  // We still need to get the user's role to decide whether to show the table
   const currentUserDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -74,12 +78,13 @@ export default function AdminUsersPage() {
 
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
   
-  const isAdmin = currentUserData?.role === 'Admin';
-  
   if (isUserLoading || isCurrentUserDataLoading) {
-      return <div className="container mx-auto"><p>Verificando permisos...</p></div>
+      // This state is managed by the AdminLayout, but as a fallback:
+      return <div className="container mx-auto"><p>Cargando...</p></div>
   }
 
+  const isAdmin = currentUserData?.role === 'Admin';
+  
   return (
     <div className="container mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -104,12 +109,12 @@ export default function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!isAdmin ? (
+              {isAdmin ? (
+                <UsersTable />
+              ) : (
                  <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">Solo los administradores pueden ver esta sección.</TableCell>
                 </TableRow>
-              ) : (
-                <UsersTable />
               )}
             </TableBody>
           </Table>

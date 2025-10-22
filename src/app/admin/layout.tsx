@@ -46,5 +46,6 @@ export default function AdminLayout({
     );
   }
 
+  // If permissions are sufficient, render the children pages.
   return <>{children}</>;
 }
