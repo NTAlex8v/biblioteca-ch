@@ -20,7 +20,7 @@ export default function AdminDashboardPage() {
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
   
   const usersQuery = useMemoFirebase(() => {
-    if (currentUserData?.role === 'Admin') {
+    if (firestore && currentUserData && currentUserData.role === 'Admin') {
       return collection(firestore, 'users');
     }
     return null;
