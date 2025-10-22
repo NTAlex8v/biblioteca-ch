@@ -2,11 +2,13 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
+import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, doc, getDocs } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 import React, { useState, useEffect } from 'react';
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 // --- Componente Aislado para la Consulta ---
 function TotalUsersCardContent() {
@@ -17,13 +19,23 @@ function TotalUsersCardContent() {
   useEffect(() => {
     const fetchUserCount = async () => {
       if (!firestore) return;
+      setIsLoading(true);
       try {
         const usersCollectionRef = collection(firestore, 'users');
         const querySnapshot = await getDocs(usersCollectionRef);
         setTotalUsers(querySnapshot.size);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching user count:", error);
-        setTotalUsers(0); // Mostrar 0 en caso de error
+        setTotalUsers(0); // Default to 0 on error
+        
+        // Emit a contextual error if it's a permission issue
+        if (error.code === 'permission-denied') {
+            const contextualError = new FirestorePermissionError({
+                path: 'users',
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        }
       } finally {
         setIsLoading(false);
       }
