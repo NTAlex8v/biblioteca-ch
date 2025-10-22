@@ -59,7 +59,7 @@ export default function SignupPage() {
             displayName: values.fullName,
         });
 
-        // Create user document in Firestore
+        // Create user document in Firestore with 'User' role
         const userRef = doc(firestore, "users", user.uid);
         const userData = {
             id: user.uid,
@@ -68,8 +68,8 @@ export default function SignupPage() {
             role: 'User', // Assign a default role
             createdAt: new Date().toISOString(),
         };
-        // Use non-blocking write to create the user document
-        setDocumentNonBlocking(userRef, userData, { merge: true });
+        // This is a new user, so we set the document without merge.
+        setDocumentNonBlocking(userRef, userData, {});
 
         toast({
           title: "¡Cuenta Creada!",

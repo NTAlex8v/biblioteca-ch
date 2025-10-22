@@ -7,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
-import { doc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -44,21 +44,27 @@ export default function LoginPage() {
     },
   });
 
-  const handleUserCreation = (userCred: UserCredential) => {
+  const handleSignInSuccess = async (userCred: UserCredential) => {
     const user = userCred.user;
     if (!firestore || !user) return;
 
+    // Check if user document already exists
     const userRef = doc(firestore, "users", user.uid);
-    const userData = {
-        id: user.uid,
-        email: user.email,
-        name: user.displayName,
-        avatarUrl: user.photoURL,
-        role: 'User', // Default role
-        createdAt: new Date().toISOString(),
-    };
-    
-    setDocumentNonBlocking(userRef, userData, { merge: true });
+    const docSnap = await getDoc(userRef);
+
+    // If the user document does not exist, create it.
+    if (!docSnap.exists()) {
+        const userData = {
+            id: user.uid,
+            email: user.email,
+            name: user.displayName,
+            avatarUrl: user.photoURL,
+            role: 'User', // Assign default role ONLY on creation
+            createdAt: new Date().toISOString(),
+        };
+        // Use non-blocking write to create the document
+        setDocumentNonBlocking(userRef, userData, { merge: true });
+    }
     
     toast({
         title: "Inicio de sesión exitoso",
@@ -71,7 +77,7 @@ export default function LoginPage() {
     if (!auth) return;
     setIsSubmitting(true);
     signInWithEmailAndPassword(auth, values.email, values.password)
-        .then(handleUserCreation)
+        .then(handleSignInSuccess)
         .catch(error => {
             toast({
                 variant: "destructive",
@@ -88,12 +94,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     signInWithPopup(auth, provider)
-      .then(handleUserCreation)
+      .then(handleSignInSuccess)
       .catch((error) => {
         toast({
           variant: "destructive",
           title: "Error con Google",
-          description: `Código: ${error.code}\nMensaje: ${error.message}`,
+          description: error.message || "No se pudo iniciar sesión con Google.",
         });
       })
       .finally(() => {
