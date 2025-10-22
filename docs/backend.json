@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Document": {
@@ -216,22 +217,6 @@
             {
               "name": "documentId",
               "description": "The unique identifier for the document."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection to store admin roles based on user ID. The existence of a document in this collection grants admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The Firebase Auth UID of the admin user."
             }
           ]
         }

@@ -7,7 +7,6 @@ import {
   BookCopy,
   LogOut,
   User,
-  UserCog,
   Moon,
   Sun,
 } from "lucide-react";
@@ -108,8 +107,6 @@ const Header = () => {
       );
     }
     
-    const userRole = userData?.role;
-    
     return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -141,14 +138,6 @@ const Header = () => {
                   <span>Perfil</span>
                 </DropdownMenuItem>
               </Link>
-              {(userRole === 'Admin' || userRole === 'Editor') && (
-                <Link href="/admin">
-                    <DropdownMenuItem>
-                    <UserCog className="mr-2 h-4 w-4" />
-                    <span>Panel de Admin</span>
-                    </DropdownMenuItem>
-                </Link>
-              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
