@@ -18,10 +18,19 @@ interface AdminUsersPageProps {
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
 
+  // The parent AdminLayout guarantees the user prop is available, but a defensive check is good practice.
+  if (!user) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+          <p>Cargando datos de usuario...</p>
+      </div>
+    );
+  }
+
   // The query is now conditional on the user's role.
   // It will only be created if the role is 'Admin'.
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user || user.role !== 'Admin') {
+    if (!firestore || user.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
@@ -30,8 +39,6 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   // The hook will receive a null query for non-admins, and won't fetch data.
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
-  // The parent AdminLayout guarantees the user prop is available here.
-  // No need for a !user check.
 
   // If the user is not an admin, show a message instead of an empty table.
   if (user.role !== 'Admin') {

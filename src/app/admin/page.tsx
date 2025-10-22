@@ -14,10 +14,18 @@ interface AdminDashboardPageProps {
 export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const firestore = useFirestore();
 
+  // The parent AdminLayout guarantees the user prop is available, but a defensive check is good practice.
+  if (!user) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+          <p>Cargando datos de usuario...</p>
+      </div>
+    );
+  }
+
   // Conditionally create queries based on the user's role
   const usersQuery = useMemoFirebase(() => {
-    // Important: check for user object before accessing role
-    if (!firestore || !user || user.role !== 'Admin') return null;
+    if (!firestore || user.role !== 'Admin') return null;
     return collection(firestore, 'users');
   }, [firestore, user]);
 
@@ -38,9 +46,6 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const totalDocuments = documents?.length ?? 0;
   const totalUsers = users?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
-
-  // The parent AdminLayout guarantees the user prop is available here.
-  // No need for a !user check.
 
   return (
     <div className="container mx-auto">
