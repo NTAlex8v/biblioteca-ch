@@ -7,7 +7,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 import React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { useAuth } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -31,7 +30,6 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -44,30 +42,9 @@ export default function LoginPage() {
     },
   });
 
-  const handleSignInSuccess = async (userCred: UserCredential) => {
-    const user = userCred.user;
-    if (!firestore || !user) return;
-
-    // Check if user document already exists
-    const userRef = doc(firestore, "users", user.uid);
-    const docSnap = await getDoc(userRef);
-
-    // If the user document does not exist, create it.
-    // This is for social logins where a user might not have a DB record yet.
-    if (!docSnap.exists()) {
-        const userData = {
-            id: user.uid,
-            email: user.email,
-            name: user.displayName,
-            avatarUrl: user.photoURL,
-            role: 'User', // Assign default role ONLY on creation
-            createdAt: new Date().toISOString(),
-        };
-        // Use setDoc without merge to ensure it's a creation operation.
-        // It's safe because we already checked docSnap.exists().
-        setDocumentNonBlocking(userRef, userData, {}); 
-    }
-    
+  // A simplified success handler that ONLY handles UI feedback and redirection.
+  // NO DATABASE WRITES ON LOGIN.
+  const handleSignInSuccess = (userCred: UserCredential) => {
     toast({
         title: "Inicio de sesión exitoso",
         description: "¡Bienvenido de vuelta!",
@@ -97,7 +74,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     signInWithPopup(auth, provider)
-      .then(handleSignInSuccess) // Use the same robust success handler
+      .then(handleSignInSuccess) 
       .catch((error) => {
         let description = "No se pudo iniciar sesión con Google.";
         if (error.code === 'auth/popup-closed-by-user') {

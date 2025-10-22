@@ -5,7 +5,8 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import SideNav from '@/components/side-nav';
 import Header from '@/components/header';
 import { ThemeProvider } from '@/components/theme-provider';
-import { FirebaseClientProvider } from '@/firebase';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
+import UserInitializer from '@/components/user-initializer';
 
 export const metadata: Metadata = {
   title: 'Cayetano Library Hub',
@@ -32,6 +33,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <FirebaseClientProvider>
+            <UserInitializer />
             <SidebarProvider>
                 <div className="flex min-h-screen w-full bg-background">
                   <SideNav />

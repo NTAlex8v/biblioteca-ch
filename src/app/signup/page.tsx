@@ -69,7 +69,7 @@ export default function SignupPage() {
             createdAt: new Date().toISOString(),
         };
         
-        // Use setDoc without merge to create the new user document.
+        // This is a new user, so we use setDoc without merge to create the document.
         // This is safe because createUserWithEmailAndPassword guarantees a new user.
         setDocumentNonBlocking(userRef, userData, {});
 
