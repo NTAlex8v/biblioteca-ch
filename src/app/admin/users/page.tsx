@@ -23,12 +23,13 @@ export default function AdminUsersPage() {
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(userDocRef);
 
   const usersQuery = useMemoFirebase(() => {
-    // Solo crea la consulta si el usuario es Admin y los datos del usuario actual están cargados.
-    if (firestore && currentUserData && currentUserData.role === 'Admin') {
+    // Solo crea la consulta si el rol del usuario es 'Admin'.
+    // Depender de `currentUserData?.role` asegura que esto solo se re-evalúe cuando el rol cambie.
+    if (firestore && currentUserData?.role === 'Admin') {
       return collection(firestore, 'users');
     }
     return null;
-  }, [firestore, currentUserData]);
+  }, [firestore, currentUserData?.role]);
 
 
   const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
