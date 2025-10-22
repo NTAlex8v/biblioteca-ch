@@ -6,15 +6,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User } from "@/lib/types";
 
 interface AdminUsersPageProps {
-  users?: User[]; // Data passed from layout
+  user: User; // The currently logged-in admin/editor user
 }
 
-export default function AdminUsersPage({ users }: AdminUsersPageProps) {
-  const isLoading = users === undefined;
+export default function AdminUsersPage({ user }: AdminUsersPageProps) {
+  const firestore = useFirestore();
+
+  // The query is now conditional on the user's role.
+  // It will only be created if the role is 'Admin'.
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || user.role !== 'Admin') {
+      return null;
+    }
+    return collection(firestore, 'users');
+  }, [firestore, user.role]);
+
+  // The hook will receive a null query for non-admins, and won't fetch data.
+  const { data: users, isLoading } = useCollection<User>(usersQuery);
+
+  // If the user is not an admin, show a message instead of an empty table.
+  if (user.role !== 'Admin') {
+    return (
+        <div className="container mx-auto">
+            <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
+            <p className="text-muted-foreground mt-4">Solo los administradores pueden ver esta sección.</p>
+        </div>
+    );
+  }
 
   return (
     <div className="container mx-auto">

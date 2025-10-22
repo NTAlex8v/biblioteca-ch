@@ -8,15 +8,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import type { Document, Category } from "@/lib/types";
+import type { Document, Category, User } from "@/lib/types";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 interface AdminDocumentsPageProps {
-  documents?: Document[];
-  categories?: Category[];
+  user: User;
 }
 
-export default function AdminDocumentsPage({ documents, categories }: AdminDocumentsPageProps) {
-  const isLoading = documents === undefined || categories === undefined;
+export default function AdminDocumentsPage({ user }: AdminDocumentsPageProps) {
+  const firestore = useFirestore();
+
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    // Admins and Editors can see documents
+    return collection(firestore, 'documents');
+  }, [firestore]);
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'categories');
+  }, [firestore]);
+  
+  const { data: documents, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+
+  const isLoading = isLoadingDocuments || isLoadingCategories;
 
   const getCategoryName = (categoryId: string) => {
     if (!categories) return '...';
