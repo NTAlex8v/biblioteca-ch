@@ -1,8 +1,11 @@
 
 "use client";
 
-import { useUser, useUserClaims } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import React from "react";
+import { doc } from "firebase/firestore";
+import type { User as AppUser } from "@/lib/types";
+
 
 export default function AdminLayout({
   children,
@@ -10,9 +13,16 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const { claims, isLoadingClaims } = useUserClaims();
+  const firestore = useFirestore();
 
-  if (isUserLoading || isLoadingClaims) {
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "users", user.uid);
+  }, [firestore, user]);
+
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
+
+  if (isUserLoading || isUserDataLoading) {
     return (
         <div className="flex h-[80vh] items-center justify-center">
             <p>Verificando permisos...</p>
@@ -20,8 +30,8 @@ export default function AdminLayout({
     );
   }
 
-  const isAdmin = claims?.role === 'Admin';
-  const isEditor = claims?.role === 'Editor';
+  const isAdmin = userData?.role === 'Admin';
+  const isEditor = userData?.role === 'Editor';
 
   if (!user || (!isAdmin && !isEditor)) {
     return (

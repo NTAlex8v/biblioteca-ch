@@ -14,6 +14,7 @@ import {
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
 import React, { Suspense } from "react";
+import { doc } from "firebase/firestore";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { useAuth, useUser, useUserClaims } from "@/firebase";
+import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import SearchInputHandler from "./search-input-handler";
+import type { User as AppUser } from "@/lib/types";
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -61,8 +63,15 @@ const Header = () => {
   const router = useRouter();
   const { isMobile } = useSidebar();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const { claims } = useUserClaims();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userData } = useDoc<AppUser>(userDocRef);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,6 +108,8 @@ const Header = () => {
       );
     }
     
+    const userRole = userData?.role;
+    
     return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -130,7 +141,7 @@ const Header = () => {
                   <span>Perfil</span>
                 </DropdownMenuItem>
               </Link>
-              {(claims?.role === 'Admin' || claims?.role === 'Editor') && (
+              {(userRole === 'Admin' || userRole === 'Editor') && (
                 <Link href="/admin">
                     <DropdownMenuItem>
                     <UserCog className="mr-2 h-4 w-4" />

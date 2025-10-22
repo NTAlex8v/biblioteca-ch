@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
 
@@ -64,12 +64,19 @@ function UsersTable() {
 }
 
 export default function AdminUsersPage() {
-  const { isUserLoading } = useUser();
-  const { claims, isLoadingClaims } = useUserClaims();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
 
-  const isAdmin = claims?.role === 'Admin';
+  const currentUserDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
   
-  if (isLoadingClaims || isUserLoading) {
+  const isAdmin = currentUserData?.role === 'Admin';
+  
+  if (isUserLoading || isCurrentUserDataLoading) {
       return <div className="container mx-auto"><p>Verificando permisos...</p></div>
   }
 

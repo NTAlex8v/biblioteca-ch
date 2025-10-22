@@ -2,8 +2,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 
@@ -29,8 +29,14 @@ function TotalUsersCardContent() {
 
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
-  const { claims, isLoadingClaims } = useUserClaims();
+  const { user, isUserLoading } = useUser();
+
+  const currentUserDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -45,12 +51,12 @@ export default function AdminDashboardPage() {
   const { data: documents, isLoading: areDocumentsLoading } = useCollection<Document>(documentsQuery);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection<Category>(categoriesQuery);
 
-  const isAdmin = claims?.role === 'Admin';
+  const isAdmin = currentUserData?.role === 'Admin';
   
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
-  if (isLoadingClaims || isUserLoading) {
+  if (isCurrentUserDataLoading || isUserLoading) {
     return <div className="container mx-auto"><p>Cargando panel...</p></div>;
   }
 

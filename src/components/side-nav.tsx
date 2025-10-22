@@ -23,9 +23,9 @@ import {
   FileText,
   Shapes,
 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
-import { collection } from "firebase/firestore";
-import type { Category } from "@/lib/types";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
+import type { Category, User as AppUser } from "@/lib/types";
 
 const SideNav = () => {
   const pathname = usePathname();
@@ -33,7 +33,13 @@ const SideNav = () => {
   
   const firestore = useFirestore();
   const { user } = useUser();
-  const { claims } = useUserClaims();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "users", user.uid);
+  }, [firestore, user]);
+
+  const { data: userData } = useDoc<AppUser>(userDocRef);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -42,7 +48,7 @@ const SideNav = () => {
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
-  const userRole = claims?.role;
+  const userRole = userData?.role;
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
