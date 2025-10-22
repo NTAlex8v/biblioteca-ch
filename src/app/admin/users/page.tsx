@@ -18,11 +18,6 @@ interface AdminUsersPageProps {
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
 
-  // Guard clause to prevent rendering if user data is not yet available.
-  if (!user) {
-    return <p>Cargando datos de usuario...</p>;
-  }
-
   const usersQuery = useMemoFirebase(() => {
     // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
     if (!firestore || user?.role !== 'Admin') {
@@ -35,7 +30,7 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   // Si el usuario logueado no es un admin pero la página se renderiza,
   // la consulta será nula y `isLoading` será falso, `users` será nulo.
-  // Mostramos el estado correspondiente.
+  // El AdminLayout ya previene el acceso, pero esta es una capa extra de seguridad visual.
   if (user.role !== 'Admin') {
     return (
       <div className="container mx-auto">

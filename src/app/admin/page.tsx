@@ -14,11 +14,6 @@ interface AdminDashboardPageProps {
 export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
   const firestore = useFirestore();
 
-  // Guard clause to prevent rendering if user data is not yet available.
-  if (!user) {
-    return <p>Cargando datos de usuario...</p>;
-  }
-
   const usersQuery = useMemoFirebase(() => {
     // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
     if (!firestore || user?.role !== 'Admin') return null;
