@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
-import { GoogleAuthProvider, signInWithPopup, UserCredential, signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, UserCredential, signInWithEmailAndPassword } from "firebase/auth";
 import { doc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import React from "react";
+import React, { useEffect } from "react";
 
 
 const loginSchema = z.object({
@@ -43,6 +43,25 @@ export default function LoginPage() {
       password: "password",
     },
   });
+
+  useEffect(() => {
+    if (!auth) return;
+    setIsSubmitting(true);
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          handleUserCreation(result);
+        }
+      })
+      .catch((error) => {
+        toast({
+          variant: "destructive",
+          title: "Error con Google",
+          description: error.message || "No se pudo iniciar sesión con Google.",
+        });
+      })
+      .finally(() => setIsSubmitting(false));
+  }, [auth]);
   
   const handleUserCreation = (userCred: UserCredential) => {
     const user = userCred.user;
@@ -87,16 +106,7 @@ export default function LoginPage() {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
     setIsSubmitting(true);
-    signInWithPopup(auth, provider)
-      .then(handleUserCreation)
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Error con Google",
-          description: error.message || "No se pudo iniciar sesión con Google.",
-        });
-      })
-      .finally(() => setIsSubmitting(false));
+    signInWithRedirect(auth, provider);
   };
 
 
