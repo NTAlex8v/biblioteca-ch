@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
-import { GoogleAuthProvider, signInWithPopup, UserCredential } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { GoogleAuthProvider, signInWithPopup, UserCredential, signInWithEmailAndPassword } from "firebase/auth";
+import { doc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 
