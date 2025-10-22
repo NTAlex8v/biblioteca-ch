@@ -8,11 +8,13 @@ import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 import React from 'react';
 
+// --- Componente Aislado para la Consulta ---
 // Este componente SOLO se renderiza si el usuario es un administrador verificado.
 // Es seguro hacer la consulta a la colección 'users' aquí.
 function TotalUsersCardContent() {
   const firestore = useFirestore();
 
+  // La consulta a 'users' solo existe dentro de este componente.
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'users');
@@ -31,6 +33,8 @@ function TotalUsersCardContent() {
   );
 }
 
+// --- Componente Principal ---
+// Solo se encarga de la lógica de UI y de decidir si renderizar el componente de consulta.
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -60,6 +64,7 @@ export default function AdminDashboardPage() {
 
   const isLoading = isUserLoading || isCurrentUserDataLoading;
 
+  // Renderiza el componente que hace la consulta SOLO si el usuario es Admin.
   const renderUsersCard = () => {
     if (isLoading) {
       return (
@@ -78,7 +83,7 @@ export default function AdminDashboardPage() {
       );
     }
     
-    // Solo renderiza el componente que hace la consulta si el usuario es Admin.
+    // Confirma el rol ANTES de decidir si renderizar el componente de consulta.
     if (currentUserData?.role === 'Admin') {
       return (
         <Card>
@@ -92,7 +97,7 @@ export default function AdminDashboardPage() {
         </Card>
       );
     }
-    // No renderiza nada si no es Admin, evitando la consulta a /users
+    
     return null;
   }
 

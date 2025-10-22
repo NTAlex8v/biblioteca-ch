@@ -12,6 +12,7 @@ import { MoreHorizontal } from "lucide-react";
 import type { User as AppUser } from "@/lib/types";
 import React from 'react';
 
+// --- Componente Aislado para la Tabla de Usuarios ---
 // Este componente SOLO se renderiza si el usuario es un administrador verificado.
 // Es seguro hacer la consulta a la colección 'users' aquí.
 function UsersTable() {
@@ -67,7 +68,8 @@ function UsersTable() {
   );
 }
 
-// El componente principal solo se encarga de verificar los permisos.
+// --- Componente Principal ---
+// Solo se encarga de verificar los permisos y decidir si renderizar la tabla.
 export default function AdminUsersPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -79,6 +81,7 @@ export default function AdminUsersPage() {
 
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<AppUser>(currentUserDocRef);
   
+  // Función que decide qué renderizar basado en los permisos.
   const renderContent = () => {
     if (isUserLoading || isCurrentUserDataLoading) {
         return (
@@ -88,7 +91,7 @@ export default function AdminUsersPage() {
         );
     }
 
-    // Solo si el usuario es Admin, renderiza el componente que hace la consulta.
+    // Confirma el rol ANTES de decidir si renderizar el componente de consulta.
     if (currentUserData?.role === 'Admin') {
       return <UsersTable />;
     }
