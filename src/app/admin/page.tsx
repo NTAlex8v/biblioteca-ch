@@ -7,12 +7,13 @@ import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { User as AppUser, Document, Category } from "@/lib/types";
 
-// This component is only rendered if the user is an Admin, as enforced by AdminLayout.
+// This component is ONLY rendered if the user is an Admin.
+// It is safe to query the 'users' collection here.
 function TotalUsersCardContent() {
   const firestore = useFirestore();
+
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // This query is safe because this component is only rendered for Admins.
     return collection(firestore, 'users');
   }, [firestore]);
   
@@ -56,12 +57,7 @@ export default function AdminDashboardPage() {
   const totalDocuments = documents?.length ?? 0;
   const totalCategories = categories?.length ?? 0;
 
-  if (isCurrentUserDataLoading || isUserLoading) {
-    // This state is managed by AdminLayout, but as a fallback:
-    return <div className="container mx-auto"><p>Cargando panel...</p></div>;
-  }
-  
-  const isAdmin = currentUserData?.role === 'Admin';
+  const isLoading = isUserLoading || isCurrentUserDataLoading;
 
   return (
     <div className="container mx-auto">
@@ -81,17 +77,19 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
         
-        {isAdmin && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <TotalUsersCardContent />
-            </CardContent>
-          </Card>
-        )}
+        { // This section will only render its content once the user's role is confirmed.
+          !isLoading && currentUserData?.role === 'Admin' && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <TotalUsersCardContent />
+              </CardContent>
+            </Card>
+          )
+        }
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
