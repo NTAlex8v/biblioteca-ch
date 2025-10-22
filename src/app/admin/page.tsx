@@ -16,7 +16,7 @@ export default function AdminDashboardPage({ user }: AdminDashboardPageProps) {
 
   const usersQuery = useMemoFirebase(() => {
     // Consulta segura: solo se crea si el usuario es Admin.
-    if (!firestore || user.role !== 'Admin') return null;
+    if (!firestore || user?.role !== 'Admin') return null;
     return collection(firestore, 'users');
   }, [firestore, user]);
 

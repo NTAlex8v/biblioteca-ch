@@ -20,7 +20,7 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   
   const usersQuery = useMemoFirebase(() => {
     // Consulta segura: solo se crea si el usuario que ha iniciado sesión es Admin.
-    if (!firestore || user.role !== 'Admin') {
+    if (!firestore || user?.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
