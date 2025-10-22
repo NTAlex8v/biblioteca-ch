@@ -16,6 +16,16 @@ interface AdminUsersPageProps {
 }
 
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
+  // Defensive check: If user data hasn't been passed down from the layout yet,
+  // show a loading state. This prevents any attempts to access `user.role`.
+  if (!user) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <p>Cargando datos de usuario...</p>
+      </div>
+    );
+  }
+
   // All hooks must be called unconditionally at the top of the component.
   const firestore = useFirestore();
 
