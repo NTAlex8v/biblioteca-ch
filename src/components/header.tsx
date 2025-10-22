@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   BookCopy,
   LogOut,
-  Search,
   User,
   UserCog,
   Moon,
@@ -14,6 +13,7 @@ import {
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
 import { doc } from "firebase/firestore";
+import React, { Suspense } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { FormEvent } from "react";
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import type { User as AppUser } from "@/lib/types";
+import SearchInputHandler from "./search-input-handler";
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -61,7 +60,6 @@ const ThemeToggle = () => {
 
 const Header = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isMobile } = useSidebar();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
@@ -74,7 +72,7 @@ const Header = () => {
 
   const { data: userData } = useDoc<AppUser>(userDocRef);
 
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const query = formData.get('search') as string;
@@ -84,6 +82,7 @@ const Header = () => {
   };
 
   const handleSignOut = () => {
+    if(!auth) return;
     signOut(auth).then(() => {
         router.push('/login');
     });
@@ -170,16 +169,9 @@ const Header = () => {
 
       <div className="flex w-full flex-1 items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
         <form onSubmit={handleSearch} className="ml-auto flex-1 sm:flex-initial">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              name="search"
-              placeholder="Búsqueda avanzada con IA..."
-              defaultValue={searchParams.get('q') || ''}
-              className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
-            />
-          </div>
+          <Suspense fallback={<div>Loading search...</div>}>
+            <SearchInputHandler />
+          </Suspense>
         </form>
         
         <ThemeToggle />
