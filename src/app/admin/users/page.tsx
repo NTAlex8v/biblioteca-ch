@@ -30,7 +30,7 @@ export default function AdminUsersPage({ user }: AdminUsersPageProps) {
 
   // Si el usuario logueado no es un admin, muestra un mensaje en lugar de una tabla vacía.
   // Esta comprobación es ahora principalmente ilustrativa, ya que el layout maneja la denegación estricta.
-  if (user.role !== 'Admin') {
+  if (user?.role !== 'Admin') {
     return (
         <div className="container mx-auto">
             <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
