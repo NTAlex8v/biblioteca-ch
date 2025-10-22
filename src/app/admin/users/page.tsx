@@ -17,10 +17,15 @@ interface AdminUsersPageProps {
 
 export default function AdminUsersPage({ user }: AdminUsersPageProps) {
   const firestore = useFirestore();
+
+  // Defensive check: Wait for user prop to be passed before proceeding.
+  if (!user) {
+    return <p>Cargando datos de usuario...</p>;
+  }
   
   const usersQuery = useMemoFirebase(() => {
     // Securely check for user and role before creating the query
-    if (!firestore || !user || user.role !== 'Admin') {
+    if (!firestore || user.role !== 'Admin') {
       return null;
     }
     return collection(firestore, 'users');
