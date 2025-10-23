@@ -1,116 +1,150 @@
 /**
- * @fileOverview Firestore Security Rules for the virtual library application.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles
+ * and provides public read access to categories, tags, and documents while restricting writes to authorized users.
  *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles, while allowing public read access to categories, tags, and documents.
- * Write access to user profiles is restricted to the owning user.
+ * @dataStructure
+ * - /users/{userId}: Stores user profile information, accessible only to the user themselves.
+ * - /categories/{categoryId}: Stores category metadata, publicly readable, writes are restricted.
+ * - /tags/{tagId}: Stores tag metadata, publicly readable, writes are restricted.
+ * - /documents/{documentId}: Stores document metadata, publicly readable, writes are restricted.
  *
- * Data Structure:
- * - /users/{userId}: Stores user profile information. Only the user can read/write their own profile.
- * - /categories/{categoryId}: Stores category data. Public read, owner-only (Admin role) write.
- * - /tags/{tagId}: Stores tag data. Public read, owner-only (Admin role) write.
- * - /documents/{documentId}: Stores document data. Public read, owner-only (Admin role) write.
- *
- * Key Security Decisions:
+ * @keySecurityDecisions
  * - Users can only read and write their own profile data.
  * - Listing of users is disallowed to prevent enumeration attacks.
- * - Categories, tags, and documents are publicly readable but writable only by admins.
- * - Data validation is relaxed to allow for rapid prototyping. Authorization is strictly enforced.
+ * - Categories, tags, and documents are publicly readable, but write access is restricted.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces that only authenticated users can access the database.
-     * @path N/A
-     * @allow (read, write) User is signed in.
-     * @deny (read, write) User is not signed in.
-     * @principle Requires authentication for all access.
+     * @description Checks if the request is made by a signed-in user.
+     * @return {bool} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the request is made by the owner of the resource.
-     * @param {string} userId - The user ID to compare against the request's auth UID.
-     * @returns {boolean} True if the user ID matches the request's auth UID, false otherwise.
-     * @example isOwner('someUserId') -> true if request.auth.uid == 'someUserId'
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against.
+     * @return {bool} True if the user is signed in and the UID matches, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user is an existing owner of the resource.
-     * @param {string} userId - The user ID to compare against the request's auth UID.
-     * @returns {boolean} True if the user ID matches the request's auth UID, and the resource exists.
-     * @example isExistingOwner('someUserId') -> true if request.auth.uid == 'someUserId' and the resource exists.
+     * @description Checks if the authenticated user is the owner of an existing document.
+     * @param {string} userId - The user ID to compare against.
+     * @return {bool} True if the user is signed in, the UID matches, and the resource exists, false otherwise.
      */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the user has the Admin role.
-     * @returns {boolean} True if the user has the Admin role.
-     */
-    function isAdmin() {
-        return isSignedIn() && request.auth.token.role == 'Admin';
-    }
-
-    /**
-     * @description Restricts access to user profiles.
+     * @description
+     * Defines security rules for user profile documents.
+     *
      * @path /users/{userId}
-     * @allow (get, update, delete) User is the owner of the profile.
-     * @allow (create) User is creating their own profile.
-     * @deny (get, update, delete) User is not the owner of the profile.
-     * @deny (create) User is not creating their own profile.
-     * @principle Enforces document ownership for writes.
+     *
+     * @allow (create) User with UID 'user123' creates their own profile document at /users/user123.
+     * @allow (get) User with UID 'user123' reads their profile document at /users/user123.
+     * @allow (update) User with UID 'user123' updates their profile document at /users/user123.
+     * @allow (delete) User with UID 'user123' deletes their profile document at /users/user123.
+     *
+     * @deny (create) User with UID 'user123' attempts to create a profile for user 'user456' at /users/user456.
+     * @deny (get) User with UID 'user123' attempts to read the profile of user 'user456' at /users/user456.
+     * @deny (update) User with UID 'user123' attempts to update the profile of user 'user456' at /users/user456.
+     * @deny (delete) User with UID 'user123' attempts to delete the profile of user 'user456' at /users/user456.
+     * @deny (list) Any user attempts to list all users.
+     *
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
+      // Read permissions: Only the owner can get their own profile.
       allow get: if isOwner(userId);
-      allow list: if false; // Disallow listing users to prevent enumeration attacks.
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id; // Enforce immutability of the id field.
+      // List is denied to prevent user enumeration
+      allow list: if false;
+
+      // Write permissions: Only the owner can create, update, or delete their own profile.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to categories, restricts write access to admins.
+     * @description
+     * Defines security rules for category documents.  Categories are publicly readable, but writes are restricted.
+     *
      * @path /categories/{categoryId}
-     * @allow (get, list) Anyone can read categories.
-     * @allow (create, update, delete) Only admins can create, update, or delete categories.
-     * @deny (create, update, delete) Non-admins cannot create, update, or delete categories.
+     *
+     * @allow (get, list) Any user can read category documents.
+     *
+     * @deny (create) Any user attempts to create a category.
+     * @deny (update) Any user attempts to update a category.
+     * @deny (delete) Any user attempts to delete a category.
+     *
+     * @principle Allows public reads, restricts writes.
      */
     match /categories/{categoryId} {
+      // Read permissions:  Anyone can read categories.
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+
+      // Write permissions: Only authorized users can create, update, or delete categories (add role based access if needed).
+      allow create: if false; // TODO: Implement role-based access.
+      allow update: if false; // TODO: Implement role-based access.
+      allow delete: if false; // TODO: Implement role-based access.
     }
 
     /**
-     * @description Allows public read access to tags, restricts write access to admins.
+     * @description
+     * Defines security rules for tag documents. Tags are publicly readable, but writes are restricted.
+     *
      * @path /tags/{tagId}
-     * @allow (get, list) Anyone can read tags.
-     * @allow (create, update, delete) Only admins can create, update, or delete tags.
-     * @deny (create, update, delete) Non-admins cannot create, update, or delete tags.
+     *
+     * @allow (get, list) Any user can read tag documents.
+     *
+     * @deny (create) Any user attempts to create a tag.
+     * @deny (update) Any user attempts to update a tag.
+     * @deny (delete) Any user attempts to delete a tag.
+     *
+     * @principle Allows public reads, restricts writes.
      */
     match /tags/{tagId} {
+      // Read permissions: Anyone can read tags.
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+
+      // Write permissions: Only authorized users can create, update, or delete tags (add role based access if needed).
+      allow create: if false; // TODO: Implement role-based access.
+      allow update: if false; // TODO: Implement role-based access.
+      allow delete: if false; // TODO: Implement role-based access.
     }
 
     /**
-     * @description Allows public read access to documents, restricts write access to admins.
+     * @description
+     * Defines security rules for document documents. Documents are publicly readable, but writes are restricted.
+     *
      * @path /documents/{documentId}
-     * @allow (get, list) Anyone can read documents.
-     * @allow (create, update, delete) Only admins can create, update, or delete documents.
-     * @deny (create, update, delete) Non-admins cannot create, update, or delete documents.
+     *
+     * @allow (get, list) Any user can read document documents.
+     *
+     * @deny (create) Any user attempts to create a document.
+     * @deny (update) Any user attempts to update a document.
+     * @deny (delete) Any user attempts to delete a document.
+     *
+     * @principle Allows public reads, restricts writes.
      */
     match /documents/{documentId} {
+      // Read permissions: Anyone can read documents.
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+
+      // Write permissions: Only authorized users can create, update, or delete documents (add role based access if needed).
+      allow create: if false; // TODO: Implement role-based access.
+      allow update: if false; // TODO: Implement role-based access.
+      allow delete: if false; // TODO: Implement role-based access.
     }
   }
 }
