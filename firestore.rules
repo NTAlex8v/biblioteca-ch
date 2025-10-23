@@ -1,92 +1,98 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user profiles,
- *              while allowing public read access to categories, tags, and documents.
- *              Only authenticated users can create, update, or delete documents, categories, or tags.
+ * @description This ruleset enforces a strict user-ownership model for user profiles
+ * and allows public read access to categories, tags, and documents while restricting write access.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles. Access is restricted to the owner.
- * - /categories/{categoryId}: Stores document categories. Public read access. Owner-only writes.
- * - /tags/{tagId}: Stores document tags. Public read access. Owner-only writes.
- * - /documents/{documentId}: Stores document metadata and file URLs. Public read access. Owner-only writes.
+ * - /users/{userId}: Stores user profile information, accessible only by the user themselves.
+ * - /categories/{categoryId}: Stores document categories, publicly readable, write-protected.
+ * - /tags/{tagId}: Stores document tags, publicly readable, write-protected.
+ * - /documents/{documentId}: Stores document metadata, publicly readable, write-protected.
  *
  * Key Security Decisions:
- * - User listing is implicitly denied.
- * - Data validation is relaxed to allow for rapid prototyping.
- * - Ownership is enforced using the Firebase Auth UID.
+ * - Users can only read and write their own user documents. Listing the /users collection is denied.
+ * - Categories, tags, and documents are publicly readable but only writable by authorized roles (to be implemented).
+ * - Data validation is minimized for rapid prototyping, focusing on authorization and relational integrity.
  *
  * Denormalization for Authorization:
- * - No denormalization is explicitly used in this version.
+ * -  N/A - currently no denormalization is required for authorization.
+ *
+ * Structural Segregation:
+ * - Publicly readable data (categories, tags, documents) is stored in top-level collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-ownership for profiles. Only the user can read, create, update, or delete their own profile.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (get, update, delete) User 'user123' can access /users/user123.
-     * @allow (create) User 'user123' can create /users/user123.
-     * @deny (get, update, delete) User 'user456' cannot access /users/user123.
-     * @principle Enforces document ownership for all operations.
+     * @allow (read, write) User with UID 'user123' can read and write their own profile.
+     * @deny (read, write) User with UID 'user456' cannot read or write 'user123' profile.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      allow get, update, delete: if isSignedIn() && isOwner(userId);
+      allow read: if isSignedIn() && isOwner(userId);
+      allow write: if isSignedIn() && isOwner(userId);
       allow create: if isSignedIn() && isOwner(userId);
-      allow list: if false;
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if false; // Listing users is not permitted.
     }
 
     /**
-     * @description Allows public read access to categories.  Only authenticated users can create, update, or delete categories.
+     * @description Controls access to document categories.
      * @path /categories/{categoryId}
      * @allow (get, list) Any user can read categories.
-     * @allow (create) Authenticated users can create categories. The 'id' field must match the categoryId.
-     * @allow (update, delete) Only the user who created the category can update or delete it.
-     * @deny (create) Unauthenticated users cannot create categories.
-     * @principle Public read access with owner-only writes.
+     * @deny (create, update, delete) No user can create, update, or delete categories without specific authorization.
+     * @principle Public read, restricted write access for categories.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Allows public read access to tags. Only authenticated users can create, update, or delete tags.
+     * @description Controls access to document tags.
      * @path /tags/{tagId}
      * @allow (get, list) Any user can read tags.
-     * @allow (create) Authenticated users can create tags.
-     * @allow (update, delete) Only the user who created the tag can update or delete it.
-     * @deny (create) Unauthenticated users cannot create tags.
-     * @principle Public read access with owner-only writes.
+     * @deny (create, update, delete) No user can create, update, or delete tags without specific authorization.
+     * @principle Public read, restricted write access for tags.
      */
     match /tags/{tagId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Allows public read access to documents.  Only authenticated users can create, update, or delete documents.
+     * @description Controls access to documents.
      * @path /documents/{documentId}
      * @allow (get, list) Any user can read documents.
-     * @allow (create) Authenticated users can create documents.
-     * @allow (update, delete) Only the user who created the document can update or delete it.
-     * @deny (create) Unauthenticated users cannot create documents.
-     * @principle Public read access with owner-only writes.
+     * @deny (create, update, delete) No user can create, update, or delete documents without specific authorization.
+     * @principle Public read, restricted write access for documents.
      */
     match /documents/{documentId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isOwner(userId) {
       return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isSignedIn() && isOwner(userId) && resource != null;
     }
   }
 }
