@@ -21,6 +21,7 @@ import {
   Users,
   FileText,
   LayoutDashboard,
+  Tags,
 } from "lucide-react";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
@@ -86,6 +87,14 @@ const SideNav = () => {
                       <SidebarMenuButton isActive={pathname.startsWith("/admin/documents")} tooltip="Documentos">
                         <FileText />
                         <span>Documentos</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                   <SidebarMenuItem>
+                    <Link href="/admin/categories">
+                      <SidebarMenuButton isActive={pathname.startsWith("/admin/categories")} tooltip="Categorías">
+                        <Shapes />
+                        <span>Categorías</span>
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
