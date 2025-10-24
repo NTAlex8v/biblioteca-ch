@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const { firestore } = initializeFirebase();
 
 async function getFolder(id: string): Promise<Folder | null> {
-    if (!firestore) return null;
+    if (!firestore || !id) return null;
     const docRef = doc(firestore, 'folders', id);
     const docSnap = await getDoc(docRef);
 
@@ -45,7 +45,11 @@ function FolderPageSkeleton() {
     );
 }
 
+// This is now an async component to correctly handle params
 export default async function FolderPage({ params }: { params: { id: string } }) {
+    
+    // Correctly handle the case where params.id might not be available immediately.
+    // Although with this structure, Next.js ensures it is.
     if (!params.id) {
         return <FolderPageSkeleton />;
     }
@@ -56,6 +60,7 @@ export default async function FolderPage({ params }: { params: { id: string } })
         notFound();
     }
     
+    // We wrap the client component in Suspense to show a fallback while it loads its own data.
     return (
        <Suspense fallback={<FolderPageSkeleton />}>
             <FolderClientPage folder={folder} />
