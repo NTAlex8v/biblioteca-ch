@@ -9,7 +9,7 @@ import { Download, Eye } from 'lucide-react';
 import Link from 'next/link';
 import type { Document as DocumentType, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type DocumentDetailProps = {
   document: DocumentType;
@@ -19,6 +19,14 @@ type DocumentDetailProps = {
 
 export default function DocumentDetailClient({ document, categoryName, documentTags }: DocumentDetailProps) {
   const [isPdfVisible, setIsPdfVisible] = useState(false);
+  const [formattedDate, setFormattedDate] = useState('');
+
+  useEffect(() => {
+    // Format the date only on the client-side to avoid hydration mismatch
+    if (document.lastUpdated) {
+      setFormattedDate(new Date(document.lastUpdated).toLocaleDateString());
+    }
+  }, [document.lastUpdated]);
   
   const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
   const thumbnailUrl = document?.thumbnailUrl || randomImage.imageUrl;
@@ -73,7 +81,7 @@ export default function DocumentDetailClient({ document, categoryName, documentT
                       </div>
                       <div>
                           <p className="font-medium">Última Actualización</p>
-                          <p className="text-muted-foreground">{new Date(document.lastUpdated).toLocaleDateString()}</p>
+                          <p className="text-muted-foreground">{formattedDate || 'Cargando...'}</p>
                       </div>
                   </div>
               </CardContent>
