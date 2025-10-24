@@ -6,8 +6,10 @@ import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { notFound } from "next/navigation";
 import type { Category as CategoryType } from "@/lib/types";
+import React from "react";
 
-export default function EditCategoryPage({ params }: { params: { id: string } }) {
+export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+    const params = React.use(paramsPromise);
     const firestore = useFirestore();
     const docRef = useMemoFirebase(() => firestore ? doc(firestore, 'categories', params.id) : null, [firestore, params.id]);
     const { data: category, isLoading } = useDoc<CategoryType>(docRef);

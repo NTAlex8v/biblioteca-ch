@@ -6,8 +6,10 @@ import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { notFound } from "next/navigation";
 import type { Document as DocumentType } from "@/lib/types";
+import React from "react";
 
-export default function EditDocumentPage({ params }: { params: { id: string } }) {
+export default function EditDocumentPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+    const params = React.use(paramsPromise);
     const firestore = useFirestore();
     const docRef = useMemoFirebase(() => firestore ? doc(firestore, 'documents', params.id) : null, [firestore, params.id]);
     const { data: document, isLoading } = useDoc<DocumentType>(docRef);

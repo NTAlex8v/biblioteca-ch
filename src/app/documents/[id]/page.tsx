@@ -9,11 +9,12 @@ import { Download, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type { Document, Category, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-export default function DocumentPage({ params }: { params: { id: string } }) {
+export default function DocumentPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = React.use(paramsPromise);
   const firestore = useFirestore();
 
   const docRef = useMemoFirebase(() => {
