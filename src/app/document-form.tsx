@@ -70,10 +70,11 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const onSubmit = (values: z.infer<typeof documentSchema>) => {
     if (!firestore || !user) return;
     
-    const data: Partial<DocumentType> = {
+    const data: Omit<DocumentType, 'id'> = {
         ...values,
         folderId: folderIdFromParams || null,
         lastUpdated: new Date().toISOString(),
+        createdBy: document?.createdBy || user.uid,
     };
 
     if (document) {
@@ -92,8 +93,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         router.push('/my-documents');
       }
     } else {
-      // Create new document and add createdBy field
-      data.createdBy = user.uid;
+      // Create new document
       const collectionRef = collection(firestore, "documents");
       addDocumentNonBlocking(collectionRef, data);
       toast({
@@ -264,3 +264,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
+    
