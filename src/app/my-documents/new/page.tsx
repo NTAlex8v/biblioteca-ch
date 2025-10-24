@@ -1,7 +1,7 @@
 
 "use client";
 
-import DocumentForm from "@/components/document-form";
+import DocumentForm from "@/app/document-form";
 
 export default function NewDocumentPage() {
 

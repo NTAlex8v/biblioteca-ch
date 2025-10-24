@@ -3,7 +3,7 @@ import React from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { notFound } from 'next/navigation';
 import { initializeFirebase } from '@/firebase/server-initialization';
-import DocumentForm from "@/components/document-form";
+import DocumentForm from "@/app/document-form";
 import type { Document as DocumentType } from "@/lib/types";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -11,9 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const { firestore } = initializeFirebase();
 
 async function getDocument(id: string): Promise<DocumentType | null> {
-    if (!id || typeof id !== 'string') {
-        return null;
-    }
+    if (!firestore || !id) return null;
     try {
         const docRef = doc(firestore, 'documents', id);
         const docSnap = await getDoc(docRef);
@@ -35,19 +33,16 @@ function EditDocumentPageSkeleton() {
                 <Skeleton className="h-9 w-1/2 mb-2" />
                 <Skeleton className="h-6 w-3/4" />
             </div>
-            <Skeleton className="h-96 w-full" />
+            <Skeleton className="h-[500px] w-full" />
         </div>
     );
 }
 
 export default async function EditDocumentPage({ params }: { params: { id: string } }) {
-    if (!params.id) {
-        return <EditDocumentPageSkeleton />;
-    }
+    
+    const documentData = await getDocument(params.id);
 
-    const document = await getDocument(params.id);
-
-    if (!document) {
+    if (!documentData) {
         notFound();
     }
 
@@ -57,7 +52,7 @@ export default async function EditDocumentPage({ params }: { params: { id: strin
                 <h1 className="text-3xl font-bold tracking-tight">Editar Documento</h1>
                 <p className="text-muted-foreground">Actualiza la información del documento.</p>
             </div>
-            <DocumentForm document={document} />
+            <DocumentForm document={documentData} />
         </div>
     );
 }

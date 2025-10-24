@@ -16,6 +16,7 @@ import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBloc
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category, Tag } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { Suspense } from "react";
 
 const documentSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
@@ -33,7 +34,7 @@ interface DocumentFormProps {
   document?: DocumentType;
 }
 
-export default function DocumentForm({ document }: DocumentFormProps) {
+function DocumentFormComponent({ document }: DocumentFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -83,7 +84,13 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
       });
-      router.push("/my-documents");
+       if (folderIdFromParams) {
+        router.push(`/folders/${folderIdFromParams}`);
+      } else if (data.categoryId) {
+        router.push(`/category/${data.categoryId}`);
+      } else {
+        router.push('/my-documents');
+      }
     } else {
       // Create new document and add createdBy field
       data.createdBy = user.uid;
@@ -248,4 +255,12 @@ export default function DocumentForm({ document }: DocumentFormProps) {
       </form>
     </Form>
   );
+}
+
+export default function DocumentForm({ document }: DocumentFormProps) {
+    return (
+        <Suspense fallback={<div>Cargando formulario...</div>}>
+            <DocumentFormComponent document={document} />
+        </Suspense>
+    );
 }

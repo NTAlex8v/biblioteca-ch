@@ -4,7 +4,7 @@
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,7 @@ import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBloc
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category, Tag } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { Suspense } from "react";
 
 const documentSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
@@ -33,11 +34,15 @@ interface DocumentFormProps {
   document?: DocumentType;
 }
 
-export default function DocumentForm({ document }: DocumentFormProps) {
+function DocumentFormComponent({ document }: DocumentFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+
+  const categoryIdFromParams = searchParams.get('categoryId');
+  const folderIdFromParams = searchParams.get('folderId');
 
   const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
@@ -53,7 +58,7 @@ export default function DocumentForm({ document }: DocumentFormProps) {
       year: new Date().getFullYear(),
       description: "",
       fileUrl: "",
-      categoryId: undefined,
+      categoryId: categoryIdFromParams || undefined,
       thumbnailUrl: "",
       subject: "",
       version: "1.0",
@@ -67,6 +72,7 @@ export default function DocumentForm({ document }: DocumentFormProps) {
     
     const data: Partial<DocumentType> = {
         ...values,
+        folderId: folderIdFromParams || null,
         lastUpdated: new Date().toISOString(),
     };
 
@@ -78,7 +84,13 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
       });
-      router.push("/my-documents");
+       if (folderIdFromParams) {
+        router.push(`/folders/${folderIdFromParams}`);
+      } else if (data.categoryId) {
+        router.push(`/category/${data.categoryId}`);
+      } else {
+        router.push('/my-documents');
+      }
     } else {
       // Create new document and add createdBy field
       data.createdBy = user.uid;
@@ -88,7 +100,13 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",
       });
-      router.push("/my-documents");
+       if (folderIdFromParams) {
+        router.push(`/folders/${folderIdFromParams}`);
+      } else if (categoryIdFromParams) {
+        router.push(`/category/${categoryIdFromParams}`);
+      } else {
+        router.push('/my-documents');
+      }
     }
   };
 
@@ -155,7 +173,7 @@ export default function DocumentForm({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingCategories}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingCategories || !!categoryIdFromParams}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
@@ -237,4 +255,12 @@ export default function DocumentForm({ document }: DocumentFormProps) {
       </form>
     </Form>
   );
+}
+
+export default function DocumentForm({ document }: DocumentFormProps) {
+    return (
+        <Suspense fallback={<div>Cargando formulario...</div>}>
+            <DocumentFormComponent document={document} />
+        </Suspense>
+    );
 }
