@@ -8,6 +8,7 @@ export type Document = {
     description: string;
     fileUrl: string;
     categoryId: string;
+    folderId?: string | null; // Can be in a category root or a folder
     tagIds?: string[];
     lastUpdated: string; // Should be a date-time string
     versionHistory?: string[];
@@ -22,8 +23,15 @@ export type Category = {
     id: string;
     name: string;
     description:string;
-    parentCategoryId?: string;
     icon?: LucideIcon; // Icon is optional now
+};
+
+export type Folder = {
+    id: string;
+    name: string;
+    categoryId: string;
+    parentFolderId: string | null;
+    createdBy: string;
 };
 
 export type Tag = {

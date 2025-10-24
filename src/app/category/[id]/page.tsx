@@ -4,7 +4,7 @@ import { initializeFirebase } from '@/firebase/server-initialization';
 import type { Category } from '@/lib/types';
 import CategoryClientPage from './client-page';
 import { Suspense } from 'react';
-import { Skeleton }from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const { firestore } = initializeFirebase();
 
@@ -56,14 +56,9 @@ export default async function CategoryPage({ params }: { params: { id: string } 
         notFound();
     }
     
-    let parentCategory: Category | null = null;
-    if (category.parentCategoryId) {
-        parentCategory = await getCategory(category.parentCategoryId);
-    }
-
     return (
        <Suspense fallback={<CategoryPageSkeleton />}>
-            <CategoryClientPage category={category} parentCategory={parentCategory}/>
+            <CategoryClientPage category={category} />
        </Suspense>
     );
 }
