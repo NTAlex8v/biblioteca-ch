@@ -27,7 +27,6 @@ function FolderPageSkeleton() {
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <Skeleton className="h-9 w-64 mb-2" />
-                    <Skeleton className="h-6 w-96" />
                 </div>
                 <div className="flex gap-2">
                     <Skeleton className="h-10 w-36" />
