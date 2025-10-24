@@ -1,4 +1,6 @@
 
+"use client";
+
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -7,42 +9,96 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase/server-initialization';
 import type { Document, Category, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useEffect, useState } from 'react';
+import { useFirestore } from '@/firebase';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Initialize firebase admin on server
-const { firestore } = initializeFirebase();
+type DocumentData = {
+  document: Document;
+  categoryName: string;
+  documentTags: Tag[];
+};
 
-async function getDocumentData(id: string): Promise<{ document: Document; categoryName: string; documentTags: Tag[] } | null> {
-    const docRef = doc(firestore, 'documents', id);
-    const categoriesCollection = collection(firestore, 'categories');
-    const tagsCollection = collection(firestore, 'tags');
+export default function DocumentPage({ params }: { params: { id: string } }) {
+  const [data, setData] = useState<DocumentData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPdfVisible, setIsPdfVisible] = useState(false);
+  const firestore = useFirestore();
+  
+  useEffect(() => {
+    async function getDocumentData(id: string) {
+      if (!firestore) return;
+      setIsLoading(true);
 
-    const [docSnap, categoriesSnap, tagsSnap] = await Promise.all([
-        getDoc(docRef),
-        getDocs(categoriesCollection),
-        getDocs(tagsCollection),
-    ]);
+      const docRef = doc(firestore, 'documents', id);
+      const categoriesCollection = collection(firestore, 'categories');
+      const tagsCollection = collection(firestore, 'tags');
 
-    if (!docSnap.exists()) {
-        return null;
+      try {
+        const [docSnap, categoriesSnap, tagsSnap] = await Promise.all([
+          getDoc(docRef),
+          getDocs(categoriesCollection),
+          getDocs(tagsCollection),
+        ]);
+
+        if (!docSnap.exists()) {
+          setData(null);
+          return;
+        }
+
+        const document = { id: docSnap.id, ...docSnap.data() } as Document;
+
+        const categoryMap = new Map(categoriesSnap.docs.map(doc => [doc.id, doc.data().name]));
+        const categoryName = categoryMap.get(document.categoryId) || 'Sin categoría';
+
+        const allTags = tagsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Tag[];
+        const documentTags = document.tagIds ? allTags.filter(tag => document.tagIds.includes(tag.id)) : [];
+
+        setData({ document, categoryName, documentTags });
+
+      } catch (error) {
+        console.error("Error fetching document data:", error);
+        setData(null);
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    const document = { id: docSnap.id, ...docSnap.data() } as Document;
+    getDocumentData(params.id);
 
-    const categoryMap = new Map(categoriesSnap.docs.map(doc => [doc.id, doc.data().name]));
-    const categoryName = categoryMap.get(document.categoryId) || 'Sin categoría';
-    
-    const allTags = tagsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Tag[];
-    const documentTags = document.tagIds ? allTags.filter(tag => document.tagIds.includes(tag.id)) : [];
+  }, [params.id, firestore]);
 
-    return { document, categoryName, documentTags };
-}
-
-export default async function DocumentPage({ params }: { params: { id: string } }) {
-  
-  const data = await getDocumentData(params.id);
+  if (isLoading) {
+    return (
+      <div className="container mx-auto max-w-5xl">
+         <div className="grid md:grid-cols-3 gap-8">
+            <div className="md:col-span-1">
+                <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+            </div>
+            <div className="md:col-span-2 space-y-4">
+                <Skeleton className="h-10 w-3/4" />
+                <Skeleton className="h-6 w-1/2" />
+                <div className="flex gap-4">
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                    <Skeleton className="h-6 w-20" />
+                </div>
+                 <Skeleton className="h-24 w-full" />
+                 <div className="flex flex-wrap gap-2">
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                 </div>
+                 <Skeleton className="h-40 w-full" />
+                 <div className="flex gap-4">
+                    <Skeleton className="h-12 w-1/2" />
+                    <Skeleton className="h-12 w-1/2" />
+                 </div>
+            </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     notFound();
@@ -50,7 +106,6 @@ export default async function DocumentPage({ params }: { params: { id: string } 
 
   const { document, categoryName, documentTags } = data;
 
-  // Find a placeholder image. Fallback to a default one.
   const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
   const thumbnailUrl = document?.thumbnailUrl || randomImage.imageUrl;
 
@@ -111,15 +166,32 @@ export default async function DocumentPage({ params }: { params: { id: string } 
             </Card>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="flex-1">
-                <Eye className="mr-2" /> Ver PDF Embebido
+              <Button size="lg" className="flex-1" onClick={() => setIsPdfVisible(!isPdfVisible)}>
+                <Eye className="mr-2" /> {isPdfVisible ? 'Ocultar PDF' : 'Ver PDF Embebido'}
               </Button>
               <Button size="lg" variant="secondary" className="flex-1" asChild>
-                <Link href={document.fileUrl} download>
+                <Link href={document.fileUrl} target="_blank" rel="noopener noreferrer" download>
                   <Download className="mr-2" /> Descargar Archivo
                 </Link>
               </Button>
             </div>
+             {isPdfVisible && (
+              <div className="mt-8">
+                <Card>
+                  <CardContent className="p-2">
+                    <div className="relative w-full aspect-[4/5]">
+                       <iframe
+                        src={document.fileUrl}
+                        title={`PDF Viewer for ${document.title}`}
+                        className="w-full h-full"
+                        style={{ border: 'none' }}
+                        allowFullScreen
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         </div>
       </div>
