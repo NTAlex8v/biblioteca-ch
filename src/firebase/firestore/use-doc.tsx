@@ -39,15 +39,16 @@ export interface UseDocResult<T> {
  * @returns {UseDocResult<T>} Object with data, isLoading, error.
  */
 export function useDoc<T = any>(
-  memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
+  memoizedDocRef: (DocumentReference<DocumentData> & {__memo?: boolean}) | null | undefined,
 ): UseDocResult<T> {
   type StateDataType = WithId<T> | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start as loading
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    // This guard is the fix: if the ref is null/undefined, stop loading and wait.
     if (!memoizedDocRef) {
       setData(null);
       setIsLoading(false);
@@ -57,7 +58,6 @@ export function useDoc<T = any>(
 
     setIsLoading(true);
     setError(null);
-    // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,
@@ -88,6 +88,10 @@ export function useDoc<T = any>(
 
     return () => unsubscribe();
   }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
+
+  if (memoizedDocRef && !memoizedDocRef.__memo) {
+    console.warn('A document reference passed to useDoc was not memoized with useMemoFirebase. This can cause infinite loops.', memoizedDocRef);
+  }
 
   return { data, isLoading, error };
 }
