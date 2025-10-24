@@ -104,13 +104,8 @@ export default function DocumentPage({ params: paramsPromise }: { params: Promis
     return <DocumentPageSkeleton />;
   }
 
-  if (!isLoading && !document) {
-    notFound();
-  }
-
-  // This check is now safe because of the conditions above.
   if (!document) {
-    return <DocumentPageSkeleton />; // Or a more specific "not found" component within the layout
+    notFound();
   }
 
   // Find a placeholder image. Fallback to a default one.

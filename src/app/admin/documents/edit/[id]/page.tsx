@@ -44,7 +44,7 @@ export default function EditDocumentPage({ params: paramsPromise }: { params: Pr
         return <EditDocumentPageSkeleton />;
     }
 
-    if (!isLoading && !document) {
+    if (!document) {
         notFound();
     }
 
@@ -54,7 +54,7 @@ export default function EditDocumentPage({ params: paramsPromise }: { params: Pr
                 <h1 className="text-3xl font-bold tracking-tight">Editar Documento</h1>
                 <p className="text-muted-foreground">Actualiza la información del documento.</p>
             </div>
-            {document && <DocumentForm document={document} />}
+            <DocumentForm document={document} />
         </div>
     );
 }

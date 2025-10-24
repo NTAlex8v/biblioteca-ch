@@ -38,7 +38,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
         return <EditCategoryPageSkeleton />;
     }
 
-    if (!isLoading && !category) {
+    if (!category) {
         notFound();
     }
 
@@ -48,7 +48,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
                 <h1 className="text-3xl font-bold tracking-tight">Editar Categoría</h1>
                 <p className="text-muted-foreground">Actualiza la información de la categoría.</p>
             </div>
-            {category && <CategoryForm category={category} />}
+            <CategoryForm category={category} />
         </div>
     );
 }
