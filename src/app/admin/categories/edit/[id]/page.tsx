@@ -18,7 +18,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
         return <div className="container mx-auto"><p>Cargando categoría...</p></div>;
     }
 
-    if (!category) {
+    if (!category && !isLoading) {
         notFound();
     }
 
@@ -28,7 +28,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
                 <h1 className="text-3xl font-bold tracking-tight">Editar Categoría</h1>
                 <p className="text-muted-foreground">Actualiza la información de la categoría.</p>
             </div>
-            <CategoryForm category={category} />
+            {category && <CategoryForm category={category} />}
         </div>
     );
 }

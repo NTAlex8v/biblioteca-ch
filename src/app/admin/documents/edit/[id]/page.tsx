@@ -18,17 +18,18 @@ export default function EditDocumentPage({ params: paramsPromise }: { params: Pr
         return <div className="container mx-auto"><p>Cargando documento...</p></div>;
     }
 
-    if (!document) {
+    if (!document && !isLoading) {
         notFound();
     }
 
+    // Render the form only when the document has been loaded
     return (
         <div className="container mx-auto">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Editar Documento</h1>
                 <p className="text-muted-foreground">Actualiza la información del documento.</p>
             </div>
-            <DocumentForm document={document} />
+            {document && <DocumentForm document={document} />}
         </div>
     );
 }
