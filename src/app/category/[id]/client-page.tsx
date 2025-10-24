@@ -27,6 +27,8 @@ const ItemSkeleton = () => (
 export default function CategoryClientPage({ category, parentCategory }: CategoryClientPageProps) {
   const firestore = useFirestore();
 
+  // Query for sub-folders within this category (to be implemented)
+  // For now, this will be empty. We will treat subCategories as folders.
   const subCategoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'categories'), where('parentCategoryId', '==', category.id));
@@ -61,6 +63,7 @@ export default function CategoryClientPage({ category, parentCategory }: Categor
         </div>
         <div className="flex gap-2">
             <Button asChild>
+                {/* This should eventually lead to a "new folder" page */}
                 <Link href="/admin/categories/new">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Nueva Carpeta
@@ -75,7 +78,7 @@ export default function CategoryClientPage({ category, parentCategory }: Categor
         </div>
       </div>
       
-      {/* Sub-categories section */}
+      {/* Sub-folders section */}
       { (subCategories && subCategories.length > 0) || isLoading ? (
           <>
             <h2 className="text-2xl font-semibold tracking-tight mb-4">Carpetas</h2>
