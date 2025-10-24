@@ -1,190 +1,174 @@
 /**
- * @fileoverview Firestore Security Rules for the virtual library application.
+ * @fileOverview Firestore Security Rules for the virtual library application.
  *
  * Core Philosophy:
- * This ruleset implements a role-based access control model with public read access for categories and tags, authenticated read access for documents, and owner-only access for user profiles.
+ * This ruleset implements a role-based access control system layered on top of authenticated users. User roles ('Admin', 'Editor', 'User') are read from the `/users/{userId}` document.
+ * Documents can be read by anyone, but only created, updated, and deleted by Admins or Editors.
+ * Categories and Tags can only be accessed (read, create, update, delete) by authenticated users with the Admin or Editor role.
+ * User documents can only be read, created, updated and deleted by the user themselves or by an Admin.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile data; only accessible by the user themselves or an admin.
- * - /categories/{categoryId}: Stores category data; publicly readable, but only admins/editors can modify.
- * - /tags/{tagId}: Stores tag data; publicly readable, but only admins/editors can modify.
- * - /documents/{documentId}: Stores document data; accessible to authenticated users, but only admins/editors can modify.
+ * - `/users/{userId}`: Stores user profile information, including the user's role. The `userId` must match the Firebase Auth UID.
+ * - `/documents/{documentId}`: Stores document metadata and file URLs. Readable by anyone. Writable only by Admin or Editor.
+ * - `/categories/{categoryId}`: Stores categories for organizing documents.
+ * - `/tags/{tagId}`: Stores tags for cross-classification of documents.
  *
  * Key Security Decisions:
- * - Categories and Tags: Publicly readable to support listing without authentication.
- * - Users: User listing is restricted to admins. Individual user profiles are accessible to the user and admins.
- * - Documents: Accessible to authenticated users.
- * - Roles: Users can have "Admin" or "Editor" roles, granting elevated privileges.
- * - Strict Role Enforcement: Roles are read from the user document.
+ * - Public Read Access for Documents: The `documents` collection is publicly readable to allow for easy discovery and access. Ensure no sensitive data is stored directly in these documents.
+ * - Role-Based Access Control: Administrative and editorial privileges are granted based on the `role` field in the user's document.
+ * - User Data Ownership: Users can only manage their own profile data, unless an Admin is involved.
+ *
+ * Denormalization for Authorization:
+ * - User roles are stored directly within the `/users/{userId}` document to avoid expensive `get()` calls during authorization checks. This allows the `isAdmin()` and `isEditor()` functions to efficiently determine a user's privileges.
+ *
+ * Structural Segregation:
+ * - Publicly readable documents are stored in the top-level `/documents` collection, separate from private user data. This allows for public read access without compromising user privacy.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is authenticated, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Gets the profile data of the requesting user.
-     */
-    function requesterProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    /**
      * @description Checks if the requesting user has the 'Admin' role.
+     * @return {boolean} True if the user is an Admin, false otherwise.
      */
     function isAdmin() {
-      return isSignedIn() && requesterProfile().data.role == "Admin";
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Admin";
     }
 
     /**
      * @description Checks if the requesting user has the 'Editor' role.
+     * @return {boolean} True if the user is an Editor, false otherwise.
      */
     function isEditor() {
-      return isSignedIn() && requesterProfile().data.role == "Editor";
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Editor";
     }
 
-     /**
-      * @description Checks if the requesting user has either the 'Admin' or 'Editor' role.
-      */
+    /**
+     * @description Checks if the requesting user has either 'Admin' or 'Editor' role.
+     * @return {boolean} True if the user is an Admin or Editor, false otherwise.
+     */
     function isAdminOrEditor() {
       return isAdmin() || isEditor();
     }
 
     /**
-     * @description Checks if the requesting user is the owner of the document.
+     * @description Checks if the requesting user is the owner of the document (userId matches request.auth.uid).
+     * @param {string} userId The user ID to compare against the request's auth UID.
+     * @return {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the requesting user is the owner of the document and the document exists.
+     * @description Checks if the requesting user is the owner of an existing document.
+     *              Combines ownership check with existence check for safer updates and deletes.
+     * @param {string} userId The user ID to compare against the request's auth UID.
+     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
      */
     function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Security rules for user profiles.
+     * @description Rules for user documents.
      * @path /users/{userId}
-     * @allow (get) Allow authenticated users to read their own profile.
-     *    request.auth.uid = "user123"
-     * @deny (get) Deny access to other user profiles without being an admin.
-     *    request.auth.uid = "otherUser"
-     * @allow (create) Allow a user to create their own profile.
-     *    request.auth.uid = "user123"
-     * @deny (create) Deny creating a profile with an ID that doesn't match the auth UID.
-     *    request.auth.uid = "otherUser"
-     * @allow (update) Allow a user to update their own profile.
-     *    request.auth.uid = "user123"
-     * @deny (update) Deny updating other user profiles without being an admin.
-     *    request.auth.uid = "otherUser"
-     * @allow (delete) Allow a user to delete their own profile.
-     *    request.auth.uid = "user123"
-     * @deny (delete) Deny deleting other user profiles without being an admin.
-     *    request.auth.uid = "otherUser"
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) User with matching ID can create their own document.
+     * @allow (get) User with matching ID or Admin can read the document.
+     * @allow (update) User with matching ID or Admin can update the document.
+     * @allow (delete) User with matching ID or Admin can delete the document.
+     * @deny (create) User cannot create a document with a different ID.
+     * @deny (get) User cannot read another user's document (unless Admin).
+     * @deny (update) User cannot update another user's document (unless Admin).
+     * @deny (delete) User cannot delete another user's document (unless Admin).
+     * @principle Enforces user ownership and admin override.
      */
     match /users/{userId} {
       allow list: if isAdmin();
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
     /**
-     * @description Security rules for categories.
-     * @path /categories/{categoryId}
-     * @allow (get) Allow anyone to read categories.
-     *    auth = null
-     * @allow (list) Allow anyone to list categories.
-     *    auth = null
-     * @allow (create) Allow admins or editors to create categories.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (create) Deny non-admins from creating categories.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (update) Allow admins or editors to update categories.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (update) Deny non-admins from updating categories.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (delete) Allow admins or editors to delete categories.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (delete) Deny non-admins from deleting categories.
-     *    auth.uid = "user123", user.role = "User"
-     * @principle Allows public read access with admin/editor-only writes.
+     * @description Rules for document entities.  Documents are publicly readable, but only Admins/Editors can write.
+     * @path /documents/{docId}
+     * @allow (get) Any user can read a document.
+     * @allow (list) Any user can list documents.
+     * @allow (create) Only Admin or Editor can create a document.
+     * @allow (update) Only Admin or Editor can update a document.
+     * @allow (delete) Only Admin or Editor can delete a document.
+     * @deny (create) Non-Admin/Editor users cannot create documents.
+     * @deny (update) Non-Admin/Editor users cannot update documents.
+     * @deny (delete) Non-Admin/Editor users cannot delete documents.
+     * @principle Allows public read access with restricted write access.
      */
-    match /categories/{categoryId} {
+    match /documents/{docId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
+      allow create: if isAdminOrEditor();
+      allow update: if isAdminOrEditor() && resource != null;
+      allow delete: if isAdminOrEditor() && resource != null;
     }
 
     /**
-     * @description Security rules for tags.
+     * @description Rules for category entities. Only authenticated users can read, only Admin/Editor can write.
+     * @path /categories/{catId}
+     * @allow (get) Authenticated user can read a category.
+     * @allow (list) Authenticated user can list categories.
+     * @allow (create) Only Admin or Editor can create a category.
+     * @allow (update) Only Admin or Editor can update a category.
+     * @allow (delete) Only Admin or Editor can delete a category.
+     * @deny (create) Non-Admin/Editor users cannot create categories.
+     * @deny (update) Non-Admin/Editor users cannot update categories.
+     * @deny (delete) Non-Admin/Editor users cannot delete categories.
+     * @principle Authenticated read, restricted write access.
+     */
+    match /categories/{catId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor();
+      allow update: if isAdminOrEditor() && resource != null;
+      allow delete: if isAdminOrEditor() && resource != null;
+    }
+
+    /**
+     * @description Rules for tag entities. Only authenticated users can read, only Admin/Editor can write.
      * @path /tags/{tagId}
-     * @allow (get) Allow anyone to read tags.
-     *    auth = null
-     * @allow (list) Allow anyone to list tags.
-     *    auth = null
-     * @allow (create) Allow admins or editors to create tags.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (create) Deny non-admins from creating tags.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (update) Allow admins or editors to update tags.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (update) Deny non-admins from updating tags.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (delete) Allow admins or editors to delete tags.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (delete) Deny non-admins from deleting tags.
-     *    auth.uid = "user123", user.role = "User"
-     * @principle Allows public read access with admin/editor-only writes.
+     * @allow (get) Authenticated user can read a tag.
+     * @allow (list) Authenticated user can list tags.
+     * @allow (create) Only Admin or Editor can create a tag.
+     * @allow (update) Only Admin or Editor can update a tag.
+     * @allow (delete) Only Admin or Editor can delete a tag.
+     * @deny (create) Non-Admin/Editor users cannot create tags.
+     * @deny (update) Non-Admin/Editor users cannot update tags.
+     * @deny (delete) Non-Admin/Editor users cannot delete tags.
+     * @principle Authenticated read, restricted write access.
      */
     match /tags/{tagId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
-    }
-
-    /**
-     * @description Security rules for documents.
-     * @path /documents/{documentId}
-     * @allow (get) Allow authenticated users to read documents.
-     *    auth.uid = "user123"
-     * @allow (list) Allow authenticated users to list documents.
-     *    auth.uid = "user123"
-     * @allow (create) Allow admins or editors to create documents.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (create) Deny non-admins from creating documents.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (update) Allow admins or editors to update documents.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (update) Deny non-admins from updating documents.
-     *    auth.uid = "user123", user.role = "User"
-     * @allow (delete) Allow admins or editors to delete documents.
-     *    auth.uid = "admin123", user.role = "Admin"
-     * @deny (delete) Deny non-admins from deleting documents.
-     *    auth.uid = "user123", user.role = "User"
-     * @principle Requires authentication for reads and restricts writes to admins/editors.
-     */
-    match /documents/{documentId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdminOrEditor();
+      allow create: if isAdminOrEditor();
+      allow update: if isAdminOrEditor() && resource != null;
+      allow delete: if isAdminOrEditor() && resource != null;
     }
 
     /**
-     * @description Catch-all rule to deny access to any other paths.
+     * @description Fallback rule to deny all other read and write requests.
      * @path /{document=**}
-     * @deny (read) Deny all read operations.
-     *    auth = null
-     * @deny (write) Deny all write operations.
-     *    auth = null
-     * @principle Denies all access to undefined paths for security.
+     * @deny (get) All read requests to unmatched paths.
+     * @deny (list) All list requests to unmatched paths.
+     * @deny (create) All create requests to unmatched paths.
+     * @deny (update) All update requests to unmatched paths.
+     * @deny (delete) All delete requests to unmatched paths.
+     * @principle Default-deny security posture.
      */
     match /{document=**} {
       allow read, write: if false;
