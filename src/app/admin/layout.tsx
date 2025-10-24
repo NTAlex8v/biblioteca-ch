@@ -6,6 +6,7 @@ import { doc } from "firebase/firestore";
 import type { User as AppUser } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
+import React from "react";
 
 export default function AdminLayout({
   children,
@@ -48,5 +49,9 @@ export default function AdminLayout({
     );
   }
 
-  return <>{children}</>;
+  return (
+    <div className="container mx-auto">
+        {children}
+    </div>
+  );
 }

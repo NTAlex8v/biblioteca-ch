@@ -3,8 +3,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { collection, doc, query, where } from 'firebase/firestore';
 import type { Document as DocumentType, Category } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,10 +24,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useRouter } from 'next/navigation';
 
 function DocumentActions({ documentId }: { documentId: string }) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const router = useRouter();
 
   const handleDelete = () => {
     if (!firestore) return;
@@ -38,6 +40,10 @@ function DocumentActions({ documentId }: { documentId: string }) {
       title: 'Documento eliminado',
       description: 'El documento ha sido eliminado permanentemente.',
     });
+  };
+
+  const handleEdit = () => {
+    router.push(`/my-documents/edit/${documentId}`);
   };
 
   return (
@@ -51,12 +57,10 @@ function DocumentActions({ documentId }: { documentId: string }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <Link href={`/admin/documents/edit/${documentId}`}>
-                <DropdownMenuItem>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                </DropdownMenuItem>
-            </Link>
+            <DropdownMenuItem onClick={handleEdit}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
              <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-destructive focus:text-destructive">
@@ -82,9 +86,15 @@ function DocumentActions({ documentId }: { documentId: string }) {
   );
 }
 
-export default function DocumentsAdminPage() {
+export default function MyDocumentsPage() {
   const firestore = useFirestore();
-  const documentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'documents') : null, [firestore]);
+  const { user } = useUser();
+
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'documents'), where('createdBy', '==', user.uid));
+  }, [firestore, user]);
+  
   const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
   
   const { data: documents, isLoading: isLoadingDocs } = useCollection<DocumentType>(documentsQuery);
@@ -95,15 +105,23 @@ export default function DocumentsAdminPage() {
     return new Map(categories.map(cat => [cat.id, cat.name]));
   }, [categories]);
 
+  if (!user) {
+      return (
+          <div className="container mx-auto text-center">
+              <p>Por favor, inicie sesión para ver sus documentos.</p>
+          </div>
+      )
+  }
+
   return (
     <div className="container mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestión de Documentos</h1>
-          <p className="text-muted-foreground">Añade, edita o elimina documentos de la biblioteca.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Mis Documentos</h1>
+          <p className="text-muted-foreground">Añade, edita o elimina tus documentos subidos.</p>
         </div>
         <Button asChild>
-          <Link href="/admin/documents/new">
+          <Link href="/my-documents/new">
             <PlusCircle className="mr-2 h-4 w-4" />
             Añadir Documento
           </Link>
@@ -111,9 +129,9 @@ export default function DocumentsAdminPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Documentos en la Biblioteca</CardTitle>
+          <CardTitle>Mis Documentos en la Biblioteca</CardTitle>
           <CardDescription>
-            {isLoadingDocs ? 'Cargando documentos...' : `Hay un total de ${documents?.length || 0} documentos.`}
+            {isLoadingDocs ? 'Cargando documentos...' : `Tienes un total de ${documents?.length || 0} documentos.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -128,8 +146,8 @@ export default function DocumentsAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingDocs ? (
-                Array.from({ length: 5 }).map((_, i) => (
+              {isLoadingDocs || isLoadingCats ? (
+                Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={5} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
                   </TableRow>
@@ -151,7 +169,7 @@ export default function DocumentsAdminPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
-                    No se encontraron documentos.
+                    No has subido ningún documento todavía.
                   </TableCell>
                 </TableRow>
               )}

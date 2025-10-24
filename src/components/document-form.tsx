@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category, Tag } from "@/lib/types";
 import { Loader2 } from "lucide-react";
@@ -37,6 +37,7 @@ export default function DocumentForm({ document }: DocumentFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
@@ -62,9 +63,9 @@ export default function DocumentForm({ document }: DocumentFormProps) {
   const { formState: { isSubmitting } } = form;
 
   const onSubmit = (values: z.infer<typeof documentSchema>) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     
-    const data = {
+    const data: Partial<DocumentType> = {
         ...values,
         lastUpdated: new Date().toISOString(),
     };
@@ -77,16 +78,17 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
       });
-      router.push("/admin/documents");
+      router.push("/my-documents");
     } else {
-      // Create new document
+      // Create new document and add createdBy field
+      data.createdBy = user.uid;
       const collectionRef = collection(firestore, "documents");
       addDocumentNonBlocking(collectionRef, data);
       toast({
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",
       });
-      router.push("/admin/documents");
+      router.push("/my-documents");
     }
   };
 

@@ -1,157 +1,69 @@
 rules_version = '2';
+
 service cloud.firestore {
+  // === Funciones auxiliares ===
+  function isAuthenticated() {
+    return request.auth != null;
+  }
+
+  function isAdmin() {
+    return isAuthenticated() &&
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Admin";
+  }
+
+  function isEditor() {
+    return isAuthenticated() &&
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Editor";
+  }
+
+  function isAdminOrEditor() {
+    return isAdmin() || isEditor();
+  }
+  
+  function isOwner(docId) {
+    return request.auth.uid == get(/databases/$(database)/documents/documents/$(docId)).data.createdBy;
+  }
+  
+  function isOwnerOrAdmin(docId) {
+    return isOwner(docId) || isAdmin();
+  }
+
+  // === Reglas principales ===
   match /databases/{database}/documents {
-
-    /**
-     * @description Determines if the user is signed in.
-     * @returns {boolean} True if the user is signed in, false otherwise.
-     * @principle Requires authentication for certain actions.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user's ID matches the requested user ID.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user is the owner, false otherwise.
-     * @principle Enforces user-ownership for data access.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user's ID matches the requested user ID and the resource exists.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user is the owner and the document exists, false otherwise.
-     * @principle Enforces user-ownership and document existence for updates and deletes.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && exists(resource);
-    }
-
-     /**
-      * @description Checks if the authenticated user has the "Admin" role by reading their document.
-      * @returns {boolean} True if the user is an admin, false otherwise.
-      * @principle Implements role-based access control.
-      */
-    function isAdmin() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Admin";
-    }
-
-    /**
-     * @description Checks if the authenticated user has the "Editor" role by reading their document.
-     * @returns {boolean} True if the user is an editor, false otherwise.
-     * @principle Implements role-based access control.
-     */
-    function isEditor() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Editor";
-    }
-
-    /**
-     * @description Checks if the user is either an Admin or an Editor.
-     * @returns {boolean} True if the user is an admin or an editor, false otherwise.
-     * @principle Combines multiple roles for access control.
-     */
-    function isAdminOrEditor() {
-        return isAdmin() || isEditor();
-    }
-
-    /**
-     * @description Rules for user profiles.  Allows users to read/write their own profile. Admins can list and manage all profiles.
-     * @path /users/{userId}
-     * @allow (get) User with UID 'user123' can read their own profile data.
-     * @allow (create) User with UID 'user123' can create their own profile.
-     * @allow (update) User with UID 'user123' can update their own profile.
-     * @allow (delete) User with UID 'user123' can delete their own profile.
-     * @allow (list) Admin user can list all user profiles.
-     * @deny (get) User with UID 'user456' cannot read the profile of user with UID 'user123'.
-     * @deny (create) User with UID 'user456' cannot create a profile for user with UID 'user123'.
-     * @deny (update) User with UID 'user456' cannot update the profile of user with UID 'user123'.
-     * @deny (delete) User with UID 'user456' cannot delete the profile of user with UID 'user123'.
-     * @principle Enforces user-ownership for profiles and restricts unauthorized access.
-     */
+    // USERS
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      // Solo Admin puede listar todos los usuarios
       allow list: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+
+      // Lectura: dueño o Admin
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+
+      // Escrituras: dueño o Admin
+      allow create, update, delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
     }
 
-    /**
-     * @description Rules for documents. Allows public read access and restricts write access to admins and editors.
-     * @path /documents/{docId}
-     * @allow (get) Any user can read a document.
-     * @allow (list) Any user can list documents.
-     * @allow (create) Admin or Editor can create a document.
-     * @allow (update) Admin or Editor can update a document.
-     * @allow (delete) Admin or Editor can delete a document.
-     * @deny (create) Regular user cannot create a document.
-     * @deny (update) Regular user cannot update a document.
-     * @deny (delete) Regular user cannot delete a document.
-     * @principle Provides open read access while securing write operations.
-     */
+    // DOCUMENTS
     match /documents/{docId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdminOrEditor();
-      allow update: if isAdminOrEditor();
-      allow delete: if isAdminOrEditor();
+      allow get, list: if true; // cualquiera puede leer
+      allow create: if isAuthenticated(); // cualquiera autenticado puede crear
+      allow update, delete: if isOwnerOrAdmin(docId); // solo el dueño o un admin pueden editar/borrar
     }
 
-    /**
-     * @description Rules for categories. Allows public read access and restricts write access to admins and editors.
-     * @path /categories/{catId}
-     * @allow (get) Any user can read a category.
-     * @allow (list) Any user can list categories.
-     * @allow (create) Admin or Editor can create a category.
-     * @allow (update) Admin or Editor can update a category.
-     * @allow (delete) Admin or Editor can delete a category.
-     * @deny (create) Regular user cannot create a category.
-     * @deny (update) Regular user cannot update a category.
-     * @deny (delete) Regular user cannot delete a category.
-     * @principle Provides open read access while securing write operations.
-     */
+    // CATEGORIES — lectura pública
     match /categories/{catId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdminOrEditor();
-      allow update: if isAdminOrEditor();
-      allow delete: if isAdminOrEditor();
+      allow get, list: if true; // cualquiera puede leer
+      allow create, update, delete: if isAdminOrEditor();
     }
 
-    /**
-     * @description Rules for tags. Allows public read access and restricts write access to admins and editors.
-     * @path /tags/{tagId}
-     * @allow (get) Any user can read a tag.
-     * @allow (list) Any user can list tags.
-     * @allow (create) Admin or Editor can create a tag.
-     * @allow (update) Admin or Editor can update a tag.
-     * @allow (delete) Admin or Editor can delete a tag.
-     * @deny (create) Regular user cannot create a tag.
-     * @deny (update) Regular user cannot update a tag.
-     * @deny (delete) Regular user cannot delete a tag.
-     * @principle Provides open read access while securing write operations.
-     */
+    // TAGS — lectura pública
     match /tags/{tagId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdminOrEditor();
-      allow update: if isAdminOrEditor();
-      allow delete: if isAdminOrEditor();
+      allow get, list: if true; // cualquiera puede leer
+      allow create, update, delete: if isAdminOrEditor();
     }
 
-    /**
-     * @description Fallback rule that denies all other read and write requests.
-     * @path /{document=**}
-     * @deny (read) Any attempt to read from an undefined path.
-     * @deny (write) Any attempt to write to an undefined path.
-     * @principle Provides a default-deny security posture.
-     */
-    match /{document=**} {
-       allow read, write: if false;
+    // Fallback: denegar todo lo demás por defecto
+    match /{path=**} {
+      allow read, write: if false;
     }
   }
 }
