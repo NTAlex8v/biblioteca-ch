@@ -9,9 +9,7 @@ import {
   QuerySnapshot,
   CollectionReference,
   setLogLevel,
-  getFirestore,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useFirestore as useAppFirestore, useAuth as useAppAuth } from '@/firebase/provider';
@@ -93,12 +91,10 @@ export function useCollection<T = any>(
     
     // Protection against unauthorized calls if rules require authentication
     // Note: This assumes public collections don't need auth. 
-    // If some public collections should be readable by anonymous users, 
-    // this check needs to be more nuanced (e.g., check against a list of public paths).
-    const publicPaths = ['documents', 'categories'];
+    const publicPaths = ['documents', 'categories', 'folders'];
     const isPublicPath = publicPaths.some(p => collectionPath?.startsWith(p));
     
-    if (!auth.currentUser && !isPublicPath) {
+    if (!auth?.currentUser && !isPublicPath) {
         setData([]);
         setIsLoading(false);
         setError(null); // Not considered an error, just empty data for non-authed user
