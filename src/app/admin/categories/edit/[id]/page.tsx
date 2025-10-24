@@ -1,6 +1,6 @@
 
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
-import { notFound }s from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { initializeFirebase } from '@/firebase/server-initialization';
 import CategoryForm from "@/components/category-form";
 import type { Category } from '@/lib/types';
