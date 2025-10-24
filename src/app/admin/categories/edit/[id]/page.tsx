@@ -1,42 +1,28 @@
 
-"use client";
-
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { notFound }s from 'next/navigation';
+import { initializeFirebase } from '@/firebase/server-initialization';
 import CategoryForm from "@/components/category-form";
-import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { doc } from "firebase/firestore";
-import { notFound } from "next/navigation";
-import type { Category as CategoryType } from "@/lib/types";
-import React from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import type { Category } from '@/lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-function EditCategoryPageSkeleton() {
-    return (
-        <div className="container mx-auto">
-            <div className="mb-8">
-                <Skeleton className="h-10 w-1/3 mb-2" />
-                <Skeleton className="h-4 w-1/2" />
-            </div>
-            <div className="space-y-4">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-24 w-full" />
-                <div className="flex justify-end gap-2">
-                    <Skeleton className="h-10 w-24" />
-                    <Skeleton className="h-10 w-24" />
-                </div>
-            </div>
-        </div>
-    );
+// Initialize firebase admin on server
+const { firestore } = initializeFirebase();
+
+async function getCategory(id: string): Promise<Category | null> {
+    const docRef = doc(firestore, 'categories', id);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+        return null;
+    }
+    return { id: docSnap.id, ...docSnap.data() } as Category;
 }
 
-export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-    const params = React.use(paramsPromise);
-    const firestore = useFirestore();
-    const docRef = useMemoFirebase(() => firestore ? doc(firestore, 'categories', params.id) : null, [firestore, params.id]);
-    const { data: category, isLoading } = useDoc<CategoryType>(docRef);
 
-    if (isLoading) {
-        return <EditCategoryPageSkeleton />;
-    }
+export default async function EditCategoryPage({ params }: { params: { id: string } }) {
+    
+    const category = await getCategory(params.id);
 
     if (!category) {
         notFound();

@@ -1,6 +1,4 @@
 
-"use client";
-
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -8,105 +6,49 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Eye } from 'lucide-react';
 import Link from 'next/link';
-import { useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
-import React, { useMemo } from 'react';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase/server-initialization';
 import type { Document, Category, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { Skeleton } from '@/components/ui/skeleton';
 
-function DocumentPageSkeleton() {
-  return (
-    <div className="container mx-auto max-w-5xl">
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-1">
-          <Card className="overflow-hidden sticky top-24">
-            <div className="relative aspect-[2/3] w-full">
-              <Skeleton className="h-full w-full" />
-            </div>
-          </Card>
-        </div>
-        <div className="md:col-span-2">
-          <Skeleton className="h-10 w-3/4 mb-2" />
-          <Skeleton className="h-8 w-1/2 mb-4" />
-          <div className="flex items-center gap-4 mb-6">
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <div className="space-y-2 mb-8">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-          <div className="flex flex-wrap gap-2 mb-8">
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-24 rounded-full" />
-          </div>
-          <Card className="mb-8">
-            <CardHeader>
-                <CardTitle><Skeleton className="h-6 w-1/2" /></CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                </div>
-            </CardContent>
-          </Card>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+// Initialize firebase admin on server
+const { firestore } = initializeFirebase();
+
+async function getDocumentData(id: string): Promise<{ document: Document; categoryName: string; documentTags: Tag[] } | null> {
+    const docRef = doc(firestore, 'documents', id);
+    const categoriesCollection = collection(firestore, 'categories');
+    const tagsCollection = collection(firestore, 'tags');
+
+    const [docSnap, categoriesSnap, tagsSnap] = await Promise.all([
+        getDoc(docRef),
+        getDocs(categoriesCollection),
+        getDocs(tagsCollection),
+    ]);
+
+    if (!docSnap.exists()) {
+        return null;
+    }
+
+    const document = { id: docSnap.id, ...docSnap.data() } as Document;
+
+    const categoryMap = new Map(categoriesSnap.docs.map(doc => [doc.id, doc.data().name]));
+    const categoryName = categoryMap.get(document.categoryId) || 'Sin categoría';
+    
+    const allTags = tagsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Tag[];
+    const documentTags = document.tagIds ? allTags.filter(tag => document.tagIds.includes(tag.id)) : [];
+
+    return { document, categoryName, documentTags };
 }
 
+export default async function DocumentPage({ params }: { params: { id: string } }) {
+  
+  const data = await getDocumentData(params.id);
 
-export default function DocumentPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = React.use(paramsPromise);
-  const firestore = useFirestore();
-
-  const docRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return doc(firestore, 'documents', params.id);
-  }, [firestore, params.id]);
-
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'categories');
-  }, [firestore]);
-
-  const tagsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'tags');
-  }, [firestore]);
-
-  const { data: document, isLoading: isLoadingDocument } = useDoc<Document>(docRef);
-  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
-  const { data: allTags, isLoading: isLoadingTags } = useCollection<Tag>(tagsQuery);
-
-  const isLoading = isLoadingDocument || isLoadingCategories || isLoadingTags;
-
-  const categoryName = useMemo(() => {
-    if (!document || !categories) return '...';
-    return categories.find(c => c.id === document.categoryId)?.name || 'Sin categoría';
-  }, [document, categories]);
-
-  const documentTags = useMemo(() => {
-    if (!document?.tagIds || !allTags) return [];
-    return allTags.filter(tag => document.tagIds?.includes(tag.id));
-  }, [document, allTags]);
-
-  if (isLoading) {
-    return <DocumentPageSkeleton />;
-  }
-
-  if (!document) {
+  if (!data) {
     notFound();
   }
+
+  const { document, categoryName, documentTags } = data;
 
   // Find a placeholder image. Fallback to a default one.
   const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
