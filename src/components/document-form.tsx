@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Document as DocumentType, Category, Tag } from "@/lib/types";
+import type { Document as DocumentType, Category } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
 
@@ -67,46 +67,53 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const { formState: { isSubmitting } } = form;
 
+  const handleRedirect = () => {
+      if (folderIdFromParams) {
+        router.push(`/folders/${folderIdFromParams}`);
+      } else if (categoryIdFromParams || document?.categoryId) {
+        router.push(`/category/${categoryIdFromParams || document?.categoryId}`);
+      } else {
+        router.push('/my-documents');
+      }
+      router.refresh(); // Forces a refresh to show the new data
+  }
+
   const onSubmit = (values: z.infer<typeof documentSchema>) => {
     if (!firestore || !user) return;
     
-    const data: Partial<DocumentType> = {
+    const commonData = {
         ...values,
-        folderId: folderIdFromParams || null,
         lastUpdated: new Date().toISOString(),
     };
 
     if (document) {
       // Update existing document
       const docRef = doc(firestore, "documents", document.id);
-      setDocumentNonBlocking(docRef, data);
+      const dataToUpdate: Partial<DocumentType> = {
+          ...commonData,
+          folderId: document.folderId, // Preserve original folderId
+          createdBy: document.createdBy, // Preserve original creator
+      };
+      setDocumentNonBlocking(docRef, dataToUpdate);
       toast({
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
       });
-       if (folderIdFromParams) {
-        router.push(`/folders/${folderIdFromParams}`);
-      } else if (data.categoryId) {
-        router.push(`/category/${data.categoryId}`);
-      } else {
-        router.push('/my-documents');
-      }
+      handleRedirect();
     } else {
-      // Create new document and add createdBy field
-      data.createdBy = user.uid;
+      // Create new document
       const collectionRef = collection(firestore, "documents");
-      addDocumentNonBlocking(collectionRef, data);
+      const dataToCreate: Omit<DocumentType, 'id'> = {
+          ...commonData,
+          folderId: folderIdFromParams || null, // Explicitly set to null if not provided
+          createdBy: user.uid,
+      }
+      addDocumentNonBlocking(collectionRef, dataToCreate);
       toast({
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",
       });
-       if (folderIdFromParams) {
-        router.push(`/folders/${folderIdFromParams}`);
-      } else if (categoryIdFromParams) {
-        router.push(`/category/${categoryIdFromParams}`);
-      } else {
-        router.push('/my-documents');
-      }
+      handleRedirect();
     }
   };
 

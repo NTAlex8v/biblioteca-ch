@@ -1,18 +1,19 @@
+
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
-import type { Document as DocumentType, Category, Folder } from '@/lib/types';
+import type { Document as DocumentType, Folder } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, ArrowLeft } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface CategoryClientPageProps {
-  category: Category;
+interface FolderClientPageProps {
+  folder: Folder;
 }
 
 const ItemSkeleton = () => (
@@ -23,42 +24,49 @@ const ItemSkeleton = () => (
     </div>
 );
 
-export default function CategoryClientPage({ category }: CategoryClientPageProps) {
+export default function FolderClientPage({ folder }: FolderClientPageProps) {
   const firestore = useFirestore();
 
-  // Query for sub-folders within this category that are at the root level (no parent folder)
-  const foldersQuery = useMemoFirebase(() => {
+  // Query for sub-folders within this folder
+  const subFoldersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'folders'), where('categoryId', '==', category.id), where('parentFolderId', '==', null));
-  }, [firestore, category.id]);
+    return query(collection(firestore, 'folders'), where('parentFolderId', '==', folder.id));
+  }, [firestore, folder.id]);
 
-  // Query for documents within this category that are at the root level (no folder)
+  // Query for documents inside this folder
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('categoryId', '==', category.id), where('folderId', '==', null));
-  }, [firestore, category.id]);
+    return query(collection(firestore, 'documents'), where('folderId', '==', folder.id));
+  }, [firestore, folder.id]);
 
-  const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
+  const { data: subFolders, isLoading: isLoadingFolders } = useCollection<Folder>(subFoldersQuery);
   const { data: documents, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
   const isLoading = isLoadingFolders || isLoadingDocuments;
 
   return (
     <div className="container mx-auto">
+        <nav className="mb-4 text-sm text-muted-foreground">
+            <Link href={`/category/${folder.categoryId}`} className="hover:underline">Categoría</Link>
+             {' > '}
+            <span>{folder.name}</span>
+        </nav>
       <div className="flex justify-between items-center mb-8">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight mt-4">{category.name}</h1>
-            <p className="text-muted-foreground">{category.description}</p>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+                <FolderIcon className="h-8 w-8 text-primary" />
+                {folder.name}
+            </h1>
         </div>
         <div className="flex gap-2">
             <Button asChild>
-                <Link href={`/folders/new?categoryId=${category.id}`}>
+                <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Nueva Carpeta
                 </Link>
             </Button>
             <Button asChild variant="secondary">
-                <Link href={`/my-documents/new?categoryId=${category.id}`}>
+                <Link href={`/my-documents/new?categoryId=${folder.categoryId}&folderId=${folder.id}`}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Nuevo Documento
                 </Link>
@@ -66,24 +74,24 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
         </div>
       </div>
       
-      {/* Folders section */}
-      { (isLoadingFolders || (folders && folders.length > 0)) && (
+      {/* Sub-folders section */}
+      { (isLoadingFolders || (subFolders && subFolders.length > 0)) && (
           <>
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">Carpetas</h2>
+            <h2 className="text-2xl font-semibold tracking-tight mb-4">Sub-carpetas</h2>
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
                 {isLoadingFolders ? (
-                    Array.from({ length: 4 }).map((_, i) => (
+                    Array.from({ length: 2 }).map((_, i) => (
                         <Card key={i} className="p-4 flex flex-col items-center justify-center text-center">
                             <Skeleton className="h-12 w-12 mb-2 rounded-lg" />
                             <Skeleton className="h-5 w-24" />
                         </Card>
                     ))
                 ) : (
-                    folders?.map(folder => (
-                        <Link key={folder.id} href={`/folders/${folder.id}`} className="group">
+                    subFolders?.map(subFolder => (
+                        <Link key={subFolder.id} href={`/folders/${subFolder.id}`} className="group">
                              <Card className="h-full flex flex-col items-center justify-center p-6 text-center transition-all duration-300 hover:shadow-lg hover:border-primary">
                                 <FolderIcon className="h-12 w-12 mb-2 text-primary group-hover:scale-110 transition-transform"/>
-                                <p className="font-medium text-lg mt-2">{folder.name}</p>
+                                <p className="font-medium text-lg mt-2">{subFolder.name}</p>
                             </Card>
                         </Link>
                     ))
@@ -107,8 +115,8 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
             </div>
         ) : (
              <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
-                  <h3 className="text-xl font-semibold text-muted-foreground">No hay documentos aquí</h3>
-                  <p className="text-muted-foreground mt-2">Puedes ser el primero en añadir un documento a esta categoría.</p>
+                  <h3 className="text-xl font-semibold text-muted-foreground">Esta carpeta está vacía</h3>
+                  <p className="text-muted-foreground mt-2">Puedes añadir una nueva carpeta o un documento.</p>
               </div>
         )}
     </div>
