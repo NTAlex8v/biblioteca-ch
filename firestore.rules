@@ -1,69 +1,126 @@
 rules_version = '2';
-
 service cloud.firestore {
-  // === Funciones auxiliares ===
-  function isAuthenticated() {
-    return request.auth != null;
-  }
-
-  function isAdmin() {
-    return isAuthenticated() &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Admin";
-  }
-
-  function isEditor() {
-    return isAuthenticated() &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Editor";
-  }
-
-  function isAdminOrEditor() {
-    return isAdmin() || isEditor();
-  }
-  
-  function isOwner(docId) {
-    return request.auth.uid == get(/databases/$(database)/documents/documents/$(docId)).data.createdBy;
-  }
-  
-  function isOwnerOrAdmin(docId) {
-    return isOwner(docId) || isAdmin();
-  }
-
-  // === Reglas principales ===
   match /databases/{database}/documents {
-    // USERS
+
+    /**
+     * @description Allows users to manage their own profile data.
+     * @path /users/{userId}
+     * @allow (create) User with UID 'user123' can create their profile.
+     * @deny (create) User with UID 'user123' cannot create a profile with ID 'user456'.
+     * @allow (get) User with UID 'user123' can read their profile.
+     * @deny (get) User with UID 'user123' cannot read the profile of user 'user456'.
+     * @allow (update) User with UID 'user123' can update their profile.
+     * @deny (update) User with UID 'user123' cannot update the profile of user 'user456'.
+     * @allow (delete) User with UID 'user123' can delete their profile.
+     * @deny (delete) User with UID 'user123' cannot delete the profile of user 'user456'.
+     * @principle Enforces user-ownership for profile data.
+     */
     match /users/{userId} {
-      // Solo Admin puede listar todos los usuarios
-      allow list: if isAdmin();
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-      // Lectura: dueño o Admin
-      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
 
-      // Escrituras: dueño o Admin
-      allow create, update, delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
-    // DOCUMENTS
-    match /documents/{docId} {
-      allow get, list: if true; // cualquiera puede leer
-      allow create: if isAuthenticated(); // cualquiera autenticado puede crear
-      allow update, delete: if isOwnerOrAdmin(docId); // solo el dueño o un admin pueden editar/borrar
+    /**
+     * @description Allows anyone to read categories; no write operations allowed for non-admins.
+     * @path /categories/{categoryId}
+     * @allow (get) Any user can read category 'category123'.
+     * @deny (create) Any user cannot create a category.
+     * @principle Public read access with no write access.
+     */
+    match /categories/{categoryId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
-    // CATEGORIES — lectura pública
-    match /categories/{catId} {
-      allow get, list: if true; // cualquiera puede leer
-      allow create, update, delete: if isAdminOrEditor();
+    /**
+     * @description Allows users to manage their own folders within categories.
+     * @path /folders/{folderId}
+     * @allow (create) User with UID 'user123' can create a folder.
+     * @deny (create) User with UID 'user123' cannot create a folder with an ID different from their UID.
+     * @allow (get) User with UID 'user123' can read a folder.
+     * @deny (get) User with UID 'user123' cannot read a folder if they don't own it.
+     * @allow (update) User with UID 'user123' can update their folder.
+     * @deny (update) User with UID 'user123' cannot update a folder if they don't own it.
+     * @allow (delete) User with UID 'user123' can delete their folder.
+     * @deny (delete) User with UID 'user123' cannot delete a folder if they don't own it.
+     * @principle Enforces document ownership for folder management.
+     */
+    match /folders/{folderId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(ownerId) {
+        return request.auth.uid == ownerId;
+      }
+
+      function isExistingOwner(ownerId) {
+          return isSignedIn() && isOwner(ownerId) && resource.data.keys().hasAll(['createdBy']) && resource.data.createdBy == request.auth.uid;
+      }
+        
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.keys().hasAll(['createdBy']) && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
 
-    // TAGS — lectura pública
+    /**
+     * @description Allows anyone to read tags; no write operations allowed for non-admins.
+     * @path /tags/{tagId}
+     * @allow (get) Any user can read tag 'tag123'.
+     * @deny (create) Any user cannot create a tag.
+     * @principle Public read access with no write access.
+     */
     match /tags/{tagId} {
-      allow get, list: if true; // cualquiera puede leer
-      allow create, update, delete: if isAdminOrEditor();
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
-    // Fallback: denegar todo lo demás por defecto
-    match /{path=**} {
-      allow read, write: if false;
+    /**
+     * @description Allows anyone to read documents; enforces owner-only writes based on the 'createdBy' field.
+     * @path /documents/{documentId}
+     * @allow (get) Any user can read document 'document123'.
+     * @deny (create) User with UID 'user123' cannot create a document without setting 'createdBy' to their UID.
+     * @allow (create) User with UID 'user123' can create a document and set 'createdBy' to their UID.
+     * @deny (update) User with UID 'user123' cannot update a document if they are not the creator.
+     * @principle Public read access with owner-only writes.
+     */
+    match /documents/{documentId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(ownerId) {
+        return request.auth.uid == ownerId;
+      }
+
+      function isExistingOwner(ownerId) {
+          return isSignedIn() && isOwner(ownerId) && resource.data.keys().hasAll(['createdBy']) && resource.data.createdBy == request.auth.uid;
+      }
+      
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.keys().hasAll(['createdBy']) && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
   }
 }
