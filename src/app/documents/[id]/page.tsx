@@ -114,7 +114,6 @@ export default function DocumentPage({ params: paramsPromise }: { params: Promis
 
   return (
     <>
-    { document && (
       <div className="container mx-auto max-w-5xl">
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
@@ -182,7 +181,6 @@ export default function DocumentPage({ params: paramsPromise }: { params: Promis
           </div>
         </div>
       </div>
-    )}
     </>
   );
 }
