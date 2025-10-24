@@ -13,6 +13,57 @@ import { doc, collection } from 'firebase/firestore';
 import React, { useMemo } from 'react';
 import type { Document, Category, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function DocumentPageSkeleton() {
+  return (
+    <div className="container mx-auto max-w-5xl">
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-1">
+          <Card className="overflow-hidden sticky top-24">
+            <div className="relative aspect-[2/3] w-full">
+              <Skeleton className="h-full w-full" />
+            </div>
+          </Card>
+        </div>
+        <div className="md:col-span-2">
+          <Skeleton className="h-10 w-3/4 mb-2" />
+          <Skeleton className="h-8 w-1/2 mb-4" />
+          <div className="flex items-center gap-4 mb-6">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="space-y-2 mb-8">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-8">
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+          <Card className="mb-8">
+            <CardHeader>
+                <CardTitle><Skeleton className="h-6 w-1/2" /></CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            </CardContent>
+          </Card>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export default function DocumentPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = React.use(paramsPromise);
@@ -50,10 +101,10 @@ export default function DocumentPage({ params: paramsPromise }: { params: Promis
   }, [document, allTags]);
 
   if (isLoading) {
-    return <div>Cargando...</div>;
+    return <DocumentPageSkeleton />;
   }
 
-  if (!document && !isLoading) {
+  if (!document) {
     notFound();
   }
 
