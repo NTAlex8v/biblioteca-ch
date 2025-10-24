@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
+import { useFirestore, setDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Category } from "@/lib/types";
 import { Loader2 } from "lucide-react";

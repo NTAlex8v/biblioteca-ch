@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
