@@ -11,6 +11,7 @@ import {
   setLogLevel,
   QuerySnapshot,
   FirestoreError,
+  CollectionReference,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -29,6 +30,22 @@ type UseCollectionResult<T = any> = {
   isLoading: boolean;
   error: Error | null;
 };
+
+// Helper function to get path from a query or collection reference
+const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentData>): string => {
+    if (ref instanceof CollectionReference) {
+        return ref.path;
+    }
+    // For queries, we can get the path from the internal _query property
+    // This is a bit of a hack, but it's the most reliable way to get the path
+    // in the v9 SDK without major refactoring.
+    const internalQuery: any = ref;
+    if (internalQuery?._query?.path?.segments) {
+        return internalQuery._query.path.segments.join('/');
+    }
+    return 'unknown path';
+};
+
 
 export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<DocumentData> | null): UseCollectionResult<T> {
   const [data, setData] = useState<WithId<T>[]>([]);
@@ -75,7 +92,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
             setError(null);
         },
         (err: FirestoreError) => {
-             const path = 'path' in query ? query.path : 'unknown path';
+             const path = getPathFromRef(query);
 
              const contextualError = new FirestorePermissionError({
                 operation: 'list',
