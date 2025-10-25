@@ -33,29 +33,14 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
   }, [firestore, category.id]);
 
   // Query for documents within this category that are at the root level (folderId is null)
-  const documentsWithNullFolderQuery = useMemoFirebase(() => {
+  const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'documents'), where('categoryId', '==', category.id), where('folderId', '==', null));
   }, [firestore, category.id]);
-  
-  // This is a bit of a trick. Firestore queries for "not equal" to a value that will never exist to find documents where the field is missing.
-  const documentsWithoutFolderQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('categoryId', '==', category.id), where('folderId', '==', undefined));
-  }, [firestore, category.id]);
 
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
-  const { data: documentsWithNull, isLoading: isLoadingDocsWithNull } = useCollection<DocumentType>(documentsWithNullFolderQuery);
-  const { data: documentsWithout, isLoading: isLoadingDocsWithout } = useCollection<DocumentType>(documentsWithoutFolderQuery);
-  
-  const documents = React.useMemo(() => {
-    const allDocs = new Map<string, DocumentType>();
-    (documentsWithNull || []).forEach(doc => allDocs.set(doc.id, doc));
-    (documentsWithout || []).forEach(doc => allDocs.set(doc.id, doc));
-    return Array.from(allDocs.values());
-  }, [documentsWithNull, documentsWithout]);
+  const { data: documents, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
-  const isLoadingDocuments = isLoadingDocsWithNull || isLoadingDocsWithout;
   const isLoading = isLoadingFolders || isLoadingDocuments;
 
   return (
