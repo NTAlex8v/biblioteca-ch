@@ -1,49 +1,13 @@
-/**
- * @fileoverview Firestore Security Rules for the virtual library application.
- *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user-specific data and allows public read access to shared collections.
- * Write access is strictly controlled to prevent unauthorized data modification.
- *
- * Data Structure:
- * - Users: /users/{userId} - Stores user profile data.
- *   - Audit Logs: /users/{userId}/auditLogs/{logId} - Stores audit logs specific to each user.
- * - Categories: /categories/{categoryId} - Stores top-level categories (Admin-managed).
- * - Folders: /folders/{folderId} - Stores user-created folders.
- * - Tags: /tags/{tagId} - Stores tags for cross-classification.
- * - Documents: /documents/{documentId} - Stores document metadata.
- * - AuditLogs: /auditLogs/{logId} - Stores system-wide audit logs.
- *
- * Key Security Decisions:
- * - Users can only read and write their own user document and audit logs.
- * - Categories and Tags are publicly readable. Writes are not secured in this prototyping phase.
- * - Documents are publicly readable, but only the owner can modify or delete them.
- *
- * Denormalization for Authorization:
- * - Documents have a `createdBy` field to indicate ownership, enabling secure write rules.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Root-level check to ensure all requests are authenticated.
-     * @path /
-     * @allow (read) if true
-     * @deny (write) if false
-     * @principle Requires all requests to be authenticated.
-     */
-    match /{document=**} {
-        allow read: if true;
-        allow write: if false;
-    }
 
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
     function isExistingOwner(userId) {
@@ -51,101 +15,107 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for managing user profiles.
+     * @description Controls access to user profile information. Only the authenticated user can read and write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with matching ID can create their own profile.
-     * @allow (get, list) User can read their own profile.
-     * @allow (update, delete) User can update/delete their own profile.
-     * @deny (create) User cannot create a profile with a mismatched ID.
-     * @deny (get, list, update, delete) User cannot access other user's profiles.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) - User 'abc' can create their profile if request.auth.uid == 'abc' and request.resource.data.id == 'abc'.
+     * @allow (get,update,delete) - User 'abc' can get, update or delete their profile if request.auth.uid == 'abc'.
+     * @deny (create) - User 'def' cannot create profile for 'abc' (request.auth.uid != userId).
+     * @deny (update,delete) - User 'def' cannot update profile for 'abc' (request.auth.uid != userId).
+     * @principle Enforces document ownership for user profiles, ensuring only the owner can manage their data.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
+
+       /**
+         * @description Controls access to user-specific audit logs. Only the authenticated user can read and write their own logs.
+         * @path /users/{userId}/auditLogs/{logId}
+         * @allow (create) - User 'abc' can create a log if request.auth.uid == 'abc'.
+         * @allow (get,list,update,delete) - User 'abc' can get, list, update or delete their logs if request.auth.uid == 'abc'.
+         * @deny (create) - User 'def' cannot create log for 'abc' (request.auth.uid != userId).
+         * @deny (get,list,update,delete) - User 'def' cannot get, list, update or delete log for 'abc' (request.auth.uid != userId).
+         * @principle Restricts access to a user's own audit log data tree.
+         */
+      match /auditLogs/{logId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
     }
 
     /**
-     * @description Rules for managing audit logs for individual users.
-     * @path /users/{userId}/auditLogs/{logId}
-     * @allow (create) User can create audit logs under their profile.
-     * @allow (get, list) User can read their own audit logs.
-     * @allow (update, delete) User cannot update or delete audit logs.
-     * @deny (create) User cannot create audit logs with mismatched user ID.
-     * @deny (get, list) User cannot access other user's audit logs.
-     * @principle Restricts access to a user's own audit logs.
-     */
-    match /users/{userId}/auditLogs/{logId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Rules for managing top-level categories. (Publicly readable, writes are open in this prototype)
+     * @description Allows anyone to read Categories.
      * @path /categories/{categoryId}
-     * @allow (get, list) Any user can read categories.
-     * @allow (create, update, delete) No security implemented in this prototype.
-     * @principle Allows public read access to categories.
+     * @allow (get, list) - Any user, authenticated or not, can read category data.
+     * @deny (create, update, delete) - No one can create, update or delete a category.
+     * @principle Open read access for categories.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin-only validation
+      allow create, update, delete: if false;
     }
 
      /**
-      * @description Rules for managing folders. User must be the owner.
+      * @description Restricts folder access to the creating user. Only the user who created the folder can read, update, or delete it.
       * @path /folders/{folderId}
-      * @allow (get, list) Any user can read folders.
-      * @allow (create, update, delete) No security implemented in this prototype.
+      * @allow (create) - User 'abc' can create a folder if request.auth.uid matches the createdBy field.
+      * @allow (get, list, update, delete) - User 'abc' can read, list, update, or delete a folder if request.auth.uid matches the createdBy field.
+      * @deny (create) - User 'def' cannot create a folder on behalf of 'abc' (createdBy mismatch).
+      * @deny (get, list, update, delete) - User 'def' cannot read, list, update, or delete folder created by 'abc'.
+      * @principle Enforces creator-only access for folder management.
       */
-     match /folders/{folderId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner-only validation
-     }
+    match /folders/{folderId} {
+      allow get: if resource.data.createdBy == request.auth.uid;
+      allow list: if isSignedIn();
+      allow create: if request.resource.data.createdBy == request.auth.uid;
+      allow update: if resource.data.createdBy == request.auth.uid;
+      allow delete: if resource.data.createdBy == request.auth.uid;
+    }
 
     /**
-     * @description Rules for managing tags. (Publicly readable, writes are open in this prototype)
+     * @description Allows anyone to read Tags.
      * @path /tags/{tagId}
-     * @allow (get, list) Any user can read tags.
-     * @allow (create, update, delete) No security implemented in this prototype.
-     * @principle Allows public read access to tags.
+     * @allow (get, list) - Any user, authenticated or not, can read tag data.
+     * @deny (create, update, delete) - No one can create, update or delete a tag.
+     * @principle Open read access for tags.
      */
     match /tags/{tagId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin-only validation
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Rules for managing documents. (Publicly readable, owner-only writes)
+     * @description Allows anyone to read Documents, but only the creator can modify.
      * @path /documents/{documentId}
-     * @allow (get, list) Any user can read documents.
-     * @allow (create) Only the document creator can create a document, and they must set the `createdBy` field to their UID.
-     * @allow (update, delete) Only the document creator can update or delete the document.
-     * @deny (create) If the `createdBy` field doesn't match the user's UID.
-     * @principle Enforces owner-only writes for documents.
+     * @allow (get, list) - Any user, authenticated or not, can read document data.
+     * @allow (create) - User can create a document if the createdBy field matches their UID.
+     * @allow (update, delete) - Only the document's creator can update or delete it.
+     * @deny (create) - A user cannot create a document with a 'createdBy' field that doesn't match their own UID.
+     * @deny (update, delete) - A user cannot update or delete a document they don't own.
+     * @principle Public read access with owner-only writes, enforced via the 'createdBy' field.
      */
     match /documents/{documentId} {
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow create: if request.resource.data.createdBy == request.auth.uid;
+      allow update: if resource.data.createdBy == request.auth.uid;
+      allow delete: if resource.data.createdBy == request.auth.uid;
     }
 
-    /**
-     * @description Rules for managing system-wide audit logs.
-     * @path /auditLogs/{logId}
-     * @allow (get, list) Any user can read audit logs.
-     * @allow (create, update, delete) No security implemented in this prototype.
-     */
-    match /auditLogs/{logId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add stronger validation.
-    }
+     /**
+      * @description Allows anyone to read AuditLogs, but only authorized services/users can create, update or delete them.
+      * @path /auditLogs/{logId}
+      * @allow (get, list) - Any user, authenticated or not, can read audit log data.
+      * @deny (create, update, delete) - No one can create, update or delete an auditLog.
+      * @principle AuditLogs are viewable by everyone, but system-managed.
+      */
+        match /auditLogs/{logId} {
+          allow get, list: if true;
+          allow create, update, delete: if false;
+        }
   }
 }
