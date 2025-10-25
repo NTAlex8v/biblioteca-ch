@@ -32,14 +32,21 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
     return query(collection(firestore, 'folders'), where('categoryId', '==', category.id), where('parentFolderId', '==', null));
   }, [firestore, category.id]);
 
-  // Query for documents within this category that are at the root level (folderId is null)
+  // Query for ALL documents within this category
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('categoryId', '==', category.id), where('folderId', '==', null));
+    return query(collection(firestore, 'documents'), where('categoryId', '==', category.id));
   }, [firestore, category.id]);
 
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
-  const { data: documents, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
+  const { data: allDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
+
+  // Filter documents that are in the root of the category (folderId is null or does not exist)
+  const rootDocuments = React.useMemo(() => {
+    if (!allDocuments) return [];
+    return allDocuments.filter(doc => !doc.folderId);
+  }, [allDocuments]);
+
 
   const isLoading = isLoadingFolders || isLoadingDocuments;
 
@@ -99,9 +106,9 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, i) => <ItemSkeleton key={i} />)}
             </div>
-       ) : documents && documents.length > 0 ? (
+       ) : rootDocuments && rootDocuments.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {documents.map(doc => (
+                {rootDocuments.map(doc => (
                     <DocumentCard key={doc.id} document={doc} />
                 ))}
             </div>
