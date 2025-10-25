@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, doc, query, where } from 'firebase/firestore';
-import type { Document as DocumentType, Category } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking, useUser, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc, query, where, getDoc } from 'firebase/firestore';
+import type { Document as DocumentType, Category, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,16 +29,39 @@ function DocumentActions({ documentId }: { documentId: string }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const router = useRouter();
+  const { user } = useUser();
 
-  const handleDelete = () => {
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Document',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+  };
+
+  const handleDelete = async () => {
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', documentId);
-    deleteDocumentNonBlocking(docRef);
-    toast({
-      variant: "destructive",
-      title: 'Documento eliminado',
-      description: 'El documento ha sido eliminado permanentemente.',
-    });
+    
+    // Fetch doc to get its name before deleting
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        const docData = docSnap.data();
+        deleteDocumentNonBlocking(docRef);
+        logAction('delete', documentId, docData.title, `Se eliminó el documento '${docData.title}'.`);
+        toast({
+          variant: "destructive",
+          title: 'Documento eliminado',
+          description: 'El documento ha sido eliminado permanentemente.',
+        });
+    }
   };
 
   const handleEdit = () => {

@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Document as DocumentType, Category } from "@/lib/types";
+import type { Document as DocumentType, Category, AuditLog } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
 
@@ -66,6 +66,21 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const { formState: { isSubmitting } } = form;
 
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Document',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+  };
+
   const handleRedirect = () => {
       if (folderIdFromParams) {
         router.push(`/folders/${folderIdFromParams}`);
@@ -77,7 +92,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
       router.refresh(); // Forces a refresh to show the new data
   }
 
-  const onSubmit = (values: z.infer<typeof documentSchema>) => {
+  const onSubmit = async (values: z.infer<typeof documentSchema>) => {
     if (!firestore || !user) return;
     
     const commonData = {
@@ -93,7 +108,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
           folderId: document.folderId, // Preserve original folderId
           createdBy: document.createdBy, // Preserve original creator
       };
-      setDocumentNonBlocking(docRef, dataToUpdate);
+      await setDocumentNonBlocking(docRef, dataToUpdate);
+      logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
       toast({
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
@@ -107,7 +123,10 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
           folderId: folderIdFromParams || null, // Explicitly set to null if not provided
           createdBy: user.uid,
       }
-      addDocumentNonBlocking(collectionRef, dataToCreate);
+      const newDocRef = await addDocumentNonBlocking(collectionRef, dataToCreate);
+      if(newDocRef) {
+        logAction('create', newDocRef.id, values.title, `Se creó el nuevo documento '${values.title}'.`);
+      }
       toast({
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",

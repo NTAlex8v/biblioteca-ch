@@ -22,6 +22,7 @@ import {
   FileText,
   LayoutDashboard,
   FolderKanban,
+  History
 } from "lucide-react";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
@@ -103,14 +104,24 @@ const SideNav = () => {
                     </Link>
                   </SidebarMenuItem>
                   {userData?.role === 'Admin' && (
-                    <SidebarMenuItem>
-                      <Link href="/admin/users">
-                        <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">
-                          <Users />
-                          <span>Usuarios</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
+                    <>
+                      <SidebarMenuItem>
+                        <Link href="/admin/users">
+                          <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">
+                            <Users />
+                            <span>Usuarios</span>
+                          </SidebarMenuButton>
+                        </Link>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <Link href="/admin/history">
+                          <SidebarMenuButton isActive={pathname.startsWith("/admin/history")} tooltip="Historial">
+                            <History />
+                            <span>Historial</span>
+                          </SidebarMenuButton>
+                        </Link>
+                      </SidebarMenuItem>
+                    </>
                   )}
                 </SidebarGroup>
               )}

@@ -48,3 +48,15 @@ export type User = {
     createdAt?: string; 
     name?: string;
 };
+
+export type AuditLog = {
+    id: string;
+    timestamp: string; // ISO date string
+    userId: string;
+    userName: string; // Name of the user who performed the action
+    action: 'create' | 'update' | 'delete' | 'role_change';
+    entityType: 'Document' | 'Category' | 'Folder' | 'User' | 'Tag';
+    entityId: string;
+    entityName: string; // A display name for the entity (e.g., document title, user name)
+    details: string;
+};

@@ -10,9 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, setDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
+import { useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Category } from "@/lib/types";
+import type { Category, AuditLog } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
 const categorySchema = z.object({
@@ -28,6 +28,7 @@ export default function CategoryForm({ category }: CategoryFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const form = useForm<z.infer<typeof categorySchema>>({
     resolver: zodResolver(categorySchema),
@@ -39,13 +40,29 @@ export default function CategoryForm({ category }: CategoryFormProps) {
 
   const { formState: { isSubmitting } } = form;
 
-  const onSubmit = (values: z.infer<typeof categorySchema>) => {
-    if (!firestore) return;
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Category',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+  };
+
+  const onSubmit = async (values: z.infer<typeof categorySchema>) => {
+    if (!firestore || !user) return;
     
     if (category) {
       // Update existing category
       const docRef = doc(firestore, "categories", category.id);
-      setDocumentNonBlocking(docRef, values);
+      await setDocumentNonBlocking(docRef, values);
+      logAction('update', category.id, values.name, `Se actualizó la categoría '${values.name}'.`);
       toast({
         title: "Categoría Actualizada",
         description: "La categoría ha sido actualizada exitosamente.",
@@ -54,7 +71,10 @@ export default function CategoryForm({ category }: CategoryFormProps) {
     } else {
       // Create new category
       const collectionRef = collection(firestore, "categories");
-      addDocumentNonBlocking(collectionRef, values);
+      const newDocRef = await addDocumentNonBlocking(collectionRef, values);
+      if (newDocRef) {
+        logAction('create', newDocRef.id, values.name, `Se creó la nueva categoría '${values.name}'.`);
+      }
       toast({
         title: "Categoría Creada",
         description: "La nueva categoría ha sido añadida.",

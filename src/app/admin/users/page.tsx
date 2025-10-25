@@ -1,9 +1,9 @@
 "use client";
 
 import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import type { User } from '@/lib/types';
+import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,11 +22,30 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 function UserActions({ user }: { user: User }) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user: currentUser } = useAppUser();
+
+
+  const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !currentUser) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email || "Sistema",
+        action: action,
+        entityType: 'User',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+  };
+
 
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
     if (!firestore) return;
     const userRef = doc(firestore, 'users', user.id);
     updateDocumentNonBlocking(userRef, { role: newRole });
+    logAction('role_change', user.id, user.name || user.email, `Rol de ${user.name || user.email} cambiado a ${newRole}.`);
     toast({
       title: 'Rol actualizado',
       description: `El rol de ${user.name || user.email} ha sido cambiado a ${newRole}.`,

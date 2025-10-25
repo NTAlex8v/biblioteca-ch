@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
-import type { Folder } from "@/lib/types";
+import type { Folder, AuditLog } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
 const folderSchema = z.object({
@@ -37,7 +37,22 @@ export default function FolderForm() {
 
   const { formState: { isSubmitting } } = form;
 
-  const onSubmit = (values: z.infer<typeof folderSchema>) => {
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Folder',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+  };
+
+  const onSubmit = async (values: z.infer<typeof folderSchema>) => {
     if (!firestore || !user || !categoryId) {
         toast({
             variant: "destructive",
@@ -55,7 +70,10 @@ export default function FolderForm() {
     };
 
     const collectionRef = collection(firestore, "folders");
-    addDocumentNonBlocking(collectionRef, folderData);
+    const newDocRef = await addDocumentNonBlocking(collectionRef, folderData);
+    if(newDocRef) {
+        logAction('create', newDocRef.id, values.name, `Se creó la nueva carpeta '${values.name}'.`);
+    }
     toast({
       title: "Carpeta Creada",
       description: "La nueva carpeta ha sido añadida.",

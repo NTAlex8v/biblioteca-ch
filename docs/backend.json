@@ -171,6 +171,64 @@
         "email",
         "role"
       ]
+    },
+     "AuditLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AuditLog",
+      "type": "object",
+      "description": "Records a change event in the system for auditing purposes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the log entry."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The ISO 8601 timestamp of when the event occurred."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The Firebase Auth UID of the user who performed the action."
+        },
+        "userName": {
+          "type": "string",
+          "description": "The display name of the user who performed the action."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["create", "update", "delete", "role_change"],
+          "description": "The type of action performed."
+        },
+        "entityType": {
+          "type": "string",
+          "enum": ["Document", "Category", "Folder", "User", "Tag"],
+          "description": "The type of entity that was affected."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "The ID of the entity that was affected."
+        },
+        "entityName": {
+            "type": "string",
+            "description": "A display name for the entity (e.g. document title, user name)."
+        },
+        "details": {
+          "type": "string",
+          "description": "A human-readable description of the change."
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "userId",
+        "userName",
+        "action",
+        "entityType",
+        "entityId",
+        "entityName",
+        "details"
+      ]
     }
   },
   "auth": {
@@ -263,6 +321,22 @@
             {
               "name": "documentId",
               "description": "The unique identifier for the document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/auditLogs/{logId}",
+        "definition": {
+          "entityName": "AuditLog",
+          "schema": {
+            "$ref": "#/backend/entities/AuditLog"
+          },
+          "description": "Stores audit trail of user actions.",
+          "params": [
+            {
+              "name": "logId",
+              "description": "The unique identifier for the audit log entry."
             }
           ]
         }
