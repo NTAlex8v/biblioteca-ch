@@ -82,6 +82,14 @@ const SideNav = () => {
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <Link href="/history">
+                      <SidebarMenuButton isActive={pathname.startsWith("/history")} tooltip="Mi Historial">
+                        <History />
+                        <span>Mi Historial</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
               </SidebarGroup>
 
               {isAdminOrEditor && (
@@ -115,9 +123,9 @@ const SideNav = () => {
                       </SidebarMenuItem>
                       <SidebarMenuItem>
                         <Link href="/admin/history">
-                          <SidebarMenuButton isActive={pathname.startsWith("/admin/history")} tooltip="Historial">
+                          <SidebarMenuButton isActive={pathname.startsWith("/admin/history")} tooltip="Historial Global">
                             <History />
-                            <span>Historial</span>
+                            <span>Historial Global</span>
                           </SidebarMenuButton>
                         </Link>
                       </SidebarMenuItem>

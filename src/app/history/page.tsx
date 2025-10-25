@@ -2,8 +2,8 @@
 "use client";
 
 import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import type { AuditLog } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,33 +34,43 @@ const actionTranslations: { [key: string]: string } = {
     role_change: 'Cambio de Rol'
 };
 
-export default function HistoryAdminPage() {
+export default function MyHistoryPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const auditLogQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
         collection(firestore, 'auditLogs'),
+        where('userId', '==', user.uid),
         orderBy('timestamp', 'desc')
     );
-  }, [firestore]);
+  }, [firestore, user]);
   
   const { data: logs, isLoading: isLoadingLogs } = useCollection<AuditLog>(auditLogQuery);
+
+  if (!user) {
+    return (
+        <div className="container mx-auto text-center py-16">
+            <p className="text-muted-foreground">Debes iniciar sesión para ver tu historial de actividad.</p>
+        </div>
+    )
+  }
 
   return (
     <div className="container mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <History className="h-8 w-8" />
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">Historial de Cambios Global</h1>
-            <p className="text-muted-foreground">Toda la actividad registrada en el sistema.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Mi Historial de Actividad</h1>
+            <p className="text-muted-foreground">Tus acciones realizadas en el sistema.</p>
         </div>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Registros de Auditoría</CardTitle>
+          <CardTitle>Mis Registros</CardTitle>
           <CardDescription>
-            {isLoadingLogs ? 'Cargando historial...' : `Se encontraron ${logs?.length || 0} registros en total.`}
+            {isLoadingLogs ? 'Cargando tu historial...' : `Has realizado ${logs?.length || 0} acciones registradas.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -68,7 +78,6 @@ export default function HistoryAdminPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Usuario</TableHead>
                 <TableHead>Acción</TableHead>
                 <TableHead>Entidad</TableHead>
                 <TableHead>Detalles</TableHead>
@@ -76,9 +85,9 @@ export default function HistoryAdminPage() {
             </TableHeader>
             <TableBody>
               {isLoadingLogs ? (
-                Array.from({ length: 10 }).map((_, i) => (
+                Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={5} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+                    <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
                   </TableRow>
                 ))
               ) : logs && logs.length > 0 ? (
@@ -89,7 +98,6 @@ export default function HistoryAdminPage() {
                         <TableCell className="text-sm text-muted-foreground">
                             {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: es })}
                         </TableCell>
-                        <TableCell className="font-medium">{log.userName}</TableCell>
                         <TableCell>
                             <Badge variant={actionColors[log.action] || 'outline'}>{actionTranslations[log.action] || log.action}</Badge>
                         </TableCell>
@@ -105,8 +113,8 @@ export default function HistoryAdminPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No se encontraron registros de cambios.
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    No tienes actividad registrada todavía.
                   </TableCell>
                 </TableRow>
               )}
