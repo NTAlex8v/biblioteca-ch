@@ -36,9 +36,6 @@ const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentD
     if (ref instanceof CollectionReference) {
         return ref.path;
     }
-    // For queries, we can get the path from the internal _query property
-    // This is a bit of a hack, but it's the most reliable way to get the path
-    // in the v9 SDK without major refactoring.
     const internalQuery: any = ref;
     if (internalQuery?._query?.path?.segments) {
         return internalQuery._query.path.segments.join('/');
@@ -56,7 +53,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
   const auth = getAuth();
 
   useEffect(() => {
-    if (!memoizedTargetRefOrQuery) {
+    if (memoizedTargetRefOrQuery === null) {
       setData([]);
       setIsLoading(false);
       setError(null);
@@ -68,15 +65,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
 
     let query: Query<DocumentData>;
 
-    // Check if the input is a string path or a Query object
     if (typeof memoizedTargetRefOrQuery === 'string') {
-        const PUBLIC_COLLECTIONS = ["documents", "categories", "folders", "tags"];
-        if (!auth?.currentUser && !PUBLIC_COLLECTIONS.includes(memoizedTargetRefOrQuery)) {
-            setData([]);
-            setIsLoading(false);
-            setError(null);
-            return;
-        }
         query = collection(db, memoizedTargetRefOrQuery) as Query<DocumentData>;
     } else {
         query = memoizedTargetRefOrQuery;
@@ -99,12 +88,10 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
                 path: path,
              });
             
-            // DO NOT log to console. The global listener will handle it.
             setData([]);
-            setError(contextualError); // Set local error state for UI feedback
+            setError(contextualError); 
             setIsLoading(false);
 
-            // Emit the rich error for global handling (e.g., Next.js error overlay)
             errorEmitter.emit('permission-error', contextualError);
         }
     );

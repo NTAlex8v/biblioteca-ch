@@ -1,15 +1,29 @@
-
 'use client';
 
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Eye } from 'lucide-react';
+import { Download, Eye, Edit, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import type { Document as DocumentType, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect } from 'react';
+import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type DocumentDetailProps = {
   document: DocumentType;
@@ -20,9 +34,14 @@ type DocumentDetailProps = {
 export default function DocumentDetailClient({ document, categoryName, documentTags }: DocumentDetailProps) {
   const [isPdfVisible, setIsPdfVisible] = useState(false);
   const [formattedDate, setFormattedDate] = useState('');
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const isOwner = user && document.createdBy === user.uid;
 
   useEffect(() => {
-    // Format the date only on the client-side to avoid hydration mismatch
     if (document.lastUpdated) {
       setFormattedDate(new Date(document.lastUpdated).toLocaleDateString());
     }
@@ -30,6 +49,18 @@ export default function DocumentDetailClient({ document, categoryName, documentT
   
   const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
   const thumbnailUrl = document?.thumbnailUrl || randomImage.imageUrl;
+
+  const handleDelete = () => {
+    if (!firestore) return;
+    const docRef = doc(firestore, 'documents', document.id);
+    deleteDocumentNonBlocking(docRef);
+    toast({
+      variant: "destructive",
+      title: 'Documento eliminado',
+      description: 'El documento ha sido eliminado permanentemente.',
+    });
+    router.push('/');
+  };
 
   return (
     <>
@@ -97,6 +128,34 @@ export default function DocumentDetailClient({ document, categoryName, documentT
                 </Link>
               </Button>
             </div>
+             {isOwner && (
+                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                    <Button size="lg" variant="outline" className="flex-1" asChild>
+                        <Link href={`/my-documents/edit/${document.id}`}>
+                            <Edit className="mr-2" /> Editar
+                        </Link>
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button size="lg" variant="destructive" className="flex-1">
+                                <Trash2 className="mr-2" /> Eliminar
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Esto eliminará permanentemente el documento de la base de datos.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            )}
              {isPdfVisible && (
               <div className="mt-8">
                 <Card>

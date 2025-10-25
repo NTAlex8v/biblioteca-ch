@@ -2,14 +2,27 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 interface CategoryClientPageProps {
   category: Category;
@@ -17,22 +30,84 @@ interface CategoryClientPageProps {
 
 const ItemSkeleton = () => (
     <div className="flex flex-col gap-2">
-        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-40 w-full" />
         <Skeleton className="h-5 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
     </div>
 );
 
+function FolderCard({ folder }: { folder: Folder }) {
+    const { user } = useUser();
+    const { toast } = useToast();
+    const firestore = useFirestore();
+
+    // This is a simplified check. For production, you'd use custom claims.
+    const isAdmin = false; // Replace with real admin check
+
+    const handleDelete = () => {
+        if (!firestore) return;
+        const docRef = doc(firestore, 'folders', folder.id);
+        deleteDocumentNonBlocking(docRef);
+        toast({
+            variant: "destructive",
+            title: 'Carpeta eliminada',
+            description: `La carpeta '${folder.name}' ha sido eliminada.`,
+        });
+    };
+
+    return (
+        <Card className="group relative flex h-full flex-col items-center justify-center p-6 text-center transition-all duration-300 hover:shadow-lg hover:border-primary">
+            <Link key={folder.id} href={`/folders/${folder.id}`} className="absolute inset-0 z-0" />
+            {isAdmin && (
+                 <div className="absolute top-2 right-2 z-10">
+                    <AlertDialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menú</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Eliminar
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                         <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción no se puede deshacer. Esto eliminará permanentemente la carpeta y todos los documentos dentro de ella.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            )}
+            <FolderIcon className="h-12 w-12 mb-2 text-primary group-hover:scale-110 transition-transform"/>
+            <p className="font-medium text-lg mt-2">{folder.name}</p>
+        </Card>
+    );
+}
+
 export default function CategoryClientPage({ category }: CategoryClientPageProps) {
   const firestore = useFirestore();
+  const { user } = useUser();
 
-  // Query for sub-folders within this category that are at the root level (no parent folder)
   const foldersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'folders'), where('categoryId', '==', category.id), where('parentFolderId', '==', null));
   }, [firestore, category.id]);
 
-  // Query for ALL documents within this category
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'documents'), where('categoryId', '==', category.id));
@@ -41,7 +116,6 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
   const { data: allDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
-  // Filter documents that are in the root of the category (folderId is null or does not exist)
   const rootDocuments = React.useMemo(() => {
     if (!allDocuments) return [];
     return allDocuments.filter(doc => !doc.folderId);
@@ -57,23 +131,24 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
             <h1 className="text-3xl font-bold tracking-tight mt-4">{category.name}</h1>
             <p className="text-muted-foreground">{category.description}</p>
         </div>
-        <div className="flex gap-2">
-            <Button asChild>
-                <Link href={`/folders/new?categoryId=${category.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nueva Carpeta
-                </Link>
-            </Button>
-            <Button asChild variant="secondary">
-                <Link href={`/my-documents/new?categoryId=${category.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nuevo Documento
-                </Link>
-            </Button>
-        </div>
+        {user && (
+            <div className="flex gap-2">
+                <Button asChild>
+                    <Link href={`/folders/new?categoryId=${category.id}`}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nueva Carpeta
+                    </Link>
+                </Button>
+                <Button asChild variant="secondary">
+                    <Link href={`/my-documents/new?categoryId=${category.id}`}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nuevo Documento
+                    </Link>
+                </Button>
+            </div>
+        )}
       </div>
       
-      {/* Folders section */}
       { (isLoadingFolders || (folders && folders.length > 0)) && (
           <>
             <h2 className="text-2xl font-semibold tracking-tight mb-4">Carpetas</h2>
@@ -87,20 +162,13 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
                     ))
                 ) : (
                     folders?.map(folder => (
-                        <Link key={folder.id} href={`/folders/${folder.id}`} className="group">
-                             <Card className="h-full flex flex-col items-center justify-center p-6 text-center transition-all duration-300 hover:shadow-lg hover:border-primary">
-                                <FolderIcon className="h-12 w-12 mb-2 text-primary group-hover:scale-110 transition-transform"/>
-                                <p className="font-medium text-lg mt-2">{folder.name}</p>
-                            </Card>
-                        </Link>
+                        <FolderCard key={folder.id} folder={folder} />
                     ))
                 )}
             </div>
           </>
       )}
 
-
-      {/* Documents section */}
        <h2 className="text-2xl font-semibold tracking-tight mb-4">Documentos</h2>
        {isLoadingDocuments ? (
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
