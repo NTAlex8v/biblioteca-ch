@@ -9,8 +9,8 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import UserInitializer from '@/components/user-initializer';
 
 export const metadata: Metadata = {
-  title: 'Cayetano Library Hub',
-  description: 'Biblioteca virtual para la Cayetano Heredia',
+  title: 'BiblioteCH',
+  description: 'Biblioteca virtual BiblioteCH',
 };
 
 export default function RootLayout({

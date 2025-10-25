@@ -55,7 +55,7 @@ const SideNav = () => {
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
           <Book className="h-7 w-7 text-primary" />
-          <span className="text-lg font-semibold">Cayetano Hub</span>
+          <span className="text-lg font-semibold">BiblioteCH</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -141,7 +141,7 @@ const SideNav = () => {
       </SidebarContent>
       <SidebarFooter>
         <div className="text-xs text-muted-foreground p-2 text-center group-data-[collapsible=icon]:hidden">
-            © 2024 Cayetano Library Hub
+            © 2024 BiblioteCH
         </div>
       </SidebarFooter>
     </Sidebar>
