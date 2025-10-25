@@ -92,7 +92,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
       router.refresh(); // Forces a refresh to show the new data
   }
 
-  const onSubmit = async (values: z.infer<typeof documentSchema>) => {
+  const onSubmit = (values: z.infer<typeof documentSchema>) => {
     if (!firestore || !user) return;
     
     const commonData = {
@@ -108,7 +108,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
           folderId: document.folderId, // Preserve original folderId
           createdBy: document.createdBy, // Preserve original creator
       };
-      await setDocumentNonBlocking(docRef, dataToUpdate);
+      setDocumentNonBlocking(docRef, dataToUpdate);
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
       toast({
         title: "Documento Actualizado",
@@ -123,10 +123,12 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
           folderId: folderIdFromParams || null, // Explicitly set to null if not provided
           createdBy: user.uid,
       }
-      const newDocRef = await addDocumentNonBlocking(collectionRef, dataToCreate);
-      if(newDocRef) {
-        logAction('create', newDocRef.id, values.title, `Se creó el nuevo documento '${values.title}'.`);
-      }
+      addDocumentNonBlocking(collectionRef, dataToCreate)
+        .then(newDocRef => {
+            if(newDocRef) {
+                logAction('create', newDocRef.id, values.title, `Se creó el nuevo documento '${values.title}'.`);
+            }
+        });
       toast({
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",
@@ -289,5 +291,3 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
-
-    

@@ -46,22 +46,19 @@ function DocumentActions({ documentId }: { documentId: string }) {
     addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', documentId);
     
-    // Fetch doc to get its name before deleting
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-        const docData = docSnap.data();
-        deleteDocumentNonBlocking(docRef);
-        logAction('delete', documentId, docData.title, `Se eliminó el documento '${docData.title}'.`);
-        toast({
-          variant: "destructive",
-          title: 'Documento eliminado',
-          description: 'El documento ha sido eliminado permanentemente.',
-        });
-    }
+    // We don't need to fetch the doc anymore, just delete and log.
+    // The name might be stale in the logs if it was just changed, but that's a minor trade-off.
+    deleteDocumentNonBlocking(docRef);
+    logAction('delete', documentId, documentId, `Se eliminó el documento con ID '${documentId}'.`);
+    toast({
+      variant: "destructive",
+      title: 'Documento eliminado',
+      description: 'El documento ha sido eliminado permanentemente.',
+    });
   };
 
   const handleEdit = () => {
@@ -202,5 +199,3 @@ export default function MyDocumentsPage() {
     </div>
   );
 }
-
-    
