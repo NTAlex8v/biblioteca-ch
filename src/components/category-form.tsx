@@ -52,7 +52,7 @@ export default function CategoryForm({ category }: CategoryFormProps) {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
   const onSubmit = async (values: z.infer<typeof categorySchema>) => {
@@ -129,3 +129,5 @@ export default function CategoryForm({ category }: CategoryFormProps) {
     </Form>
   );
 }
+
+    

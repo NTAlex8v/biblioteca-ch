@@ -37,7 +37,7 @@ function UserActions({ user }: { user: User }) {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
   };
 
 
@@ -153,3 +153,5 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+
+    

@@ -43,7 +43,7 @@ function DocumentActions({ documentId }: { documentId: string }) {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
   const handleDelete = async () => {
@@ -202,3 +202,5 @@ export default function MyDocumentsPage() {
     </div>
   );
 }
+
+    

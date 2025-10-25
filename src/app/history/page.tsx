@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import type { AuditLog } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,8 +41,7 @@ export default function MyHistoryPage() {
   const auditLogQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
-        collection(firestore, 'auditLogs'),
-        where('userId', '==', user.uid),
+        collection(firestore, 'users', user.uid, 'auditLogs'),
         orderBy('timestamp', 'desc')
     );
   }, [firestore, user]);
@@ -125,3 +124,5 @@ export default function MyHistoryPage() {
     </div>
   );
 }
+
+    

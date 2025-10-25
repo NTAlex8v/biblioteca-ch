@@ -253,10 +253,16 @@
             "$ref": "#/backend/entities/User"
           },
           "description": "Stores user profile information. User ID is the Firebase Auth UID.",
-          "params": [
+          "subcollections": [
             {
-              "name": "userId",
-              "description": "The Firebase Auth UID of the user."
+              "path": "auditLogs/{logId}",
+              "definition": {
+                "entityName": "AuditLog",
+                "schema": {
+                  "$ref": "#/backend/entities/AuditLog"
+                },
+                "description": "Stores audit trail of this specific user's actions."
+              }
             }
           ]
         }
@@ -268,13 +274,7 @@
           "schema": {
             "$ref": "#/backend/entities/Category"
           },
-          "description": "Stores top-level categories, managed by Admins.",
-          "params": [
-            {
-              "name": "categoryId",
-              "description": "The unique identifier for the category."
-            }
-          ]
+          "description": "Stores top-level categories, managed by Admins."
         }
       },
        {
@@ -284,13 +284,7 @@
           "schema": {
             "$ref": "#/backend/entities/Folder"
           },
-          "description": "Stores user-created folders for organizing documents.",
-          "params": [
-            {
-              "name": "folderId",
-              "description": "The unique identifier for the folder."
-            }
-          ]
+          "description": "Stores user-created folders for organizing documents."
         }
       },
       {
@@ -300,13 +294,7 @@
           "schema": {
             "$ref": "#/backend/entities/Tag"
           },
-          "description": "Stores tags for cross-classification of documents.",
-          "params": [
-            {
-              "name": "tagId",
-              "description": "The unique identifier for the tag."
-            }
-          ]
+          "description": "Stores tags for cross-classification of documents."
         }
       },
       {
@@ -316,13 +304,7 @@
           "schema": {
             "$ref": "#/backend/entities/Document"
           },
-          "description": "Stores the details of each document, including metadata and file URL.",
-          "params": [
-            {
-              "name": "documentId",
-              "description": "The unique identifier for the document."
-            }
-          ]
+          "description": "Stores the details of each document, including metadata and file URL."
         }
       },
       {
@@ -332,15 +314,11 @@
           "schema": {
             "$ref": "#/backend/entities/AuditLog"
           },
-          "description": "Stores audit trail of user actions.",
-          "params": [
-            {
-              "name": "logId",
-              "description": "The unique identifier for the audit log entry."
-            }
-          ]
+          "description": "Stores audit trail of all user actions in the system."
         }
       }
     ]
   }
 }
+
+    

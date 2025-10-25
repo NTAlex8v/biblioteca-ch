@@ -49,7 +49,7 @@ export default function FolderForm() {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
   const onSubmit = async (values: z.infer<typeof folderSchema>) => {
@@ -119,3 +119,5 @@ export default function FolderForm() {
     </Form>
   );
 }
+
+    

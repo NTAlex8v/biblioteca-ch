@@ -40,7 +40,7 @@ function CategoryActions({ category }: { category: Category }) {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
   const handleDelete = () => {
@@ -164,3 +164,5 @@ export default function CategoriesAdminPage() {
     </div>
   );
 }
+
+    

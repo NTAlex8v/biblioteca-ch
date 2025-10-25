@@ -78,7 +78,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
   const handleRedirect = () => {
@@ -289,3 +289,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
+    
