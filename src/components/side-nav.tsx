@@ -51,7 +51,7 @@ const SideNav = () => {
   const isAdminOrEditor = userData?.role === 'Admin' || userData?.role === 'Editor';
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar">
+    <Sidebar collapsible="offcanvas" variant="sidebar">
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
           <Book className="h-7 w-7 text-primary" />

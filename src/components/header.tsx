@@ -60,7 +60,6 @@ const ThemeToggle = () => {
 
 const Header = () => {
   const router = useRouter();
-  const { isMobile } = useSidebar();
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -152,7 +151,7 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
       <div className="flex items-center gap-2">
-        {isMobile && <SidebarTrigger />}
+        <SidebarTrigger />
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Book className="h-6 w-6 text-primary" />
           <span className="hidden sm:inline-block">BiblioteCH</span>
