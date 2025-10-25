@@ -15,7 +15,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import {
-  BookCopy,
+  Book,
   Home,
   Shapes,
   Users,
@@ -54,7 +54,7 @@ const SideNav = () => {
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
-          <BookCopy className="h-7 w-7 text-primary" />
+          <Book className="h-7 w-7 text-primary" />
           <span className="text-lg font-semibold">Cayetano Hub</span>
         </Link>
       </SidebarHeader>

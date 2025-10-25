@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BookCopy,
+  Book,
   LogOut,
   User,
   Moon,
@@ -154,7 +154,7 @@ const Header = () => {
       <div className="flex items-center gap-2">
         {isMobile && <SidebarTrigger />}
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <BookCopy className="h-6 w-6 text-primary" />
+          <Book className="h-6 w-6 text-primary" />
           <span className="hidden sm:inline-block">Cayetano Library Hub</span>
         </Link>
       </div>

@@ -1,7 +1,8 @@
+
 'use client';
 
 import Link from "next/link";
-import { BookCopy } from "lucide-react";
+import { Book } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -100,7 +101,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
              <Link href="/" className="flex items-center gap-2 font-semibold">
-                <BookCopy className="h-8 w-8 text-primary" />
+                <Book className="h-8 w-8 text-primary" />
              </Link>
           </div>
           <CardTitle className="text-2xl">Bienvenido de vuelta</CardTitle>
