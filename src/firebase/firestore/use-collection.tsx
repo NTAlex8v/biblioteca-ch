@@ -70,7 +70,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
 
     // Check if the input is a string path or a Query object
     if (typeof memoizedTargetRefOrQuery === 'string') {
-        const PUBLIC_COLLECTIONS = ["documents", "categories", "folders"];
+        const PUBLIC_COLLECTIONS = ["documents", "categories", "folders", "tags"];
         if (!auth?.currentUser && !PUBLIC_COLLECTIONS.includes(memoizedTargetRefOrQuery)) {
             setData([]);
             setIsLoading(false);
@@ -99,11 +99,12 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
                 path: path,
              });
             
-            console.error("Firestore onSnapshot error:", err);
+            // DO NOT log to console. The global listener will handle it.
             setData([]);
-            setError(contextualError);
+            setError(contextualError); // Set local error state for UI feedback
             setIsLoading(false);
 
+            // Emit the rich error for global handling (e.g., Next.js error overlay)
             errorEmitter.emit('permission-error', contextualError);
         }
     );
