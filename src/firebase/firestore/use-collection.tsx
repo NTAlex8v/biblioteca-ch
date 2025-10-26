@@ -12,7 +12,6 @@ import {
   QuerySnapshot,
   FirestoreError,
   CollectionReference,
-  doc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -65,9 +64,20 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       setError(null);
       return;
     }
-
-    const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
     
+    const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
+
+    // CRITICAL FIX: Prevent listing the 'users' collection to avoid permission errors.
+    if (path === 'users') {
+        const { claims } = auth.currentUser?.reloadUserInfo() as any;
+        if(claims?.role !== 'Admin'){
+            setData([]);
+            setIsLoading(false);
+            setError(new Error("Security rules prevent listing users. This is expected behavior."));
+            return;
+        }
+    }
+
     setIsLoading(true);
     setError(null);
     
@@ -80,7 +90,6 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
           query = memoizedTargetRefOrQuery;
       }
       
-      // Default behavior for all other collections
       unsubscribe = onSnapshot(
           query,
           (snapshot: QuerySnapshot<DocumentData>) => {

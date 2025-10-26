@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -112,17 +113,86 @@ export default function UsersAdminPage() {
       );
   }
 
+  const renderContent = () => {
+    if (isLoadingUsers) {
+      return (
+        Array.from({ length: 3 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+          </TableRow>
+        ))
+      );
+    }
+
+    if (usersError) {
+      return (
+        <TableRow>
+          <TableCell colSpan={4} className="h-24 text-center">
+             <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error de Permisos</AlertTitle>
+                <AlertDescription>
+                  Tus reglas de seguridad de Firestore no permiten listar la colección de usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.
+                </AlertDescription>
+              </Alert>
+          </TableCell>
+        </TableRow>
+      );
+    }
+    
+    if (users && users.length > 0) {
+      return users.map(user => (
+        <TableRow key={user.id}>
+          <TableCell>
+              <div className="flex items-center gap-3">
+                  <Avatar className="h-9 w-9">
+                      <AvatarImage src={user.avatarUrl} alt={user.name}/>
+                      <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{user.name || 'Sin nombre'}</span>
+              </div>
+          </TableCell>
+          <TableCell>{user.email}</TableCell>
+          <TableCell>
+            <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
+          </TableCell>
+          <TableCell className="text-right">
+            <UserActions user={user} />
+          </TableCell>
+        </TableRow>
+      ));
+    }
+    
+    return (
+      <TableRow>
+        <TableCell colSpan={4} className="h-24 text-center">
+          No se encontraron usuarios registrados.
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+
   return (
     <div className="container mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
         <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
       </div>
+
+       <Alert className="mb-8 border-blue-500 text-blue-800 bg-blue-50 dark:bg-blue-950 dark:text-blue-200">
+        <Info className="h-4 w-4 !text-blue-500" />
+        <AlertTitle>Nota de Desarrollo</AlertTitle>
+        <AlertDescription>
+          Debido a las restricciones de seguridad, el listado de todos los usuarios está deshabilitado. La tabla a continuación solo mostrará usuarios si tus Reglas de Seguridad de Firestore lo permiten explícitamente (lo cual no es la configuración por defecto). La funcionalidad de cambio de rol sigue activa para cualquier usuario que aparezca en la lista.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle>Usuarios Registrados</CardTitle>
           <CardDescription>
-            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios registrados.`}
+            {isLoadingUsers ? 'Cargando usuarios...' : `Mostrando ${users?.length || 0} usuarios.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -136,46 +206,7 @@ export default function UsersAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingUsers ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
-                  </TableRow>
-                ))
-              ) : usersError ? (
-                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    Error al cargar usuarios: Permisos insuficientes en las reglas de seguridad de Firestore.
-                  </TableCell>
-                </TableRow>
-              ) : users && users.length > 0 ? (
-                users.map(user => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                        <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                                <AvatarImage src={user.avatarUrl} alt={user.name}/>
-                                <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{user.name || 'Sin nombre'}</span>
-                        </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActions user={user} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios registrados.
-                  </TableCell>
-                </TableRow>
-              )}
+              {renderContent()}
             </TableBody>
           </Table>
         </CardContent>
