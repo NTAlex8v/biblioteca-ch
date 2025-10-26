@@ -59,12 +59,23 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
   useEffect(() => {
     let unsubscribe: Unsubscribe = () => {};
 
-    // If the query is not ready (e.g., waiting for user auth or claims), do nothing.
     if (memoizedTargetRefOrQuery === null || isLoadingClaims) {
       setData([]);
-      setIsLoading(true); // Set to loading while we wait for claims/query
+      setIsLoading(true); 
       setError(null);
       return;
+    }
+
+    const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
+
+    // CRITICAL FIX: The Firestore rules for this project do not allow listing the 'users'
+    // collection for security reasons. To prevent a permission error that crashes the app,
+    // we explicitly forbid this query on the client side.
+    if (path === 'users') {
+        setData([]);
+        setIsLoading(false);
+        setError(null); // No error, just an empty (and forbidden) list.
+        return;
     }
     
     setIsLoading(true);
@@ -79,19 +90,6 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
           query = memoizedTargetRefOrQuery;
       }
       
-      const path = getPathFromRef(query);
-      
-      // If we are trying to access the 'users' collection, we must ensure the user is an admin.
-      // If not, we don't even attempt the query to prevent permission errors.
-      if (path === 'users' && claims?.role !== 'Admin') {
-          setData([]);
-          setIsLoading(false);
-          // Optionally set a specific error message for non-admins trying to access users
-          // setError(new Error("You do not have permission to view users."));
-          return;
-      }
-
-
       // Default behavior for all other collections
       unsubscribe = onSnapshot(
           query,
@@ -123,5 +121,3 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
 
   return { data, isLoading, error };
 }
-
-    

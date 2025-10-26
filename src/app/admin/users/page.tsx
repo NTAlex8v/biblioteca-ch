@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -121,63 +121,22 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Usuarios Registrados</CardTitle>
           <CardDescription>
-            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            La lista de usuarios está desactivada en esta interfaz por razones de seguridad.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Fecha de Registro</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingUsers ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={4} className="h-16">
-                      <div className="w-full h-8 animate-pulse rounded-md bg-muted"></div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : users && users.length > 0 ? (
-                users.map(user => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={user.avatarUrl} alt={user.name} />
-                          <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{user.name || 'Sin nombre'}</div>
-                          <div className="text-sm text-muted-foreground">{user.email}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'No disponible'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActions user={user} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <div className="text-center py-10 border-2 border-dashed rounded-lg">
+            <h3 className="text-xl font-semibold text-muted-foreground">Gestión de Usuarios en la Consola de Firebase</h3>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              Para ver, editar roles o eliminar usuarios, por favor utiliza la Consola de Firebase. Esta es la forma más segura de gestionar los permisos de tu aplicación.
+            </p>
+            <Button asChild className="mt-4">
+              <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">
+                Ir a la Consola de Firebase
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
