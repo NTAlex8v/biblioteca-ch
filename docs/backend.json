@@ -306,19 +306,7 @@
           },
           "description": "Stores the details of each document, including metadata and file URL."
         }
-      },
-      {
-        "path": "/auditLogs/{logId}",
-        "definition": {
-          "entityName": "AuditLog",
-          "schema": {
-            "$ref": "#/backend/entities/AuditLog"
-          },
-          "description": "Stores audit trail of all user actions in the system."
-        }
       }
     ]
   }
 }
-
-    

@@ -121,14 +121,6 @@ const SideNav = () => {
                           </SidebarMenuButton>
                         </Link>
                       </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <Link href="/admin/history">
-                          <SidebarMenuButton isActive={pathname.startsWith("/admin/history")} tooltip="Historial Global">
-                            <History />
-                            <span>Historial Global</span>
-                          </SidebarMenuButton>
-                        </Link>
-                      </SidebarMenuItem>
                     </>
                   )}
                 </SidebarGroup>
