@@ -7,8 +7,8 @@ import { usePathname } from "next/navigation";
 
 /**
  * An invisible component that runs once when a user is authenticated.
- * It ensures a user document exists in Firestore and forces a token refresh
- * to load the latest custom claims.
+ * It ensures a user document exists in Firestore. The token refresh logic
+ * has been moved to FirebaseProvider for robustness.
  */
 export default function UserInitializer() {
   const { user, isUserLoading } = useUser();
@@ -16,7 +16,7 @@ export default function UserInitializer() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Exclude this logic on the signup page
+    // Exclude this logic on signup/login pages
     if (pathname === '/signup' || pathname === '/login') {
       return;
     }
@@ -26,11 +26,8 @@ export default function UserInitializer() {
       return;
     }
 
-    const checkAndCreateUser = async () => {
+    const checkAndCreateUserDocument = async () => {
       try {
-        // Force a token refresh to get the latest custom claims
-        await user.getIdToken(true);
-        
         const userRef = doc(firestore, "users", user.uid);
         const docSnap = await getDoc(userRef);
 
@@ -42,17 +39,18 @@ export default function UserInitializer() {
             email: user.email,
             name: user.displayName || user.email, // Fallback to email for name
             avatarUrl: user.photoURL,
-            role: 'User', // Assign a default role
+            role: 'User', // Assign a default role in the DB. Auth claims are the source of truth for rules.
             createdAt: new Date().toISOString(),
           };
+          // This write won't be blocked by security rules if they are set correctly.
           setDocumentNonBlocking(userRef, userData, {});
         }
       } catch (error) {
-        console.error("Error in UserInitializer:", error);
+        console.error("Error in UserInitializer (checkAndCreateUserDocument):", error);
       }
     };
 
-    checkAndCreateUser();
+    checkAndCreateUserDocument();
   }, [user, isUserLoading, firestore, pathname]);
 
   // This component renders nothing.
