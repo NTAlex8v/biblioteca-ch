@@ -5,37 +5,35 @@ import admin from "firebase-admin";
 // Directly import the service account credentials
 import serviceAccount from "../../../../../firebase-service-account.json";
 
-// Initialize Firebase Admin SDK if not already initialized
-try {
-  if (!admin.apps.length) {
-    // Manually construct the credential object to ensure correct property names (camelCase)
-    // and to handle the private key formatting.
-    const credential = {
-      projectId: serviceAccount.project_id,
-      clientEmail: serviceAccount.client_email,
-      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'),
-    };
-
-    admin.initializeApp({
-      credential: admin.credential.cert(credential),
-    });
-    console.log("Firebase Admin initialized successfully.");
-  }
-} catch (error: any) {
-  // This catch block is crucial for debugging in the server environment.
-  console.error("Firebase Admin Initialization Error:", error.message);
-}
-
+// Define the credential object outside to be used in the function.
+// Manually construct the credential object to ensure correct property names (camelCase)
+// and to handle the private key formatting.
+const credential = {
+  projectId: serviceAccount.project_id,
+  clientEmail: serviceAccount.client_email,
+  privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'),
+};
 
 export async function POST(req: Request) {
-  // Check if the SDK was initialized correctly before proceeding
-  if (!admin.apps.length) {
-    console.error("API Error: Firebase Admin SDK is not initialized.");
+  // --- INITIALIZATION MOVED HERE ---
+  // Initialize Firebase Admin SDK if not already initialized.
+  // This guarantees it runs every time the API is called.
+  try {
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(credential),
+      });
+      console.log("Firebase Admin initialized successfully inside POST handler.");
+    }
+  } catch (error: any) {
+    console.error("Firebase Admin Initialization Error inside POST handler:", error.message);
+    // If initialization fails, we cannot proceed.
     return NextResponse.json(
-      { error: "Firebase Admin SDK not initialized. Check server logs for initialization errors." },
+      { error: "Critical: Firebase Admin SDK failed to initialize. Check server logs." },
       { status: 500 }
     );
   }
+  // --- END INITIALIZATION ---
 
   try {
     const body = await req.json();
@@ -45,17 +43,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No token provided" }, { status: 401 });
     }
 
-    // Verify the ID token and check for the 'Admin' role
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     
-    // In a real app, you'd check a real custom claim. Here we allow the simulated one.
     const isAdmin = decodedToken.role === "Admin";
 
     if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden: User is not an admin." }, { status: 403 });
     }
 
-    // Fetch all users from Firestore using the Admin SDK
     const usersSnap = await admin.firestore().collection("users").get();
     const users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -63,7 +58,6 @@ export async function POST(req: Request) {
 
   } catch (err: any) {
     console.error("API /api/admin/users error:", err);
-    // Provide a more specific error message if token verification fails
     if (err.code === 'auth/id-token-expired') {
       return NextResponse.json({ error: "Token expired, please log in again." }, { status: 401 });
     }
