@@ -12,6 +12,7 @@ import {
   QuerySnapshot,
   FirestoreError,
   CollectionReference,
+  doc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -70,6 +71,43 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     } else {
         query = memoizedTargetRefOrQuery;
     }
+    
+    const uid = auth?.currentUser?.uid ?? null;
+    const path = getPathFromRef(query);
+
+    // If trying to list the 'users' collection and we have a UID,
+    // subscribe to the user's own document instead of listing the whole collection.
+    if (path === "users" && uid) {
+      const userDocRef = doc(db, "users", uid);
+      const unsubscribe = onSnapshot(
+        userDocRef,
+        (docSnap) => {
+          if (!docSnap.exists()) {
+            setData([]); // Doc doesn't exist
+            setIsLoading(false);
+            setError(null);
+            return;
+          }
+          // Wrap the single document in an array to maintain hook compatibility
+          const payload = [{ id: docSnap.id, ...docSnap.data() } as WithId<T>];
+          setData(payload);
+          setIsLoading(false);
+          setError(null);
+        },
+        (err) => {
+           const contextualError = new FirestorePermissionError({
+                operation: 'get', // It's a 'get' on a single doc now
+                path: userDocRef.path,
+             });
+            setData([]);
+            setError(contextualError); 
+            setIsLoading(false);
+            errorEmitter.emit('permission-error', contextualError);
+        }
+      );
+
+      return () => unsubscribe();
+    }
 
 
     const unsubscribe = onSnapshot(
@@ -81,8 +119,6 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
             setError(null);
         },
         (err: FirestoreError) => {
-             const path = getPathFromRef(query);
-
              const contextualError = new FirestorePermissionError({
                 operation: 'list',
                 path: path,
