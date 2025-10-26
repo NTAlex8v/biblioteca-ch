@@ -1,8 +1,7 @@
 
 "use client";
 
-import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
+import React, { useEffect, useState } from 'react';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +12,32 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { doc, collection } from 'firebase/firestore';
+import { useAuth, useFirestore, useUserClaims, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
   Editor: 'default',
   User: 'secondary',
 };
+
+
+// This is now a client-side utility function, not a hook.
+async function fetchUsersFromApi(idToken: string): Promise<User[]> {
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.users as User[];
+}
+
 
 function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
@@ -51,33 +70,67 @@ function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId
 }
 
 export default function UsersAdminPage() {
+  const auth = useAuth();
   const firestore = useFirestore();
   const { claims, isLoadingClaims } = useUserClaims();
-  const { user: currentUser } = useAppUser();
   const { toast } = useToast();
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = claims?.role === 'Admin';
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  useEffect(() => {
+    if (!isAdmin) {
+      setIsLoading(false);
+      return;
+    }
 
-  const { data: users, isLoading: isLoadingUsers, error } = useCollection<User>(usersQuery);
+    const loadUsers = async () => {
+      if (!auth.currentUser) {
+        setError("Autenticación requerida.");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Force refresh the token to get the latest claims (including simulated ones)
+        const idToken = await auth.currentUser.getIdToken(true);
+        const fetchedUsers = await fetchUsersFromApi(idToken);
+        setUsers(fetchedUsers);
+      } catch (err: any) {
+        console.error("Failed to fetch users:", err);
+        setError(err.message || "Ocurrió un error al cargar los usuarios.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // We wait until claims are loaded to know if we are admin
+    if (!isLoadingClaims) {
+        loadUsers();
+    }
+
+  }, [isAdmin, isLoadingClaims, auth.currentUser]);
+
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
-    if (!firestore || !currentUser) return;
+    if (!firestore || !auth.currentUser) return;
     const log: Omit<AuditLog, 'id'> = {
         timestamp: new Date().toISOString(),
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email || "Sistema",
+        userId: auth.currentUser.uid,
+        userName: auth.currentUser.displayName || auth.currentUser.email || "Sistema",
         action: action,
         entityType: 'User',
         entityId,
         entityName,
         details,
     };
-    addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
+    addDocumentNonBlocking(collection(firestore, 'users', auth.currentUser.uid, 'auditLogs'), log);
   };
 
   const handleRoleChange = (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => {
@@ -90,6 +143,10 @@ export default function UsersAdminPage() {
       title: 'Rol actualizado',
       description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
     });
+     // Optimistically update UI
+    setUsers(currentUsers =>
+        currentUsers.map(u => (u.id === userId ? { ...u, role: newRole } : u))
+    );
   };
 
   if (isLoadingClaims) {
@@ -130,7 +187,7 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Todos los Usuarios</CardTitle>
           <CardDescription>
-            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -144,7 +201,7 @@ export default function UsersAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingUsers ? (
+              {isLoading ? (
                  Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
@@ -153,7 +210,7 @@ export default function UsersAdminPage() {
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    Error al cargar usuarios. Verifica los permisos de Firestore.
+                    {error}
                   </TableCell>
                 </TableRow>
               ) : users && users.length > 0 ? (

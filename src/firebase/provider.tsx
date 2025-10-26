@@ -97,9 +97,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             let finalClaims = idTokenResult.claims;
 
             // --- DEVELOPMENT OVERRIDE ---
-            // This is a temporary client-side patch to grant admin rights to a specific user
-            // because custom claims cannot be set from the client in a secure way.
-            // This simulates the admin claim for development purposes.
+            // This simulates an admin claim for the specified UID for development purposes.
+            // In production, custom claims must be set via a secure backend.
             if (firebaseUser.uid === '2bIAW4LIstaHXKSSRhr2nRpvKr02') {
               finalClaims = { ...finalClaims, role: 'Admin' };
             }
