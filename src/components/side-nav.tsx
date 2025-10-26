@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -19,12 +18,11 @@ import {
   Home,
   Shapes,
   Users,
-  FileText,
   LayoutDashboard,
   FolderKanban,
   History
 } from "lucide-react";
-import { useCollection, useFirestore, useUserClaims, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUserClaims, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import type { Category } from "@/lib/types";
 
@@ -33,6 +31,7 @@ const SideNav = () => {
   const isActive = (path: string) => pathname === path;
   
   const firestore = useFirestore();
+  const { user } = useUser();
   const { claims } = useUserClaims();
 
   const categoriesQuery = useMemoFirebase(() => {
@@ -42,7 +41,7 @@ const SideNav = () => {
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
-  const isUserLoggedIn = !!claims;
+  const isUserLoggedIn = !!user;
   const isAdmin = claims?.role === 'Admin';
   const isEditor = claims?.role === 'Editor';
   const isAdminOrEditor = isAdmin || isEditor;
