@@ -4,6 +4,8 @@ import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
+
 
 import { cn } from "@/lib/utils"
 
@@ -64,6 +66,15 @@ const SheetContent = React.forwardRef<
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >
+      <VisuallyHidden.Root asChild>
+        <SheetPrimitive.Title>Menú Principal</SheetPrimitive.Title>
+      </VisuallyHidden.Root>
+      <VisuallyHidden.Root asChild>
+         <SheetPrimitive.Description>
+            Navegación principal de la aplicación.
+         </SheetPrimitive.Description>
+      </VisuallyHidden.Root>
+
       {children}
       <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
         <X className="h-4 w-4" />
