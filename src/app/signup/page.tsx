@@ -60,19 +60,8 @@ export default function SignupPage() {
             displayName: values.fullName,
         });
 
-        // Create user document in Firestore with 'User' role
-        const userRef = doc(firestore, "users", user.uid);
-        const userData = {
-            id: user.uid,
-            email: user.email,
-            name: values.fullName,
-            role: 'User', // Assign a default role
-            createdAt: new Date().toISOString(),
-        };
-        
-        // This is a new user, so we use setDoc without merge to create the document.
-        // This is safe because createUserWithEmailAndPassword guarantees a new user.
-        setDocumentNonBlocking(userRef, userData, {});
+        // The UserInitializer component will now handle creating the Firestore document
+        // with the correct role from claims (which will be 'User' for new sign-ups).
 
         toast({
           title: "¡Cuenta Creada!",
