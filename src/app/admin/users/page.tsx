@@ -1,19 +1,18 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useAuth, errorEmitter, FirestorePermissionError } from '@/firebase';
+import React from 'react';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2, Search } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { doc, collection, query, where, getDocs } from 'firebase/firestore';
-import { Input } from '@/components/ui/input';
+import { doc, collection } from 'firebase/firestore';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -57,43 +56,14 @@ export default function UsersAdminPage() {
   const { user: currentUser } = useAppUser();
   const { toast } = useToast();
 
-  const [searchedUser, setSearchedUser] = useState<User | null>(null);
-  const [searchEmail, setSearchEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
   const isAdmin = claims?.role === 'Admin';
 
-  const handleSearch = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!firestore || !isAdmin || !searchEmail) return;
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !isAdmin) return null;
+    return collection(firestore, 'users');
+  }, [firestore, isAdmin]);
 
-      setIsLoading(true);
-      setSearchError(null);
-      setSearchedUser(null);
-
-      const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where("email", "==", searchEmail.trim()));
-      
-      getDocs(q).then((querySnapshot) => {
-          if (querySnapshot.empty) {
-              setSearchError("No se encontró ningún usuario con ese correo electrónico.");
-          } else {
-              const userData = querySnapshot.docs[0].data() as User;
-              const userId = querySnapshot.docs[0].id;
-              setSearchedUser({ ...userData, id: userId });
-          }
-      }).catch((serverError) => {
-          setSearchError("Ocurrió un error al buscar el usuario. Revisa los permisos de Firestore.");
-          const permissionError = new FirestorePermissionError({
-              path: 'users',
-              operation: 'list', // A query is a 'list' operation
-          });
-          errorEmitter.emit('permission-error', permissionError);
-      }).finally(() => {
-          setIsLoading(false);
-      });
-  };
+  const { data: users, isLoading: isLoadingUsers, error } = useCollection<User>(usersQuery);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
@@ -114,10 +84,6 @@ export default function UsersAdminPage() {
     if (!firestore) return;
     const userRef = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userRef, { role: newRole });
-
-    if (searchedUser && searchedUser.id === userId) {
-        setSearchedUser({ ...searchedUser, role: newRole });
-    }
     
     logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
@@ -157,80 +123,71 @@ export default function UsersAdminPage() {
     <div className="container mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-        <p className="text-muted-foreground">Busca un usuario por su correo electrónico para administrar su rol.</p>
+        <p className="text-muted-foreground">Administra los roles de todos los usuarios del sistema.</p>
       </div>
 
-      <Card className="mb-8">
-          <CardHeader>
-              <CardTitle>Buscar Usuario</CardTitle>
-          </CardHeader>
-          <CardContent>
-              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-                  <Input
-                      type="email"
-                      placeholder="correo@ejemplo.com"
-                      value={searchEmail}
-                      onChange={(e) => setSearchEmail(e.target.value)}
-                      className="flex-grow"
-                  />
-                  <Button type="submit" disabled={isLoading || !searchEmail}>
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                      Buscar
-                  </Button>
-              </form>
-          </CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle>Todos los Usuarios</CardTitle>
+          <CardDescription>
+            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Usuario</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoadingUsers ? (
+                 Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+                  </TableRow>
+                ))
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                    Error al cargar usuarios. Verifica los permisos de Firestore.
+                  </TableCell>
+                </TableRow>
+              ) : users && users.length > 0 ? (
+                users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={user.avatarUrl} alt={user.name} />
+                          <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{user.name || 'Sin nombre'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserActions user={user} onRoleChange={handleRoleChange} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    No se encontraron usuarios.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
-
-      {searchedUser && (
-        <Card>
-          <CardHeader>
-              <CardTitle>Resultado de la Búsqueda</CardTitle>
-          </CardHeader>
-          <CardContent>
-              <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Usuario</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Rol</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      <TableRow key={searchedUser.id}>
-                          <TableCell>
-                              <div className="flex items-center gap-3">
-                                  <Avatar className="h-9 w-9">
-                                      <AvatarImage src={searchedUser.avatarUrl} alt={searchedUser.name}/>
-                                      <AvatarFallback>{searchedUser.name?.charAt(0) || searchedUser.email?.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                  <span className="font-medium">{searchedUser.name || 'Sin nombre'}</span>
-                              </div>
-                          </TableCell>
-                          <TableCell>{searchedUser.email}</TableCell>
-                          <TableCell>
-                              <Badge variant={roleColors[searchedUser.role] || 'secondary'}>{searchedUser.role}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <UserActions user={searchedUser} onRoleChange={handleRoleChange} />
-                          </TableCell>
-                      </TableRow>
-                  </TableBody>
-                </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {searchError && !searchedUser && (
-          <Card className="border-destructive">
-              <CardHeader>
-                  <CardTitle className="text-destructive">Error de Búsqueda</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <p>{searchError}</p>
-              </CardContent>
-          </Card>
-      )}
     </div>
   );
 }
