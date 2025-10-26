@@ -2,25 +2,34 @@
 import { NextResponse } from "next/server";
 import admin from "firebase-admin";
 
-const SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT || null;
+// Importa las credenciales directamente desde el archivo JSON.
+// Esto es más robusto en entornos donde las variables de entorno pueden no estar configuradas.
+import serviceAccount from '@/../firebase-service-account.json';
 
 try {
+  // Asegúrate de que la inicialización solo ocurra una vez.
   if (!admin.apps.length) {
-    if (SERVICE_ACCOUNT) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(SERVICE_ACCOUNT)),
-      });
-      console.log("Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT.");
-    } else {
-      // This will fail in a serverless environment if GOOGLE_APPLICATION_CREDENTIALS is not set
-      // But it's a standard way to initialize in many GCP environments.
-      admin.initializeApp();
-      console.log("Firebase Admin initialized via default credentials (e.g., GOOGLE_APPLICATION_CREDENTIALS).");
-    }
+    // Convierte las claves del snake_case al camelCase esperado por el SDK.
+    const credential = {
+      type: serviceAccount.type,
+      projectId: serviceAccount.project_id,
+      privateKeyId: serviceAccount.private_key_id,
+      privateKey: serviceAccount.private_key,
+      clientEmail: serviceAccount.client_email,
+      clientId: serviceAccount.client_id,
+      authUri: serviceAccount.auth_uri,
+      tokenUri: serviceAccount.token_uri,
+      authProviderX509CertUrl: serviceAccount.auth_provider_x509_cert_url,
+      clientX509CertUrl: serviceAccount.client_x509_cert_url,
+    } as admin.ServiceAccount;
+
+    admin.initializeApp({
+      credential: admin.credential.cert(credential),
+    });
+    console.log("Firebase Admin initialized successfully from imported service account file.");
   }
 } catch (initErr: any) {
-  console.error("Failed to initialize Firebase Admin:", initErr.message);
-  // We log the error but don't throw, allowing the endpoint to report the initialization failure.
+  console.error("Critical: Failed to initialize Firebase Admin SDK:", initErr.message);
 }
 
 
@@ -28,9 +37,9 @@ const DEFAULT_LIMIT = 50;
 
 export async function POST(req: Request) {
   try {
-    // Check if the admin SDK is initialized before proceeding.
+    // Verifica si la inicialización falló y devuelve un error claro.
     if (!admin.apps.length) {
-       return NextResponse.json({ error: "Firebase Admin SDK not initialized. Check server environment variables (FIREBASE_SERVICE_ACCOUNT)." }, { status: 500 });
+       return NextResponse.json({ error: "Firebase Admin SDK not initialized. Check server logs for initialization errors." }, { status: 500 });
     }
 
     const body = await req.json();
@@ -42,17 +51,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No token provided" }, { status: 401 });
     }
 
-    // Verify the token and its claims
+    // Verifica el token y sus claims
     const decoded = await admin.auth().verifyIdToken(idToken);
     
-    // We allow override for a specific UID for development purposes
-    const isAdmin = decoded.role === "Admin";
-
-    if (!isAdmin) {
+    // La verificación de rol debe ser estricta. Solo los usuarios con el claim 'Admin' pueden pasar.
+    if (decoded.role !== "Admin") {
       return NextResponse.json({ error: "Forbidden: User does not have Admin role." }, { status: 403 });
     }
 
-    // Query with pagination by documentId
+    // Query con paginación por documentId
     let q = admin.firestore().collection("users").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
     if (startAfterId) {
       const docRef = admin.firestore().collection("users").doc(String(startAfterId));
