@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useAuth } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useAuth, useUserClaims } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -14,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import type { User as AppUser } from "@/lib/types";
 import React from "react";
-import { updateProfile } from "firebase/auth";
+import { updateProfile, sendPasswordResetEmail } from "firebase/auth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,12 +27,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 const profileSchema = z.object({
   name: z.string().min(1, "El nombre no puede estar vacío."),
   email: z.string().email(),
   avatarUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
 });
+
+const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
+  Admin: 'destructive',
+  Editor: 'default',
+  User: 'secondary',
+};
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -40,7 +48,8 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [newAvatarUrl, setNewAvatarUrl] = React.useState('');
   const [isAvatarSubmitting, setIsAvatarSubmitting] = React.useState(false);
-
+  
+  const { claims, isLoadingClaims } = useUserClaims();
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -86,11 +95,9 @@ export default function ProfilePage() {
     setIsAvatarSubmitting(true);
 
     try {
-        // Update auth profile
         if (auth?.currentUser) {
             await updateProfile(auth.currentUser, { photoURL: newAvatarUrl });
         }
-        // Update firestore document
         updateDocumentNonBlocking(userDocRef, { avatarUrl: newAvatarUrl });
         
         toast({
@@ -110,7 +117,27 @@ export default function ProfilePage() {
     }
   };
 
-  if (isUserLoading || isUserDataLoading) {
+  const handlePasswordReset = () => {
+    if (!auth || !user?.email) return;
+
+    sendPasswordResetEmail(auth, user.email)
+      .then(() => {
+        toast({
+          title: "Correo de recuperación enviado",
+          description: "Revisa tu bandeja de entrada para restablecer tu contraseña.",
+        });
+      })
+      .catch((error) => {
+        console.error("Error sending password reset email:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
+        });
+      });
+  };
+
+  if (isUserLoading || isUserDataLoading || isLoadingClaims) {
     return <div className="container mx-auto max-w-2xl"><p>Cargando perfil...</p></div>;
   }
 
@@ -119,7 +146,6 @@ export default function ProfilePage() {
   }
 
   const effectiveAvatarUrl = user.photoURL || userData.avatarUrl;
-
 
   return (
     <div className="container mx-auto max-w-2xl">
@@ -197,33 +223,32 @@ export default function ProfilePage() {
                     </FormItem>
                 )}
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Cambiar Contraseña</CardTitle>
-              <CardDescription>Esta funcionalidad estará disponible próximamente.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid gap-3">
-                <Label htmlFor="current-password">Contraseña Actual</Label>
-                <Input id="current-password" type="password" disabled />
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="new-password">Nueva Contraseña</Label>
-                <Input id="new-password" type="password" disabled />
+              <div>
+                <Label>Rol de Usuario</Label>
+                <div className="mt-2">
+                    <Badge variant={roleColors[claims?.role as string] || 'secondary'}>{claims?.role || 'Usuario'}</Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
-
-          <div className="flex justify-end">
+           <div className="flex justify-end">
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
           </div>
         </form>
       </Form>
+       <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>Seguridad</CardTitle>
+              <CardDescription>Gestiona la seguridad de tu cuenta.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button variant="outline" onClick={handlePasswordReset}>
+                    Enviar correo para cambiar contraseña
+                </Button>
+            </CardContent>
+        </Card>
     </div>
   );
 }

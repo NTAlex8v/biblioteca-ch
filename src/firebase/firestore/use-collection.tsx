@@ -88,46 +88,8 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       if (path === "users") {
         if (isAdmin) {
           // admin -> subscribe to the full collection
-          const colRef = collection(db, "users");
-          unsubscribe = onSnapshot(
-            colRef,
-            (querySnap) => {
-              const items = querySnap.docs.map(d => ({ id: d.id, ...d.data() } as WithId<T>));
-              setData(items);
-              setIsLoading(false);
-            },
-            (err) => {
-               const contextualError = new FirestorePermissionError({ operation: 'list', path });
-               setError(contextualError);
-               setIsLoading(false);
-               errorEmitter.emit('permission-error', contextualError);
-            }
-          );
-          return;
-        } else if (uid) {
-          // not admin -> subscribe only to their own user doc
-          const userDocRef = doc(db, "users", uid);
-          unsubscribe = onSnapshot(
-            userDocRef,
-            (docSnap) => {
-              if (!docSnap.exists()) {
-                setData([]);
-              } else {
-                setData([{ id: docSnap.id, ...docSnap.data() } as WithId<T>]);
-              }
-              setIsLoading(false);
-            },
-            (err) => {
-              const contextualError = new FirestorePermissionError({ operation: 'get', path: userDocRef.path });
-              setError(contextualError);
-              setIsLoading(false);
-              errorEmitter.emit('permission-error', contextualError);
-            }
-          );
-          return;
         } else {
-          // Not authenticated and not admin trying to list users
-          // This prevents a permission error on logout or for anonymous users.
+          // not admin or not logged in -> do not attempt to query 'users' collection
           setData([]);
           setIsLoading(false);
           return;
