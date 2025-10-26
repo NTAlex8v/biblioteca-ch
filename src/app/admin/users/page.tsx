@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -78,8 +78,46 @@ function UserActions({ user }: { user: User }) {
 
 export default function UsersAdminPage() {
   const firestore = useFirestore();
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
-  const { data: users, isLoading } = useCollection<User>(usersQuery);
+  const { user: currentUser, isUserLoading } = useAppUser();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null;
+    return doc(firestore, 'users', currentUser.uid);
+  }, [firestore, currentUser]);
+
+  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
+
+  const usersQuery = useMemoFirebase(() => {
+    // Only fetch users if the current user is an admin
+    if (!firestore || currentUserData?.role !== 'Admin') return null;
+    return collection(firestore, 'users');
+  }, [firestore, currentUserData]);
+
+  const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersQuery);
+
+  const isLoading = isUserLoading || isCurrentUserDataLoading;
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
+  }
+  
+  if (currentUserData?.role !== 'Admin') {
+      return (
+          <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md">
+                  <CardHeader className="text-center">
+                      <div className="mx-auto bg-destructive/20 p-3 rounded-full">
+                          <AlertTriangle className="h-8 w-8 text-destructive" />
+                      </div>
+                      <CardTitle className="mt-4">Acceso Restringido</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-center">
+                      <p className="text-muted-foreground">Esta sección es exclusiva para administradores. No tienes los permisos necesarios para gestionar usuarios.</p>
+                  </CardContent>
+              </Card>
+          </div>
+      );
+  }
 
   return (
     <div className="container mx-auto">
@@ -91,7 +129,7 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Usuarios Registrados</CardTitle>
           <CardDescription>
-            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -105,7 +143,7 @@ export default function UsersAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoadingUsers ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={4} className="h-16">
@@ -153,5 +191,3 @@ export default function UsersAdminPage() {
     </div>
   );
 }
-
-    
