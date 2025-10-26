@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import type { User, AuditLog } from '@/lib/types';
+import type { User as AppUser, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -10,8 +10,8 @@ import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { doc, collection } from 'firebase/firestore';
-import { useAuth, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase, useUserClaims } from '@/firebase';
+import { useAuth, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc, updateDoc } from 'firebase/firestore';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -19,9 +19,38 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
+async function fetchUsersFromApi(idToken: string): Promise<AppUser[]> {
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    if(res.status === 403) {
+      const accessDeniedError: any = new Error("Access Denied: You do not have permission to view this page.");
+      accessDeniedError.isAccessError = true;
+      throw accessDeniedError;
+    }
+    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.users;
+}
+
+// Separate function to update role via API
+async function updateUserRoleInApi(idToken: string, userIdToUpdate: string, newRole: string) {
+    // This functionality would require a new API endpoint, e.g., /api/admin/users/update-role
+    // For now, we will update Firestore directly and accept the security trade-off in this dev env.
+    // In a production app, NEVER trust the client to update roles.
+    console.warn("Bypassing API for role change. This is for development only.");
+}
+
+function UserActions({ user, onRoleChange }: { user: AppUser; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
-    const userName = user.name || user.email;
+    const userName = user.name || user.email || 'N/A';
     onRoleChange(user.id, newRole, userName);
   };
 
@@ -53,16 +82,41 @@ export default function UsersAdminPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { claims, isLoadingClaims } = useUserClaims();
-  const isAdmin = claims?.role === 'Admin';
   
-  // This query will only run if the user is detected as an admin
-  const usersQuery = useMemoFirebase(() => {
-      if (!firestore || !isAdmin) return null;
-      return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
 
-  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!auth.currentUser) {
+        setIsLoading(false);
+        setIsAccessDenied(true);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      setIsAccessDenied(false);
+
+      try {
+        const idToken = await auth.currentUser.getIdToken(true);
+        const fetchedUsers = await fetchUsersFromApi(idToken);
+        setUsers(fetchedUsers);
+      } catch (err: any) {
+         if (err.isAccessError) {
+          setIsAccessDenied(true);
+        } else {
+          setError(err.message || 'Ocurrió un error al cargar los usuarios.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [auth.currentUser]);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !auth.currentUser) return;
@@ -83,40 +137,31 @@ export default function UsersAdminPage() {
     if (!firestore || !auth.currentUser) return;
 
     try {
+        // DEV ONLY: Direct Firestore update. In prod, this would be a secure API call.
         const userDocRef = doc(firestore, 'users', userId);
-        // Note: For custom claims to be truly effective, this should trigger a backend function.
-        // For this development environment, we directly update Firestore.
-        updateDocumentNonBlocking(userDocRef, { role: newRole });
+        await updateDoc(userDocRef, { role: newRole });
 
+        // Optimistically update local state
+        setUsers(currentUsers => currentUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
+        
         logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
         
         toast({
             title: 'Rol actualizado',
-            description: `El rol de ${userName} ha sido cambiado a ${newRole}. La página se recargará para aplicar los cambios.`,
+            description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
         });
-
-        // A small delay and reload can help reflect claim changes in the UI
-        setTimeout(() => window.location.reload(), 2000);
 
     } catch (err) {
         console.error("Error changing role:", err);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "No se pudo actualizar el rol.",
+            description: "No se pudo actualizar el rol. Es posible que necesite permisos de escritura en Firestore.",
         });
     }
   };
-  
-  if (isLoadingClaims) {
-      return (
-          <div className="container mx-auto flex justify-center items-center h-full">
-            <p>Verificando permisos...</p>
-          </div>
-      );
-  }
 
-  if (!isAdmin) {
+  if (isAccessDenied) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
               <Card className="w-full max-w-md">
@@ -145,7 +190,7 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Todos los Usuarios</CardTitle>
           <CardDescription>
-            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -159,16 +204,16 @@ export default function UsersAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingUsers ? (
+              {isLoading ? (
                  Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
                   </TableRow>
                 ))
-              ) : usersError ? (
+              ) : error ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    Error al cargar usuarios: {usersError.message}
+                    Error al cargar usuarios: {error}
                   </TableCell>
                 </TableRow>
               ) : users && users.length > 0 ? (
