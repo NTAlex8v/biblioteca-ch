@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, FirestorePermissionError, errorEmitter } from '@/firebase';
+import React, { useEffect, useState } from 'react';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, FirestorePermissionError, errorEmitter, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, doc, query, where, getDocs, limit } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Search, User as UserIcon, Loader2 } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, User as UserIcon, Loader2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -55,43 +55,14 @@ export default function UsersAdminPage() {
   const { user: currentUser } = useAppUser();
   const { toast } = useToast();
 
-  const [searchEmail, setSearchEmail] = useState('');
-  const [foundUser, setFoundUser] = useState<User | null>(null);
-  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-  const [searchMessage, setSearchMessage] = useState<string | null>('Busca un usuario por su correo electrónico para gestionar su rol.');
-
   const isAdmin = claims?.role === 'Admin';
   
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!firestore || !searchEmail) return;
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null;
+    return doc(firestore, 'users', currentUser.uid);
+  }, [firestore, currentUser]);
 
-    setIsLoadingSearch(true);
-    setFoundUser(null);
-    setSearchMessage(null);
-
-    const usersRef = collection(firestore, 'users');
-    const q = query(usersRef, where('email', '==', searchEmail), limit(1));
-
-    getDocs(q).then((querySnapshot) => {
-        if (querySnapshot.empty) {
-            setFoundUser(null);
-            setSearchMessage('No se encontró ningún usuario con ese correo electrónico.');
-        } else {
-            const userDoc = querySnapshot.docs[0];
-            setFoundUser({ id: userDoc.id, ...userDoc.data() } as User);
-        }
-        setIsLoadingSearch(false);
-    }).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: usersRef.path,
-            operation: 'list', // A query is a 'list' operation in terms of rules
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setSearchMessage('Error de permisos al buscar el usuario.');
-        setIsLoadingSearch(false);
-    });
-  };
+  const { data: foundUser, isLoading: isLoadingUser } = useDoc<User>(userDocRef);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
@@ -113,16 +84,11 @@ export default function UsersAdminPage() {
     const userRef = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userRef, { role: newRole });
 
-    // Optimistically update UI
-    if(foundUser && foundUser.id === userId) {
-      setFoundUser({ ...foundUser, role: newRole });
-    }
-
     const userName = foundUser?.name || foundUser?.email || userId;
     logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
       title: 'Rol actualizado',
-      description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
+      description: `El rol de ${userName} ha sido cambiado a ${newRole}. Los cambios pueden tardar en reflejarse.`,
     });
   };
 
@@ -156,36 +122,26 @@ export default function UsersAdminPage() {
         <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
       </div>
 
-      <Card className="mb-8">
+       <Card className="mb-8 border-blue-500/50">
         <CardHeader>
-            <CardTitle>Buscar Usuario</CardTitle>
-            <CardDescription>
-                Debido a las reglas de seguridad, no es posible listar todos los usuarios. Por favor, busca un usuario por su email.
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                <Info className="h-5 w-5" />
+                Información Importante sobre la Gestión de Usuarios
+            </CardTitle>
         </CardHeader>
-        <CardContent>
-            <form onSubmit={handleSearch} className="flex gap-2">
-                <Input 
-                    type="email"
-                    placeholder="correo@ejemplo.com"
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
-                    disabled={isLoadingSearch}
-                />
-                <Button type="submit" disabled={isLoadingSearch || !searchEmail}>
-                    {isLoadingSearch ? <Loader2 className="animate-spin" /> : <Search />}
-                    <span className="ml-2 hidden sm:inline">Buscar</span>
-                </Button>
-            </form>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>Debido a las reglas de seguridad de Firestore, no es posible listar todos los usuarios directamente desde la aplicación para prevenir la exposición de datos.</p>
+            <p>La gestión de roles completa se debe realizar desde un entorno seguro como la **Consola de Firebase** o a través de **Cloud Functions** que asignen claims personalizados a los usuarios.</p>
+            <p>A continuación se muestra tu propio perfil de usuario como ejemplo de cómo funciona la interfaz de cambio de rol.</p>
         </CardContent>
       </Card>
       
       <Card>
         <CardHeader>
-            <CardTitle>Resultados de Búsqueda</CardTitle>
+            <CardTitle>Mi Perfil de Usuario</CardTitle>
         </CardHeader>
         <CardContent>
-            {isLoadingSearch ? (
+            {isLoadingUser ? (
                 <div className="flex justify-center items-center p-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
@@ -209,7 +165,7 @@ export default function UsersAdminPage() {
             ) : (
                 <div className="text-center p-8">
                     <UserIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-muted-foreground">{searchMessage}</p>
+                    <p className="mt-4 text-muted-foreground">No se pudo cargar tu perfil de usuario.</p>
                 </div>
             )}
         </CardContent>
