@@ -79,18 +79,23 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
           query = memoizedTargetRefOrQuery;
       }
       
-      const currentUser = auth.currentUser;
-      const uid = currentUser?.uid ?? null;
       const path = getPathFromRef(query);
-      const isAdmin = claims?.role === 'Admin';
-      
-      // Case: they want to list 'users'
+
+      // Prevent list query on 'users' collection entirely to avoid permission errors
       if (path === "users") {
-        if (!isAdmin) {
-          // not admin or not logged in -> do not attempt to query 'users' collection
-          setData([]);
-          setIsLoading(false);
-          return;
+        const isAdmin = claims?.role === 'Admin';
+        // Only admins should *attempt* to query users, but since rules deny it, 
+        // we will prevent the query for now to avoid the error.
+        // A proper solution involves secure backend functions to list users.
+        if (isAdmin) {
+            console.warn("La consulta a la colección 'users' está bloqueada en el cliente por reglas de seguridad. Se devolverá una lista vacía.");
+            setData([]);
+            setIsLoading(false);
+            return;
+        } else {
+             setData([]);
+            setIsLoading(false);
+            return;
         }
       }
 
