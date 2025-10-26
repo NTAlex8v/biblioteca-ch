@@ -68,14 +68,11 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
 
     // CRITICAL FIX: Prevent listing the 'users' collection to avoid permission errors.
-    if (path === 'users') {
-        const { claims } = auth.currentUser?.reloadUserInfo() as any;
-        if(claims?.role !== 'Admin'){
-            setData([]);
-            setIsLoading(false);
-            setError(new Error("Security rules prevent listing users. This is expected behavior."));
-            return;
-        }
+    if (path === 'users' && claims?.role !== 'Admin') {
+        setData([]);
+        setIsLoading(false);
+        setError(new Error("Security rules prevent listing users. This is expected behavior."));
+        return;
     }
 
     setIsLoading(true);
