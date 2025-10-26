@@ -20,7 +20,6 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-
 // This is now a client-side utility function, not a hook.
 async function fetchUsersFromApi(idToken: string): Promise<User[]> {
   const res = await fetch("/api/admin/users", {
@@ -82,6 +81,10 @@ export default function UsersAdminPage() {
   const isAdmin = claims?.role === 'Admin';
 
   useEffect(() => {
+    if (isLoadingClaims) {
+        return; // Esperar a que los claims se carguen
+    }
+
     if (!isAdmin) {
       setIsLoading(false);
       return;
@@ -89,7 +92,7 @@ export default function UsersAdminPage() {
 
     const loadUsers = async () => {
       if (!auth.currentUser) {
-        setError("Autenticación requerida.");
+        setError("Autenticación requerida para ver usuarios.");
         setIsLoading(false);
         return;
       }
@@ -98,7 +101,7 @@ export default function UsersAdminPage() {
       setError(null);
       
       try {
-        // Force refresh the token to get the latest claims (including simulated ones)
+        // Forzar la actualización del token para obtener los últimos claims (incluyendo los simulados)
         const idToken = await auth.currentUser.getIdToken(true);
         const fetchedUsers = await fetchUsersFromApi(idToken);
         setUsers(fetchedUsers);
@@ -110,10 +113,7 @@ export default function UsersAdminPage() {
       }
     };
     
-    // We wait until claims are loaded to know if we are admin
-    if (!isLoadingClaims) {
-        loadUsers();
-    }
+    loadUsers();
 
   }, [isAdmin, isLoadingClaims, auth.currentUser]);
 
