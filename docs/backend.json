@@ -243,74 +243,50 @@
     }
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profile information. User ID is the Firebase Auth UID.",
-          "permissions": {
-              "read": "isAdmin() || isOwner()",
-              "list": "isAdmin()",
-              "write": "isAdmin() || isOwner()"
-          },
-          "subcollections": [
-            {
-              "path": "auditLogs/{logId}",
-              "definition": {
-                "entityName": "AuditLog",
-                "schema": {
-                  "$ref": "#/backend/entities/AuditLog"
-                },
-                "description": "Stores audit trail of this specific user's actions."
-              }
-            }
-          ]
-        }
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/backend/entities/User"
       },
-      {
-        "path": "/categories/{categoryId}",
-        "definition": {
-          "entityName": "Category",
-          "schema": {
-            "$ref": "#/backend/entities/Category"
-          },
-          "description": "Stores top-level categories, managed by Admins."
-        }
+      "description": "Stores user profile information. User ID is the Firebase Auth UID.",
+      "permissions": {
+        "read": "isAdmin() || isOwner()",
+        "list": "isAdmin()",
+        "write": "isAdmin() || isOwner()"
       },
-       {
-        "path": "/folders/{folderId}",
-        "definition": {
-          "entityName": "Folder",
+      "subcollections": {
+        "auditLogs/{logId}": {
           "schema": {
-            "$ref": "#/backend/entities/Folder"
+            "$ref": "#/backend/entities/AuditLog"
           },
-          "description": "Stores user-created folders for organizing documents."
-        }
-      },
-      {
-        "path": "/tags/{tagId}",
-        "definition": {
-          "entityName": "Tag",
-          "schema": {
-            "$ref": "#/backend/entities/Tag"
-          },
-          "description": "Stores tags for cross-classification of documents."
-        }
-      },
-      {
-        "path": "/documents/{documentId}",
-        "definition": {
-          "entityName": "Document",
-          "schema": {
-            "$ref": "#/backend/entities/Document"
-          },
-          "description": "Stores the details of each document, including metadata and file URL."
+          "description": "Stores audit trail of this specific user's actions."
         }
       }
-    ]
+    },
+    "/categories/{categoryId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Category"
+      },
+      "description": "Stores top-level categories, managed by Admins."
+    },
+    "/folders/{folderId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Folder"
+      },
+      "description": "Stores user-created folders for organizing documents."
+    },
+    "/tags/{tagId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Tag"
+      },
+      "description": "Stores tags for cross-classification of documents."
+    },
+    "/documents/{documentId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Document"
+      },
+      "description": "Stores the details of each document, including metadata and file URL."
+    }
   }
 }
+
+    

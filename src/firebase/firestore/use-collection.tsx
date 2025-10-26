@@ -80,24 +80,17 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       }
       
       const path = getPathFromRef(query);
-
-      // Prevent list query on 'users' collection entirely to avoid permission errors
-      if (path === "users") {
-        const isAdmin = claims?.role === 'Admin';
-        // Only admins should *attempt* to query users, but since rules deny it, 
-        // we will prevent the query for now to avoid the error.
-        // A proper solution involves secure backend functions to list users.
-        if (isAdmin) {
-            console.warn("La consulta a la colección 'users' está bloqueada en el cliente por reglas de seguridad. Se devolverá una lista vacía.");
-            setData([]);
-            setIsLoading(false);
-            return;
-        } else {
-             setData([]);
-            setIsLoading(false);
-            return;
-        }
+      
+      // If we are trying to access the 'users' collection, we must ensure the user is an admin.
+      // If not, we don't even attempt the query to prevent permission errors.
+      if (path === 'users' && claims?.role !== 'Admin') {
+          setData([]);
+          setIsLoading(false);
+          // Optionally set a specific error message for non-admins trying to access users
+          // setError(new Error("You do not have permission to view users."));
+          return;
       }
+
 
       // Default behavior for all other collections
       unsubscribe = onSnapshot(
@@ -130,3 +123,5 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
 
   return { data, isLoading, error };
 }
+
+    
