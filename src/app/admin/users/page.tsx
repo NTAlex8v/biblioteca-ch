@@ -1,17 +1,18 @@
+
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, FirestorePermissionError, errorEmitter, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, getDocs, limit } from 'firebase/firestore';
+import React from 'react';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, User as UserIcon, Loader2, Info } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -19,10 +20,11 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User') => void }) {
+function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
-    onRoleChange(user.id, newRole);
+    const userName = user.name || user.email;
+    onRoleChange(user.id, newRole, userName);
   };
 
   return (
@@ -57,12 +59,12 @@ export default function UsersAdminPage() {
 
   const isAdmin = claims?.role === 'Admin';
   
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return doc(firestore, 'users', currentUser.uid);
-  }, [firestore, currentUser]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !isAdmin) return null;
+    return collection(firestore, 'users');
+  }, [firestore, isAdmin]);
 
-  const { data: foundUser, isLoading: isLoadingUser } = useDoc<User>(userDocRef);
+  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
@@ -79,12 +81,11 @@ export default function UsersAdminPage() {
     addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
   };
 
-  const handleRoleChange = (userId: string, newRole: 'Admin' | 'Editor' | 'User') => {
+  const handleRoleChange = (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userRef, { role: newRole });
 
-    const userName = foundUser?.name || foundUser?.email || userId;
     logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
       title: 'Rol actualizado',
@@ -92,9 +93,13 @@ export default function UsersAdminPage() {
     });
   };
 
-
   if (isLoadingClaims) {
-    return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
+    return (
+        <div className="container mx-auto flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-4">Cargando y verificando permisos...</p>
+        </div>
+    );
   }
   
   if (!isAdmin) {
@@ -121,57 +126,74 @@ export default function UsersAdminPage() {
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
         <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
       </div>
-
-       <Card className="mb-8 border-blue-500/50">
-        <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
-                <Info className="h-5 w-5" />
-                Información Importante sobre la Gestión de Usuarios
-            </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>Debido a las reglas de seguridad de Firestore, no es posible listar todos los usuarios directamente desde la aplicación para prevenir la exposición de datos.</p>
-            <p>La gestión de roles completa se debe realizar desde un entorno seguro como la **Consola de Firebase** o a través de **Cloud Functions** que asignen claims personalizados a los usuarios.</p>
-            <p>A continuación se muestra tu propio perfil de usuario como ejemplo de cómo funciona la interfaz de cambio de rol.</p>
-        </CardContent>
-      </Card>
       
       <Card>
         <CardHeader>
-            <CardTitle>Mi Perfil de Usuario</CardTitle>
+            <CardTitle>Usuarios Registrados</CardTitle>
+             <CardDescription>
+                {isLoadingUsers ? 'Cargando usuarios...' : `Mostrando ${users?.length || 0} usuarios.`}
+            </CardDescription>
         </CardHeader>
         <CardContent>
-            {isLoadingUser ? (
-                <div className="flex justify-center items-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-            ) : foundUser ? (
-                <div className="p-4 border rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={foundUser.avatarUrl} alt={foundUser.name}/>
-                          <AvatarFallback>{foundUser.name?.charAt(0) || foundUser.email?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <p className="font-semibold">{foundUser.name || 'Sin nombre'}</p>
-                            <p className="text-sm text-muted-foreground">{foundUser.email}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <Badge variant={roleColors[foundUser.role] || 'secondary'}>{foundUser.role}</Badge>
-                        <UserActions user={foundUser} onRoleChange={handleRoleChange} />
-                    </div>
-                </div>
-            ) : (
-                <div className="text-center p-8">
-                    <UserIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-muted-foreground">No se pudo cargar tu perfil de usuario.</p>
-                </div>
-            )}
+             <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingUsers ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell colSpan={4} className="h-16">
+                            <div className="w-full h-8 animate-pulse rounded-md bg-muted"></div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : users && users.length > 0 ? (
+                    users.map(user => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-9 w-9">
+                                    <AvatarImage src={user.avatarUrl} alt={user.name}/>
+                                    <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{user.name || 'Sin nombre'}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                            <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <UserActions user={user} onRoleChange={handleRoleChange} />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : usersError ? (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                             <div className="text-destructive">
+                                <p className="font-bold">Error de Permisos de Firestore</p>
+                                <p className="text-sm">Tus reglas de seguridad actuales no permiten listar todos los usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.</p>
+                            </div>
+                        </TableCell>
+                    </TableRow>
+                  ) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                            No se encontraron usuarios.
+                        </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
         </CardContent>
       </Card>
-
     </div>
   );
 }
-    
