@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useUserClaims } from "@/firebase";
@@ -13,7 +14,7 @@ export default function AdminLayout({
   const { claims, isLoadingClaims } = useUserClaims();
 
   if (isLoadingClaims) {
-    return <div className="flex justify-center items-center h-full"><p>Verificando permisos...</p></div>;
+    return <div className="container mx-auto flex justify-center items-center h-full"><p>Verificando permisos...</p></div>;
   }
 
   const isAdminOrEditor = claims?.role === 'Admin' || claims?.role === 'Editor';
@@ -37,7 +38,7 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="container mx-auto">
+    <div className="container mx-auto py-8">
         {children}
     </div>
   );
