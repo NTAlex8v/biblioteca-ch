@@ -35,11 +35,13 @@ type UseCollectionResult<T = any> = {
 
 // Helper function to get path from a query or collection reference
 const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentData>): string => {
+    // This is a special check for a modified query for fetching all users by an admin.
     if ((ref as any).__fetchAll) return (ref as any)._query.path.segments.join('/');
 
     if (ref instanceof CollectionReference) {
         return ref.path;
     }
+    // This is a more general way to get the path from a query.
     const internalQuery: any = ref;
     if (internalQuery?._query?.path?.segments) {
         return internalQuery._query.path.segments.join('/');
@@ -60,6 +62,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
   useEffect(() => {
     let unsubscribe: Unsubscribe = () => {};
 
+    // If the query is not ready (e.g., waiting for user auth), do nothing.
     if (memoizedTargetRefOrQuery === null || isLoadingClaims) {
       setData([]);
       setIsLoading(false);
@@ -84,8 +87,10 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       const path = getPathFromRef(query);
       const isAdmin = claims?.role === 'Admin';
       
+      // Case: they want to list 'users'
       if (path === "users") {
         if (isAdmin) {
+          // admin -> subscribe to the full collection (or a query you want)
           const colRef = collection(db, "users");
           unsubscribe = onSnapshot(
             colRef,
@@ -103,6 +108,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
           );
           return;
         } else if (uid) {
+          // not admin -> subscribe only to their own user doc
           const userDocRef = doc(db, "users", uid);
           unsubscribe = onSnapshot(
             userDocRef,
@@ -124,16 +130,14 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
           return;
         } else {
           // Not authenticated and not admin trying to list users
+          // This prevents a permission error on logout or for anonymous users.
           setData([]);
           setIsLoading(false);
-          const contextualError = new FirestorePermissionError({ operation: 'list', path });
-          setError(contextualError);
-          errorEmitter.emit('permission-error', contextualError);
           return;
         }
       }
 
-      // Default behavior for other collections
+      // Default behavior for all other collections
       unsubscribe = onSnapshot(
           query,
           (snapshot: QuerySnapshot<DocumentData>) => {

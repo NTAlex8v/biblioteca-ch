@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, useUserClaims } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { Document, User, Category } from "@/lib/types";
@@ -10,20 +10,14 @@ import type { Document, User, Category } from "@/lib/types";
 export default function AdminDashboardPage() {
 
     const firestore = useFirestore();
-    const { user: currentUser, isUserLoading } = useUser();
-
-    const userDocRef = useMemoFirebase(() => {
-        if (!firestore || !currentUser) return null;
-        return doc(firestore, "users", currentUser.uid);
-    }, [firestore, currentUser]);
-
-    const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
-
-    const isAdmin = currentUserData?.role === 'Admin';
+    const { claims, isLoadingClaims } = useUserClaims();
+    const isAdmin = claims?.role === 'Admin';
 
     const usersQuery = useMemoFirebase(() => {
         if (!firestore || !isAdmin) return null;
-        return collection(firestore, 'users');
+        const ref = collection(firestore, 'users');
+        (ref as any).__fetchAll = true;
+        return ref;
     }, [firestore, isAdmin]);
     
     const documentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'documents') : null, [firestore]);
@@ -48,8 +42,6 @@ export default function AdminDashboardPage() {
             </CardContent>
         </Card>
     );
-    
-    const isLoading = isUserLoading || isCurrentUserDataLoading;
 
     return (
         <div className="container mx-auto">
@@ -59,7 +51,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {isAdmin && <StatCard title="Total de Usuarios" value={users?.length || 0} icon={Users} isLoading={isLoadingUsers || isLoading} />}
+                {isAdmin && <StatCard title="Total de Usuarios" value={users?.length || 0} icon={Users} isLoading={isLoadingUsers || isLoadingClaims} />}
                 <StatCard title="Total de Documentos" value={documents?.length || 0} icon={FileText} isLoading={isLoadingDocs} />
                 <StatCard title="Total de Categorías" value={categories?.length || 0} icon={Shapes} isLoading={isLoadingCats} />
             </div>
@@ -68,4 +60,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
