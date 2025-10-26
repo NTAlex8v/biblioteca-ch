@@ -3,29 +3,38 @@
 import { useEffect } from "react";
 import { useUser, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { usePathname } from "next/navigation";
 
 /**
  * An invisible component that runs once when a user is authenticated.
- * It ensures a user document exists in Firestore for every authenticated user.
+ * It ensures a user document exists in Firestore and forces a token refresh
+ * to load the latest custom claims.
  */
 export default function UserInitializer() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const pathname = usePathname();
 
   useEffect(() => {
+    // Exclude this logic on the signup page
+    if (pathname === '/signup' || pathname === '/login') {
+      return;
+    }
+    
     // Only run if services are ready, user is loaded, and we have a user object
     if (!firestore || isUserLoading || !user) {
       return;
     }
 
-    const userRef = doc(firestore, "users", user.uid);
-
     const checkAndCreateUser = async () => {
       try {
+        // Force a token refresh to get the latest custom claims
+        await user.getIdToken(true);
+        
+        const userRef = doc(firestore, "users", user.uid);
         const docSnap = await getDoc(userRef);
 
         // If the user document does not exist, create it.
-        // This handles first-time logins, especially from social providers.
         if (!docSnap.exists()) {
           console.log("User document does not exist. Creating...");
           const userData = {
@@ -36,17 +45,15 @@ export default function UserInitializer() {
             role: 'User', // Assign a default role
             createdAt: new Date().toISOString(),
           };
-          // Use a non-blocking write. setDoc without merge ensures it only creates.
-          // But since we checked existence, it's safe.
           setDocumentNonBlocking(userRef, userData, {});
         }
       } catch (error) {
-        console.error("Error checking or creating user document:", error);
+        console.error("Error in UserInitializer:", error);
       }
     };
 
     checkAndCreateUser();
-  }, [user, isUserLoading, firestore]);
+  }, [user, isUserLoading, firestore, pathname]);
 
   // This component renders nothing.
   return null;
