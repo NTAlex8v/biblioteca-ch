@@ -97,9 +97,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             let finalClaims = idTokenResult.claims;
 
             // --- DEVELOPMENT OVERRIDE ---
-            // This simulates an admin claim for the specified UID for development purposes.
-            // In production, custom claims must be set via a secure backend.
-            if (firebaseUser.uid === '2bIAW4LIstaHXKSSRhr2nRpvKr02') {
+            // This simulates an admin claim for the specified UIDs for development purposes.
+            // In a real app, custom claims must be set via a secure backend.
+            const adminUIDs = ['2bIAW4LIstaHXKSSRhr2nRpvKr02', 'OTRO_ADMIN_UID_AQUI'];
+            if (adminUIDs.includes(firebaseUser.uid)) {
               finalClaims = { ...finalClaims, role: 'Admin' };
             }
             // --- END OVERRIDE ---
