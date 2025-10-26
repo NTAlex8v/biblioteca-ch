@@ -42,9 +42,6 @@ const SideNav = () => {
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
   const isUserLoggedIn = !!user;
-  const isAdmin = claims?.role === 'Admin';
-  const isEditor = claims?.role === 'Editor';
-  const isAdminOrEditor = isAdmin || isEditor;
 
   return (
     <Sidebar collapsible="offcanvas" variant="sidebar">
@@ -86,41 +83,41 @@ const SideNav = () => {
                     </Link>
                   </SidebarMenuItem>
               </SidebarGroup>
-
-              {isAdminOrEditor && (
-                <SidebarGroup>
-                  <SidebarGroupLabel>Administración</SidebarGroupLabel>
-                  <SidebarMenuItem>
-                    <Link href="/admin">
-                      <SidebarMenuButton isActive={isActive("/admin")} tooltip="Panel">
-                        <LayoutDashboard />
-                        <span>Panel</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                   <SidebarMenuItem>
-                    <Link href="/admin/categories">
-                      <SidebarMenuButton isActive={pathname.startsWith("/admin/categories")} tooltip="Categorías">
-                        <Shapes />
-                        <span>Categorías</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                  {isAdmin && (
-                    <>
-                      <SidebarMenuItem>
-                        <Link href="/admin/users">
-                          <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">
-                            <Users />
-                            <span>Usuarios</span>
-                          </SidebarMenuButton>
-                        </Link>
-                      </SidebarMenuItem>
-                    </>
-                  )}
-                </SidebarGroup>
-              )}
             </>
+          )}
+
+          {(claims?.role === 'Admin' || claims?.role === 'Editor') && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Administración</SidebarGroupLabel>
+              <SidebarMenuItem>
+                <Link href="/admin">
+                  <SidebarMenuButton isActive={isActive("/admin")} tooltip="Panel">
+                    <LayoutDashboard />
+                    <span>Panel</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                <Link href="/admin/categories">
+                  <SidebarMenuButton isActive={pathname.startsWith("/admin/categories")} tooltip="Categorías">
+                    <Shapes />
+                    <span>Categorías</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+              {claims?.role === 'Admin' && (
+                <>
+                  <SidebarMenuItem>
+                    <Link href="/admin/users">
+                      <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">
+                        <Users />
+                        <span>Usuarios</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                </>
+              )}
+            </SidebarGroup>
           )}
 
           {(isLoading || (categories && categories.length > 0)) && (
