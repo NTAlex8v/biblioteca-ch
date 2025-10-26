@@ -252,14 +252,6 @@
         "read": "isAdmin() || isOwner()",
         "list": "isAdmin()",
         "write": "isAdmin() || isOwner()"
-      },
-      "subcollections": {
-        "auditLogs/{logId}": {
-          "schema": {
-            "$ref": "#/backend/entities/AuditLog"
-          },
-          "description": "Stores audit trail of this specific user's actions."
-        }
       }
     },
     "/categories/{categoryId}": {
@@ -285,6 +277,12 @@
         "$ref": "#/backend/entities/Document"
       },
       "description": "Stores the details of each document, including metadata and file URL."
+    },
+     "/auditLogs/{logId}": {
+      "schema": {
+        "$ref": "#/backend/entities/AuditLog"
+      },
+      "description": "Global audit trail. Only Admins can read all logs. Users can read their own logs from a subcollection."
     }
   }
 }
