@@ -26,7 +26,7 @@ async function fetchUsersFromApi(auth: Auth, { limit = 50, startAfterId }: { lim
   const user = auth.currentUser;
   if (!user) throw new Error("No authenticated user found.");
 
-  // Obtener token (debe contener custom claim role: "Admin")
+  // Get token (should have custom claim role: "Admin")
   const idToken = await user.getIdToken();
   const res = await fetch("/api/admin/users", {
     method: "POST",
@@ -36,7 +36,7 @@ async function fetchUsersFromApi(auth: Auth, { limit = 50, startAfterId }: { lim
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Error ${res.status}`);
+    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
   }
 
   const data = await res.json();
@@ -108,14 +108,15 @@ export default function UsersAdminPage() {
       } catch (err: any) {
         if (auth?.currentUser) {
           try {
-            await auth.currentUser.getIdToken(true); // Forzar refresh del token
+            await auth.currentUser.getIdToken(true); // Force token refresh
             const retryResult = await fetchUsersFromApi(auth, { limit: 100 });
             if (mounted) {
               setUsers(retryResult);
+              setError(null); // Clear previous error on successful retry
             }
-            return; // Éxito en el reintento
+            return; // Success on retry
           } catch (retryErr: any) {
-            console.error("Fallo el reintento de carga de usuarios:", retryErr);
+            console.error("User list fetch retry failed:", retryErr);
              if (mounted) {
                 setError(retryErr.message || "Error al cargar usuarios tras reintentar.");
              }
@@ -132,7 +133,7 @@ export default function UsersAdminPage() {
       }
     }
     
-    if (!isLoadingClaims) {
+    if (!isLoadingClaims && auth) { // Ensure auth is available before loading
         loadUsers();
     }
 
@@ -257,7 +258,7 @@ export default function UsersAdminPage() {
                   ) : (
                     <TableRow>
                         <TableCell colSpan={4} className="h-24 text-center">
-                            No se encontraron usuarios.
+                            No se encontraron usuarios. Es posible que las credenciales del servidor no estén configuradas.
                         </TableCell>
                     </TableRow>
                   )}
@@ -268,5 +269,3 @@ export default function UsersAdminPage() {
     </div>
   );
 }
-
-    

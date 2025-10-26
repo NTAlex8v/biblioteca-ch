@@ -2,30 +2,35 @@
 import { NextResponse } from "next/server";
 import admin from "firebase-admin";
 
-const SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT; // JSON stringificado
+const SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT || null;
 
-// Inicializar firebase-admin de forma segura (evita inicializar más de una vez)
-if (!admin.apps.length) {
-  try {
+try {
+  if (!admin.apps.length) {
     if (SERVICE_ACCOUNT) {
       admin.initializeApp({
         credential: admin.credential.cert(JSON.parse(SERVICE_ACCOUNT)),
       });
+      console.log("Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT.");
     } else {
-      console.warn("FIREBASE_SERVICE_ACCOUNT no está configurado. La inicialización del Admin SDK puede fallar.");
+      // This will fail in a serverless environment if GOOGLE_APPLICATION_CREDENTIALS is not set
+      // But it's a standard way to initialize in many GCP environments.
+      admin.initializeApp();
+      console.log("Firebase Admin initialized via default credentials (e.g., GOOGLE_APPLICATION_CREDENTIALS).");
     }
-  } catch(e) {
-    console.error("Error al inicializar Firebase Admin SDK:", e);
   }
+} catch (initErr: any) {
+  console.error("Failed to initialize Firebase Admin:", initErr.message);
+  // We log the error but don't throw, allowing the endpoint to report the initialization failure.
 }
+
 
 const DEFAULT_LIMIT = 50;
 
 export async function POST(req: Request) {
   try {
-    // Asegurarse de que el SDK de Admin esté inicializado
+    // Check if the admin SDK is initialized before proceeding.
     if (!admin.apps.length) {
-       return NextResponse.json({ error: "Firebase Admin SDK not initialized." }, { status: 500 });
+       return NextResponse.json({ error: "Firebase Admin SDK not initialized. Check server environment variables (FIREBASE_SERVICE_ACCOUNT)." }, { status: 500 });
     }
 
     const body = await req.json();
@@ -37,17 +42,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No token provided" }, { status: 401 });
     }
 
-    // Verificar el token y sus claims
+    // Verify the token and its claims
     const decoded = await admin.auth().verifyIdToken(idToken);
     
-    // Usamos el override para el admin específico si no hay claim 'role'
+    // We allow override for a specific UID for development purposes
     const isAdmin = decoded.role === "Admin" || decoded.uid === "2bIAW4LIstaHXKSSRhr2nRpvKr02";
 
     if (!isAdmin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: User does not have Admin role." }, { status: 403 });
     }
 
-    // Query con paginación por documentId
+    // Query with pagination by documentId
     let q = admin.firestore().collection("users").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
     if (startAfterId) {
       const docRef = admin.firestore().collection("users").doc(String(startAfterId));
@@ -63,12 +68,12 @@ export async function POST(req: Request) {
     console.error("API /api/admin/users error:", err);
     
     if (err.code === 'auth/id-token-expired') {
-      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+      return NextResponse.json({ error: "Token expired. Please sign in again." }, { status: 401 });
     }
     if (err.code === 'auth/argument-error') {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid token provided." }, { status: 401 });
     }
 
-    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "An unknown server error occurred." }, { status: 500 });
   }
 }
