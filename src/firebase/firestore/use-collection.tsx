@@ -67,16 +67,6 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     }
 
     const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
-
-    // CRITICAL FIX: The Firestore rules for this project do not allow listing the 'users'
-    // collection for security reasons. To prevent a permission error that crashes the app,
-    // we explicitly forbid this query on the client side.
-    if (path === 'users') {
-        setData([]);
-        setIsLoading(false);
-        setError(null); // No error, just an empty (and forbidden) list.
-        return;
-    }
     
     setIsLoading(true);
     setError(null);

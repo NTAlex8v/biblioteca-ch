@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -45,10 +45,11 @@ function UserActions({ user }: { user: User }) {
     if (!firestore) return;
     const userRef = doc(firestore, 'users', user.id);
     updateDocumentNonBlocking(userRef, { role: newRole });
-    logAction('role_change', user.id, user.name || user.email, `Rol de ${user.name || user.email} cambiado a ${newRole}.`);
+    const userName = user.name || user.email;
+    logAction('role_change', user.id, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
       title: 'Rol actualizado',
-      description: `El rol de ${user.name || user.email} ha sido cambiado a ${newRole}.`,
+      description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
     });
   };
 
@@ -61,7 +62,7 @@ function UserActions({ user }: { user: User }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+        <DropdownMenuLabel>Cambiar Rol</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => handleRoleChange('Admin')}>
           Hacer Administrador
         </DropdownMenuItem>
@@ -87,7 +88,7 @@ export default function UsersAdminPage() {
     return collection(firestore, 'users');
   }, [firestore, isAdmin]);
 
-  const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersQuery);
+  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
   
   if (isLoadingClaims) {
     return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
@@ -115,28 +116,68 @@ export default function UsersAdminPage() {
     <div className="container mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-        <p className="text-muted-foreground">Administra los usuarios y sus roles en el sistema.</p>
+        <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
       </div>
       <Card>
         <CardHeader>
           <CardTitle>Usuarios Registrados</CardTitle>
           <CardDescription>
-            La lista de usuarios está desactivada en esta interfaz por razones de seguridad.
+            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios registrados.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-10 border-2 border-dashed rounded-lg">
-            <h3 className="text-xl font-semibold text-muted-foreground">Gestión de Usuarios en la Consola de Firebase</h3>
-            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              Para ver, editar roles o eliminar usuarios, por favor utiliza la Consola de Firebase. Esta es la forma más segura de gestionar los permisos de tu aplicación.
-            </p>
-            <Button asChild className="mt-4">
-              <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">
-                Ir a la Consola de Firebase
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </a>
-            </Button>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Usuario</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoadingUsers ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+                  </TableRow>
+                ))
+              ) : usersError ? (
+                 <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                    Error al cargar usuarios: Permisos insuficientes en las reglas de seguridad de Firestore.
+                  </TableCell>
+                </TableRow>
+              ) : users && users.length > 0 ? (
+                users.map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                        <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                                <AvatarImage src={user.avatarUrl} alt={user.name}/>
+                                <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{user.name || 'Sin nombre'}</span>
+                        </div>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserActions user={user} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    No se encontraron usuarios registrados.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
