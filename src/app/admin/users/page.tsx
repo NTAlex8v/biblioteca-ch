@@ -1,48 +1,24 @@
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useAuth } from '@/firebase';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { doc, collection } from 'firebase/firestore';
-import type { Auth } from 'firebase/auth';
+import { doc, collection, query, where, getDocs } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
   Editor: 'default',
   User: 'secondary',
 };
-
-
-async function fetchUsersFromApi(auth: Auth, { limit = 50, startAfterId }: { limit?: number; startAfterId?: string } = {}) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("No authenticated user found.");
-
-  // Get token (should have custom claim role: "Admin")
-  const idToken = await user.getIdToken();
-  const res = await fetch("/api/admin/users", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, limit, startAfterId }),
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  return data.users as User[];
-}
-
 
 function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
@@ -76,70 +52,44 @@ function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId
 
 export default function UsersAdminPage() {
   const firestore = useFirestore();
-  const auth = useAuth();
   const { claims, isLoadingClaims } = useUserClaims();
   const { user: currentUser } = useAppUser();
   const { toast } = useToast();
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [searchedUser, setSearchedUser] = useState<User | null>(null);
+  const [searchEmail, setSearchEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const isAdmin = claims?.role === 'Admin';
 
-  useEffect(() => {
-    let mounted = true;
-    
-    async function loadUsers() {
-      if (!isAdmin || !auth) {
-          setIsLoading(false);
-          if (!isAdmin) setError("No tienes permisos para ver esta página.");
-          return;
-      }
+  const handleSearch = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!firestore || !isAdmin || !searchEmail) return;
 
       setIsLoading(true);
-      setError(null);
-      
+      setSearchError(null);
+      setSearchedUser(null);
+
       try {
-        const result = await fetchUsersFromApi(auth, { limit: 100 });
-        if (mounted) {
-            setUsers(result);
-        }
-      } catch (err: any) {
-        if (auth?.currentUser) {
-          try {
-            await auth.currentUser.getIdToken(true); // Force token refresh
-            const retryResult = await fetchUsersFromApi(auth, { limit: 100 });
-            if (mounted) {
-              setUsers(retryResult);
-              setError(null); // Clear previous error on successful retry
-            }
-            return; // Success on retry
-          } catch (retryErr: any) {
-            console.error("User list fetch retry failed:", retryErr);
-             if (mounted) {
-                setError(retryErr.message || "Error al cargar usuarios tras reintentar.");
-             }
+          const usersRef = collection(firestore, 'users');
+          const q = query(usersRef, where("email", "==", searchEmail.trim()));
+          const querySnapshot = await getDocs(q);
+
+          if (querySnapshot.empty) {
+              setSearchError("No se encontró ningún usuario con ese correo electrónico.");
+          } else {
+              const userData = querySnapshot.docs[0].data() as User;
+              const userId = querySnapshot.docs[0].id;
+              setSearchedUser({ ...userData, id: userId });
           }
-        } else {
-             if (mounted) {
-                setError(err.message || "Error al cargar usuarios.");
-             }
-        }
+      } catch (err: any) {
+          console.error("Error searching for user:", err);
+          setSearchError("Ocurrió un error al buscar el usuario. Verifica los permisos de Firestore.");
       } finally {
-        if (mounted) {
-            setIsLoading(false);
-        }
+          setIsLoading(false);
       }
-    }
-    
-    if (!isLoadingClaims && auth) { // Ensure auth is available before loading
-        loadUsers();
-    }
-
-    return () => { mounted = false; };
-  }, [auth, isAdmin, isLoadingClaims]);
-
+  };
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
@@ -161,7 +111,9 @@ export default function UsersAdminPage() {
     const userRef = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userRef, { role: newRole });
 
-    setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    if (searchedUser && searchedUser.id === userId) {
+        setSearchedUser({ ...searchedUser, role: newRole });
+    }
     
     logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
@@ -190,7 +142,7 @@ export default function UsersAdminPage() {
                       <CardTitle className="mt-4">Acceso Restringido</CardTitle>
                   </CardHeader>
                   <CardContent className="text-center">
-                      <p className="text-muted-foreground">{error || "Esta sección es exclusiva para administradores."}</p>
+                      <p className="text-muted-foreground">Esta sección es exclusiva para administradores.</p>
                   </CardContent>
               </Card>
           </div>
@@ -201,71 +153,80 @@ export default function UsersAdminPage() {
     <div className="container mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-        <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
+        <p className="text-muted-foreground">Busca un usuario por su correo electrónico para administrar su rol.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-            <CardTitle>Usuarios Registrados</CardTitle>
-             <CardDescription>
-                {isLoading ? "Cargando usuarios..." : `Mostrando ${users.length} usuarios.`}
-            </CardDescription>
-        </CardHeader>
-        <CardContent>
-             <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-                        </TableCell>
-                    </TableRow>
-                  ) : error ? (
-                     <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                           {error}
-                        </TableCell>
-                    </TableRow>
-                  ) : users.length > 0 ? (
-                    users.map(user => (
-                        <TableRow key={user.id}>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="h-9 w-9">
-                                        <AvatarImage src={user.avatarUrl} alt={user.name}/>
-                                        <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="font-medium">{user.name || 'Sin nombre'}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>{user.email}</TableCell>
-                            <TableCell>
-                                <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <UserActions user={user} onRoleChange={handleRoleChange} />
-                            </TableCell>
-                        </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                            No se encontraron usuarios. Es posible que las credenciales del servidor no estén configuradas.
-                        </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-        </CardContent>
+      <Card className="mb-8">
+          <CardHeader>
+              <CardTitle>Buscar Usuario</CardTitle>
+          </CardHeader>
+          <CardContent>
+              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
+                  <Input
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      value={searchEmail}
+                      onChange={(e) => setSearchEmail(e.target.value)}
+                      className="flex-grow"
+                  />
+                  <Button type="submit" disabled={isLoading || !searchEmail}>
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Buscar
+                  </Button>
+              </form>
+          </CardContent>
       </Card>
+
+      {searchedUser && (
+        <Card>
+          <CardHeader>
+              <CardTitle>Resultado de la Búsqueda</CardTitle>
+          </CardHeader>
+          <CardContent>
+              <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Rol</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                      <TableRow key={searchedUser.id}>
+                          <TableCell>
+                              <div className="flex items-center gap-3">
+                                  <Avatar className="h-9 w-9">
+                                      <AvatarImage src={searchedUser.avatarUrl} alt={searchedUser.name}/>
+                                      <AvatarFallback>{searchedUser.name?.charAt(0) || searchedUser.email?.charAt(0)}</AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium">{searchedUser.name || 'Sin nombre'}</span>
+                              </div>
+                          </TableCell>
+                          <TableCell>{searchedUser.email}</TableCell>
+                          <TableCell>
+                              <Badge variant={roleColors[searchedUser.role] || 'secondary'}>{searchedUser.role}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <UserActions user={searchedUser} onRoleChange={handleRoleChange} />
+                          </TableCell>
+                      </TableRow>
+                  </TableBody>
+                </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {searchError && (
+          <Card className="border-destructive">
+              <CardHeader>
+                  <CardTitle className="text-destructive">Error de Búsqueda</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <p>{searchError}</p>
+              </CardContent>
+          </Card>
+      )}
     </div>
   );
 }
