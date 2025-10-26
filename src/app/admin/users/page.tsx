@@ -1,9 +1,8 @@
-
 "use client";
 
-import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, query, where, getDocs } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,38 +20,10 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-function UserActions({ user }: { user: User }) {
-  const { toast } = useToast();
-  const firestore = useFirestore();
-  const { user: currentUser } = useAppUser();
-
-
-  const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
-    if (!firestore || !currentUser) return;
-    const log: Omit<AuditLog, 'id'> = {
-        timestamp: new Date().toISOString(),
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email || "Sistema",
-        action: action,
-        entityType: 'User',
-        entityId,
-        entityName,
-        details,
-    };
-    addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
-  };
-
-
+function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User') => void }) {
+  
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
-    if (!firestore) return;
-    const userRef = doc(firestore, 'users', user.id);
-    updateDocumentNonBlocking(userRef, { role: newRole });
-    const userName = user.name || user.email;
-    logAction('role_change', user.id, userName, `Rol de ${userName} cambiado a ${newRole}.`);
-    toast({
-      title: 'Rol actualizado',
-      description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
-    });
+    onRoleChange(user.id, newRole);
   };
 
   return (
@@ -82,16 +53,93 @@ function UserActions({ user }: { user: User }) {
 export default function UsersAdminPage() {
   const firestore = useFirestore();
   const { claims, isLoadingClaims } = useUserClaims();
+  const { user: currentUser } = useAppUser();
+  const { toast } = useToast();
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = claims?.role === 'Admin';
   
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return collection(firestore, 'users');
+  useEffect(() => {
+    if (!firestore || !isAdmin) {
+      setIsLoadingUsers(false);
+      return;
+    }
+
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      setError(null);
+      try {
+        const rolesToQuery: ('Admin' | 'Editor' | 'User')[] = ['Admin', 'Editor', 'User'];
+        const usersCollection = collection(firestore, 'users');
+        
+        const queries = rolesToQuery.map(role => 
+            getDocs(query(usersCollection, where("role", "==", role)))
+        );
+
+        const querySnapshots = await Promise.all(queries);
+        
+        const allUsers: User[] = [];
+        const seenUserIds = new Set<string>();
+
+        querySnapshots.forEach(snapshot => {
+            snapshot.forEach(doc => {
+                if (!seenUserIds.has(doc.id)) {
+                    allUsers.push({ id: doc.id, ...doc.data() } as User);
+                    seenUserIds.add(doc.id);
+                }
+            });
+        });
+
+        setUsers(allUsers);
+      } catch (e: any) {
+        console.error("Error fetching users by role:", e);
+        setError("Tus reglas de seguridad actuales no permiten listar todos los usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.");
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
   }, [firestore, isAdmin]);
 
-  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
-  
+  const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !currentUser) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email || "Sistema",
+        action: action,
+        entityType: 'User',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
+  };
+
+  const handleRoleChange = (userId: string, newRole: 'Admin' | 'Editor' | 'User') => {
+    if (!firestore) return;
+    const userRef = doc(firestore, 'users', userId);
+    updateDocumentNonBlocking(userRef, { role: newRole });
+
+    // Optimistically update UI
+    setUsers(currentUsers => 
+        currentUsers.map(u => u.id === userId ? { ...u, role: newRole } : u)
+    );
+
+    const user = users.find(u => u.id === userId);
+    const userName = user?.name || user?.email || userId;
+    logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
+    toast({
+      title: 'Rol actualizado',
+      description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
+    });
+  };
+
+
   if (isLoadingClaims) {
     return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
   }
@@ -125,7 +173,7 @@ export default function UsersAdminPage() {
       );
     }
 
-    if (usersError) {
+    if (error) {
       return (
         <TableRow>
           <TableCell colSpan={4} className="h-24 text-center">
@@ -133,7 +181,7 @@ export default function UsersAdminPage() {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Error de Permisos de Firestore</AlertTitle>
                 <AlertDescription>
-                  Tus reglas de seguridad actuales no permiten listar todos los usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.
+                  {error}
                 </AlertDescription>
               </Alert>
           </TableCell>
@@ -141,7 +189,7 @@ export default function UsersAdminPage() {
       );
     }
     
-    if (users && users.length > 0) {
+    if (users.length > 0) {
       return users.map(user => (
         <TableRow key={user.id}>
           <TableCell>
@@ -158,7 +206,7 @@ export default function UsersAdminPage() {
             <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
           </TableCell>
           <TableCell className="text-right">
-            <UserActions user={user} />
+            <UserActions user={user} onRoleChange={handleRoleChange} />
           </TableCell>
         </TableRow>
       ));
@@ -167,7 +215,7 @@ export default function UsersAdminPage() {
     return (
       <TableRow>
         <TableCell colSpan={4} className="h-24 text-center">
-          No se encontraron usuarios registrados. Esto puede deberse a las reglas de seguridad.
+          No se encontraron usuarios registrados.
         </TableCell>
       </TableRow>
     );
