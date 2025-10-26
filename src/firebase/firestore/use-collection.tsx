@@ -35,9 +35,6 @@ type UseCollectionResult<T = any> = {
 
 // Helper function to get path from a query or collection reference
 const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentData>): string => {
-    // This is a special check for a modified query for fetching all users by an admin.
-    if ((ref as any).__fetchAll) return (ref as any)._query.path.segments.join('/');
-
     if (ref instanceof CollectionReference) {
         return ref.path;
     }
@@ -62,10 +59,10 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
   useEffect(() => {
     let unsubscribe: Unsubscribe = () => {};
 
-    // If the query is not ready (e.g., waiting for user auth), do nothing.
+    // If the query is not ready (e.g., waiting for user auth or claims), do nothing.
     if (memoizedTargetRefOrQuery === null || isLoadingClaims) {
       setData([]);
-      setIsLoading(false);
+      setIsLoading(true); // Set to loading while we wait for claims/query
       setError(null);
       return;
     }
@@ -90,7 +87,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       // Case: they want to list 'users'
       if (path === "users") {
         if (isAdmin) {
-          // admin -> subscribe to the full collection (or a query you want)
+          // admin -> subscribe to the full collection
           const colRef = collection(db, "users");
           unsubscribe = onSnapshot(
             colRef,
