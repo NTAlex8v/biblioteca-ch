@@ -1,8 +1,8 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useAuth } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,8 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { doc, collection } from 'firebase/firestore';
+import type { Auth } from 'firebase/auth';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -19,11 +21,10 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-async function fetchUsersFromApi({ limit = 50, startAfterId }: { limit?: number; startAfterId?: string } = {}) {
-  const auth = useAuth();
-  if (!auth) throw new Error("Firebase Auth not initialized");
+
+async function fetchUsersFromApi(auth: Auth, { limit = 50, startAfterId }: { limit?: number; startAfterId?: string } = {}) {
   const user = auth.currentUser;
-  if (!user) throw new Error("No auth user found");
+  if (!user) throw new Error("No authenticated user found.");
 
   // Obtener token (debe contener custom claim role: "Admin")
   const idToken = await user.getIdToken();
@@ -90,15 +91,17 @@ export default function UsersAdminPage() {
     let mounted = true;
     
     async function loadUsers() {
-      if (!isAdmin) {
+      if (!isAdmin || !auth) {
           setIsLoading(false);
-          setError("No tienes permisos para ver esta página.");
+          if (!isAdmin) setError("No tienes permisos para ver esta página.");
           return;
       }
+
       setIsLoading(true);
       setError(null);
+      
       try {
-        const result = await fetchUsersFromApi({ limit: 100 });
+        const result = await fetchUsersFromApi(auth, { limit: 100 });
         if (mounted) {
             setUsers(result);
         }
@@ -106,7 +109,7 @@ export default function UsersAdminPage() {
         if (auth?.currentUser) {
           try {
             await auth.currentUser.getIdToken(true); // Forzar refresh del token
-            const retryResult = await fetchUsersFromApi({ limit: 100 });
+            const retryResult = await fetchUsersFromApi(auth, { limit: 100 });
             if (mounted) {
               setUsers(retryResult);
             }
@@ -186,7 +189,7 @@ export default function UsersAdminPage() {
                       <CardTitle className="mt-4">Acceso Restringido</CardTitle>
                   </CardHeader>
                   <CardContent className="text-center">
-                      <p className="text-muted-foreground">Esta sección es exclusiva para administradores.</p>
+                      <p className="text-muted-foreground">{error || "Esta sección es exclusiva para administradores."}</p>
                   </CardContent>
               </Card>
           </div>
@@ -265,3 +268,5 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+
+    
