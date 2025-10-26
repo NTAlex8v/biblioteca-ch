@@ -23,6 +23,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import type { User as AppUser } from "@/lib/types";
+
 
 const signupSchema = z.object({
   fullName: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
@@ -60,8 +62,17 @@ export default function SignupPage() {
             displayName: values.fullName,
         });
 
-        // The UserInitializer component will now handle creating the Firestore document
-        // with the correct role from claims (which will be 'User' for new sign-ups).
+        // Create user document in Firestore with default 'User' role
+        const userRef = doc(firestore, "users", user.uid);
+        const userData: Omit<AppUser, 'id'> = {
+          email: user.email!,
+          name: user.displayName || values.fullName,
+          avatarUrl: user.photoURL || '',
+          role: 'User', // New users always get the 'User' role
+          createdAt: new Date().toISOString(),
+        };
+        setDocumentNonBlocking(userRef, userData, { merge: false });
+
 
         toast({
           title: "¡Cuenta Creada!",
