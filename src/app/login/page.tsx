@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from 'next/navigation';
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, UserCredential } from "firebase/auth";
 import React from "react";
+import Image from 'next/image';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,13 +29,6 @@ const loginSchema = z.object({
   email: z.string().email({ message: "Por favor, ingresa un correo válido." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 });
-
-const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <title>Google</title>
-        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.95-4.25 1.95-5.12 0-9.25-4.13-9.25-9.25s4.13-9.25 9.25-9.25c2.66 0 4.61.98 6.08 2.33l-2.73 2.73c-.75-.74-1.76-1.25-2.95-1.25-3.27 0-6.03 2.73-6.03 6.03s2.76 6.03 6.03 6.03c3.42 0 5.62-2.36 5.86-5.03H12.48z" />
-    </svg>
-);
 
 
 export default function LoginPage() {
@@ -158,7 +152,7 @@ export default function LoginPage() {
                 {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
               </Button>
               <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isSubmitting}>
-                <GoogleIcon className="mr-2 h-4 w-4" />
+                <Image src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png" alt="Google logo" width={16} height={16} className="mr-2 h-4 w-4" />
                 Iniciar Sesión con Google
               </Button>
             </form>
