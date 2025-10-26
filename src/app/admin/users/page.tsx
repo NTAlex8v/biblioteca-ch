@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
 import { collection, doc, query, where, getDocs } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,9 @@ import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -71,31 +74,26 @@ export default function UsersAdminPage() {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       setError(null);
+      
+      const usersCollection = collection(firestore, 'users');
+      
       try {
-        const rolesToQuery: ('Admin' | 'Editor' | 'User')[] = ['Admin', 'Editor', 'User'];
-        const usersCollection = collection(firestore, 'users');
-        
-        const queries = rolesToQuery.map(role => 
-            getDocs(query(usersCollection, where("role", "==", role)))
-        );
-
-        const querySnapshots = await Promise.all(queries);
-        
-        const allUsers: User[] = [];
-        const seenUserIds = new Set<string>();
-
-        querySnapshots.forEach(snapshot => {
-            snapshot.forEach(doc => {
-                if (!seenUserIds.has(doc.id)) {
-                    allUsers.push({ id: doc.id, ...doc.data() } as User);
-                    seenUserIds.add(doc.id);
-                }
+        const querySnapshot = await getDocs(usersCollection).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: usersCollection.path,
+                operation: 'list',
             });
+            errorEmitter.emit('permission-error', permissionError);
+            // Throw it to be caught by the outer try/catch
+            throw permissionError;
         });
 
+        const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
         setUsers(allUsers);
+
       } catch (e: any) {
-        console.error("Error fetching users by role:", e);
+        console.error("Error fetching users:", e);
+        // This is a fallback error message for the UI. The actual contextual error has been emitted globally.
         setError("Tus reglas de seguridad actuales no permiten listar todos los usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.");
       } finally {
         setIsLoadingUsers(false);
