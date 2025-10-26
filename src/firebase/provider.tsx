@@ -98,6 +98,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             // --- DEVELOPMENT OVERRIDE ---
             // In a real app, custom claims are set by a backend. Here, we read the user's
             // document from Firestore to simulate the 'Admin' role for development purposes.
+            // This makes the Firestore document the source of truth for roles.
             const userDocRef = doc(firestore, "users", firebaseUser.uid);
             const userDocSnap = await getDoc(userDocRef);
 
