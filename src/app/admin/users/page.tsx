@@ -2,108 +2,30 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import type { User as AppUser, AuditLog } from '@/lib/types';
+import type { User as AppUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useFirestore, addDocumentNonBlocking, useUserClaims, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
-
-const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
-  Admin: 'destructive',
-  Editor: 'default',
-  User: 'secondary',
-};
-
-function UserActions({ user, onRoleChange }: { user: AppUser; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
-  const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
-    const userName = user.name || user.email || 'N/A';
-    onRoleChange(user.id, newRole, userName);
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
-          <span className="sr-only">Abrir menú</span>
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Cambiar Rol</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => handleRoleChange('Admin')}>
-          Hacer Administrador
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleRoleChange('Editor')}>
-          Hacer Editor
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleRoleChange('User')}>
-          Hacer Usuario
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+import { useAuth, useUserClaims } from '@/firebase';
 
 export default function UsersAdminPage() {
-  const auth = useAuth();
-  const firestore = useFirestore();
-  const { toast } = useToast();
   const { claims, isLoadingClaims } = useUserClaims();
-
   const isAdmin = claims?.role === 'Admin';
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  const usersQuery = useMemoFirebase(() => {
-    // Only run the query if the user is a confirmed admin
-    if (!firestore || !isAdmin) return null;
-    return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
 
-  const { data: users, isLoading: isLoadingUsers, error } = useCollection<AppUser>(usersQuery);
-
-  const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
-    if (!firestore || !auth.currentUser) return;
-    const log: Omit<AuditLog, 'id'> = {
-        timestamp: new Date().toISOString(),
-        userId: auth.currentUser.uid,
-        userName: auth.currentUser.displayName || auth.currentUser.email || "Sistema",
-        action: action,
-        entityType: 'User',
-        entityId,
-        entityName,
-        details,
-    };
-    addDocumentNonBlocking(collection(firestore, 'users', auth.currentUser.uid, 'auditLogs'), log);
-  };
-
-  const handleRoleChange = async (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => {
-    if (!firestore || !auth.currentUser) return;
-
-    try {
-        const userDocRef = doc(firestore, 'users', userId);
-        await updateDoc(userDocRef, { role: newRole });
-        
-        logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
-        
-        toast({
-            title: 'Rol actualizado',
-            description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
-        });
-
-    } catch (err) {
-        console.error("Error changing role:", err);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudo actualizar el rol. Es posible que necesite permisos de escritura en Firestore.",
-        });
-    }
-  };
+  useEffect(() => {
+    // We will not fetch users for now to prevent permission errors.
+    // This will be replaced by a secure API call in the future.
+    setIsLoadingUsers(false);
+  }, []);
+  
 
   if (isLoadingClaims) {
      return <div className="container mx-auto flex justify-center items-center h-full"><p>Verificando permisos...</p></div>;
@@ -140,7 +62,7 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Todos los Usuarios</CardTitle>
           <CardDescription>
-            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            {isLoading ? 'Cargando...' : `Funcionalidad de gestión de usuarios pendiente de implementación.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -163,34 +85,13 @@ export default function UsersAdminPage() {
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    Error al cargar usuarios: {error.message}. Asegúrate de que las reglas de seguridad de Firestore permitan la lectura de la colección 'users' a los administradores.
+                    Error al cargar usuarios: {error.message}
                   </TableCell>
                 </TableRow>
-              ) : users && users.length > 0 ? (
-                users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage src={user.avatarUrl} alt={user.name} />
-                          <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{user.name || 'Sin nombre'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActions user={user} onRoleChange={handleRoleChange} />
-                    </TableCell>
-                  </TableRow>
-                ))
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios.
+                    La carga de usuarios se implementará a través de un backend seguro.
                   </TableCell>
                 </TableRow>
               )}
