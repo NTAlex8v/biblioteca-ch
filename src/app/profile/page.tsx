@@ -249,6 +249,17 @@ export default function ProfilePage() {
                 </Button>
             </CardContent>
         </Card>
+        <Card className="mt-2">
+          <CardHeader>
+            <CardTitle>Datos de Permisos (Debug)</CardTitle>
+            <CardDescription>Esta es la información de claims cruda del token.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="p-4 bg-muted rounded-md text-xs overflow-auto">
+              {JSON.stringify(claims, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
     </div>
   );
 }

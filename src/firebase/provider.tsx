@@ -92,9 +92,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
           try {
             // Force refresh the token to get the latest claims
             const idTokenResult = await firebaseUser.getIdTokenResult(true);
+            console.log("[FirebaseProvider] Claims refreshed:", idTokenResult.claims); // DIAGNOSTIC LOG
             setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
           } catch (error) {
-            console.error("FirebaseProvider: Error fetching user claims:", error);
+            console.error("[FirebaseProvider] Error fetching user claims:", error);
             setClaimsState({ claims: null, isLoadingClaims: false });
           }
         } else {
