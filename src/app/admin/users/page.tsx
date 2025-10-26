@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useDoc, useUserClaims } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -79,29 +79,25 @@ function UserActions({ user }: { user: User }) {
 
 export default function UsersAdminPage() {
   const firestore = useFirestore();
-  const { user: currentUser, isUserLoading } = useAppUser();
+  const { isUserLoading } = useAppUser();
+  const { claims, isLoadingClaims } = useUserClaims();
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return doc(firestore, 'users', currentUser.uid);
-  }, [firestore, currentUser]);
-
-  const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
-
+  const isAdmin = claims?.role === 'Admin';
+  
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !currentUserData || currentUserData.role !== 'Admin') return null;
+    if (!firestore || !isAdmin) return null;
     return collection(firestore, 'users');
-  }, [firestore, currentUserData]);
+  }, [firestore, isAdmin]);
 
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersQuery);
   
-  const isLoading = isUserLoading || isCurrentUserDataLoading;
+  const isLoading = isUserLoading || isLoadingClaims;
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
   }
   
-  if (currentUserData?.role !== 'Admin') {
+  if (!isAdmin) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
               <Card className="w-full max-w-md">

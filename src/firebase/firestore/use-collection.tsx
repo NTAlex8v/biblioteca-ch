@@ -17,6 +17,7 @@ import {
 import { getAuth } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useUserClaims } from "../provider";
 
 
 // Optional: habilitar logs detallados solo en dev
@@ -34,6 +35,8 @@ type UseCollectionResult<T = any> = {
 
 // Helper function to get path from a query or collection reference
 const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentData>): string => {
+    if ((ref as any).__fetchAll) return (ref as any)._query.path.segments.join('/');
+
     if (ref instanceof CollectionReference) {
         return ref.path;
     }
@@ -52,9 +55,12 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
 
   const db = getFirestore();
   const auth = getAuth();
+  const { claims, isLoadingClaims } = useUserClaims();
 
   useEffect(() => {
-    if (memoizedTargetRefOrQuery === null) {
+    let unsubscribe: Unsubscribe = () => {};
+
+    if (memoizedTargetRefOrQuery === null || isLoadingClaims) {
       setData([]);
       setIsLoading(false);
       setError(null);
@@ -63,77 +69,98 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     
     setIsLoading(true);
     setError(null);
+    
+    const setup = async () => {
+      let query: Query<DocumentData>;
 
-    let query: Query<DocumentData>;
+      if (typeof memoizedTargetRefOrQuery === 'string') {
+          query = collection(db, memoizedTargetRefOrQuery) as Query<DocumentData>;
+      } else {
+          query = memoizedTargetRefOrQuery;
+      }
+      
+      const currentUser = auth.currentUser;
+      const uid = currentUser?.uid ?? null;
+      const path = getPathFromRef(query);
+      const isAdmin = claims?.role === 'Admin';
+      
+      if (path === "users") {
+        if (isAdmin) {
+          const colRef = collection(db, "users");
+          unsubscribe = onSnapshot(
+            colRef,
+            (querySnap) => {
+              const items = querySnap.docs.map(d => ({ id: d.id, ...d.data() } as WithId<T>));
+              setData(items);
+              setIsLoading(false);
+            },
+            (err) => {
+               const contextualError = new FirestorePermissionError({ operation: 'list', path });
+               setError(contextualError);
+               setIsLoading(false);
+               errorEmitter.emit('permission-error', contextualError);
+            }
+          );
+          return;
+        } else if (uid) {
+          const userDocRef = doc(db, "users", uid);
+          unsubscribe = onSnapshot(
+            userDocRef,
+            (docSnap) => {
+              if (!docSnap.exists()) {
+                setData([]);
+              } else {
+                setData([{ id: docSnap.id, ...docSnap.data() } as WithId<T>]);
+              }
+              setIsLoading(false);
+            },
+            (err) => {
+              const contextualError = new FirestorePermissionError({ operation: 'get', path: userDocRef.path });
+              setError(contextualError);
+              setIsLoading(false);
+              errorEmitter.emit('permission-error', contextualError);
+            }
+          );
+          return;
+        } else {
+          // Not authenticated and not admin trying to list users
+          setData([]);
+          setIsLoading(false);
+          const contextualError = new FirestorePermissionError({ operation: 'list', path });
+          setError(contextualError);
+          errorEmitter.emit('permission-error', contextualError);
+          return;
+        }
+      }
 
-    if (typeof memoizedTargetRefOrQuery === 'string') {
-        query = collection(db, memoizedTargetRefOrQuery) as Query<DocumentData>;
-    } else {
-        query = memoizedTargetRefOrQuery;
+      // Default behavior for other collections
+      unsubscribe = onSnapshot(
+          query,
+          (snapshot: QuerySnapshot<DocumentData>) => {
+              const docs = snapshot.docs.map((doc) => ({ ...doc.data() as T, id: doc.id }));
+              setData(docs);
+              setIsLoading(false);
+              setError(null);
+          },
+          (err: FirestoreError) => {
+               const contextualError = new FirestorePermissionError({
+                  operation: 'list',
+                  path: path,
+               });
+              
+              setData([]);
+              setError(contextualError); 
+              setIsLoading(false);
+
+              errorEmitter.emit('permission-error', contextualError);
+          }
+      );
     }
     
-    const uid = auth?.currentUser?.uid ?? null;
-    const path = getPathFromRef(query);
-
-    // If trying to list the 'users' collection and we have a UID,
-    // subscribe to the user's own document instead of listing the whole collection.
-    if (path === "users" && uid) {
-      const userDocRef = doc(db, "users", uid);
-      const unsubscribe = onSnapshot(
-        userDocRef,
-        (docSnap) => {
-          if (!docSnap.exists()) {
-            setData([]); // Doc doesn't exist
-            setIsLoading(false);
-            setError(null);
-            return;
-          }
-          // Wrap the single document in an array to maintain hook compatibility
-          const payload = [{ id: docSnap.id, ...docSnap.data() } as WithId<T>];
-          setData(payload);
-          setIsLoading(false);
-          setError(null);
-        },
-        (err) => {
-           const contextualError = new FirestorePermissionError({
-                operation: 'get', // It's a 'get' on a single doc now
-                path: userDocRef.path,
-             });
-            setData([]);
-            setError(contextualError); 
-            setIsLoading(false);
-            errorEmitter.emit('permission-error', contextualError);
-        }
-      );
-
-      return () => unsubscribe();
-    }
-
-
-    const unsubscribe = onSnapshot(
-        query,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-            const docs = snapshot.docs.map((doc) => ({ ...doc.data() as T, id: doc.id }));
-            setData(docs);
-            setIsLoading(false);
-            setError(null);
-        },
-        (err: FirestoreError) => {
-             const contextualError = new FirestorePermissionError({
-                operation: 'list',
-                path: path,
-             });
-            
-            setData([]);
-            setError(contextualError); 
-            setIsLoading(false);
-
-            errorEmitter.emit('permission-error', contextualError);
-        }
-    );
+    setup();
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery, auth?.currentUser?.uid, db]);
+  }, [memoizedTargetRefOrQuery, auth?.currentUser, db, claims, isLoadingClaims]);
 
   return { data, isLoading, error };
 }

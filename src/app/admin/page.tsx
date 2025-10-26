@@ -2,16 +2,30 @@
 "use client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { Document, User, Category } from "@/lib/types";
 
 export default function AdminDashboardPage() {
 
     const firestore = useFirestore();
+    const { user: currentUser, isUserLoading } = useUser();
 
-    const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+    const userDocRef = useMemoFirebase(() => {
+        if (!firestore || !currentUser) return null;
+        return doc(firestore, "users", currentUser.uid);
+    }, [firestore, currentUser]);
+
+    const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
+
+    const isAdmin = currentUserData?.role === 'Admin';
+
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore || !isAdmin) return null;
+        return collection(firestore, 'users');
+    }, [firestore, isAdmin]);
+    
     const documentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'documents') : null, [firestore]);
     const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
 
@@ -34,6 +48,8 @@ export default function AdminDashboardPage() {
             </CardContent>
         </Card>
     );
+    
+    const isLoading = isUserLoading || isCurrentUserDataLoading;
 
     return (
         <div className="container mx-auto">
@@ -43,7 +59,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <StatCard title="Total de Usuarios" value={users?.length || 0} icon={Users} isLoading={isLoadingUsers} />
+                {isAdmin && <StatCard title="Total de Usuarios" value={users?.length || 0} icon={Users} isLoading={isLoadingUsers || isLoading} />}
                 <StatCard title="Total de Documentos" value={documents?.length || 0} icon={FileText} isLoading={isLoadingDocs} />
                 <StatCard title="Total de Categorías" value={categories?.length || 0} icon={Shapes} isLoading={isLoadingCats} />
             </div>
