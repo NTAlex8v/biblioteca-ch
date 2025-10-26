@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const decoded = await admin.auth().verifyIdToken(idToken);
     
     // We allow override for a specific UID for development purposes
-    const isAdmin = decoded.role === "Admin" || decoded.uid === "2bIAW4LIstaHXKSSRhr2nRpvKr02";
+    const isAdmin = decoded.role === "Admin";
 
     if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden: User does not have Admin role." }, { status: 403 });
