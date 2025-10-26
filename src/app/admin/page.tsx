@@ -13,8 +13,8 @@ export default function AdminDashboardPage() {
     const isAdmin = claims?.role === 'Admin';
 
     const usersQuery = useMemoFirebase(() => {
-        if (!firestore || !isAdmin) return null;
         // This query now only runs if the user is an admin.
+        if (!firestore || !isAdmin) return null;
         return collection(firestore, 'users');
     }, [firestore, isAdmin]);
     
