@@ -86,9 +86,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       
       // Case: they want to list 'users'
       if (path === "users") {
-        if (isAdmin) {
-          // admin -> subscribe to the full collection
-        } else {
+        if (!isAdmin) {
           // not admin or not logged in -> do not attempt to query 'users' collection
           setData([]);
           setIsLoading(false);
