@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -97,7 +98,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
             // --- DEVELOPMENT OVERRIDE ---
             // This is a temporary solution to grant admin rights to a specific user
-            // because custom claims are not being set from a backend.
+            // because custom claims cannot be set from the client.
             if (firebaseUser.uid === '2bIAW4LIstaHXKSSRhr2nRpvKr02') {
               finalClaims = { ...finalClaims, role: 'Admin' };
             }

@@ -247,12 +247,7 @@
       "schema": {
         "$ref": "#/entities/User"
       },
-      "description": "Stores user profile information. User ID is the Firebase Auth UID.",
-      "permissions": {
-        "read": "isAdmin() || isOwner(userId)",
-        "list": "isAdmin()",
-        "write": "isAdmin() || isOwner(userId)"
-      }
+      "description": "Stores user profile information. User ID is the Firebase Auth UID."
     },
     "/categories/{categoryId}": {
       "schema": {
