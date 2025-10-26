@@ -133,29 +133,29 @@ const SideNav = () => {
                   )}
                 </SidebarGroup>
               )}
-
-              <SidebarGroup>
-                <SidebarGroupLabel>Categorías</SidebarGroupLabel>
-                {isLoading ? (
-                  <p className="px-2 text-xs text-muted-foreground">Cargando...</p>
-                ) : (
-                  categories?.map((category) => (
-                    <SidebarMenuItem key={category.id}>
-                      <Link href={`/category/${category.id}`}>
-                        <SidebarMenuButton
-                          isActive={isActive(`/category/${category.id}`)}
-                          tooltip={category.name}
-                        >
-                          <Shapes />
-                          <span>{category.name}</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  ))
-                )}
-              </SidebarGroup>
             </>
           )}
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Categorías</SidebarGroupLabel>
+            {isLoading ? (
+              <p className="px-2 text-xs text-muted-foreground">Cargando...</p>
+            ) : (
+              categories?.map((category) => (
+                <SidebarMenuItem key={category.id}>
+                  <Link href={`/category/${category.id}`}>
+                    <SidebarMenuButton
+                      isActive={isActive(`/category/${category.id}`)}
+                      tooltip={category.name}
+                    >
+                      <Shapes />
+                      <span>{category.name}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))
+            )}
+          </SidebarGroup>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
