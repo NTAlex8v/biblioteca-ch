@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useAuth, useUserClaims } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useAuth } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -49,8 +49,6 @@ export default function ProfilePage() {
   const [newAvatarUrl, setNewAvatarUrl] = React.useState('');
   const [isAvatarSubmitting, setIsAvatarSubmitting] = React.useState(false);
   
-  const { claims, isLoadingClaims } = useUserClaims();
-
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -137,7 +135,7 @@ export default function ProfilePage() {
       });
   };
 
-  if (isUserLoading || isUserDataLoading || isLoadingClaims) {
+  if (isUserLoading || isUserDataLoading) {
     return <div className="container mx-auto max-w-2xl"><p>Cargando perfil...</p></div>;
   }
 
@@ -146,6 +144,8 @@ export default function ProfilePage() {
   }
 
   const effectiveAvatarUrl = user.photoURL || userData.avatarUrl;
+  // Use the role from the Firestore document as the source of truth for the UI
+  const displayRole = userData?.role || 'User';
 
   return (
     <div className="container mx-auto max-w-2xl">
@@ -226,7 +226,7 @@ export default function ProfilePage() {
               <div>
                 <Label>Rol de Usuario</Label>
                 <div className="mt-2">
-                    <Badge variant={roleColors[claims?.role as string] || 'secondary'}>{claims?.role || 'Usuario'}</Badge>
+                    <Badge variant={roleColors[displayRole] || 'secondary'}>{displayRole}</Badge>
                 </div>
               </div>
             </CardContent>

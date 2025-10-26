@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc, getFirestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged, IdTokenResult } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -77,8 +77,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   // Effect to subscribe to Firebase auth state changes and manage claims
   useEffect(() => {
-    if (!auth) {
-      setUserState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+    if (!auth || !firestore) {
+      setUserState({ user: null, isUserLoading: false, userError: new Error("Auth or Firestore service not provided.") });
       setClaimsState({ claims: null, isLoadingClaims: false });
       return;
     }
@@ -91,11 +91,27 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         if (firebaseUser) {
           setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
           try {
-            // Force refresh the token to get the latest claims
+            // First, get the real claims from the token.
             const idTokenResult = await firebaseUser.getIdTokenResult(true);
-            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
+            let finalClaims = idTokenResult.claims;
+
+            // --- DEVELOPMENT OVERRIDE ---
+            // In a real app, custom claims are set by a backend. Here, we read the user's
+            // document from Firestore to simulate the 'Admin' role for development purposes.
+            const userDocRef = doc(firestore, "users", firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists() && userDocSnap.data().role === 'Admin') {
+                // If the user has 'Admin' role in Firestore, we add it to the claims object
+                // on the client-side. This allows the UI and API calls to behave as if the
+                // user had a real custom claim.
+                finalClaims = { ...finalClaims, role: 'Admin' };
+            }
+             // --- END OVERRIDE ---
+
+            setClaimsState({ claims: finalClaims, isLoadingClaims: false });
           } catch (error) {
-            console.error("[FirebaseProvider] Error fetching user claims:", error);
+            console.error("[FirebaseProvider] Error fetching user data or claims:", error);
             setClaimsState({ claims: null, isLoadingClaims: false });
           }
         } else {
@@ -110,7 +126,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]);
+  }, [auth, firestore]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
