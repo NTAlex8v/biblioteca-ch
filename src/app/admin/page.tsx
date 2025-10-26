@@ -1,9 +1,8 @@
-
 "use client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, useUserClaims } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useUserClaims } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { Users, FileText, Shapes } from "lucide-react";
 import type { Document, User, Category } from "@/lib/types";
 
@@ -15,9 +14,7 @@ export default function AdminDashboardPage() {
 
     const usersQuery = useMemoFirebase(() => {
         if (!firestore || !isAdmin) return null;
-        const ref = collection(firestore, 'users');
-        (ref as any).__fetchAll = true;
-        return ref;
+        return collection(firestore, 'users');
     }, [firestore, isAdmin]);
     
     const documentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'documents') : null, [firestore]);
