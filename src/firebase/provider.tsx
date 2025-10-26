@@ -93,19 +93,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
           try {
             // Force refresh the token to get the latest claims
             const idTokenResult = await firebaseUser.getIdTokenResult(true);
-            
-            let finalClaims = idTokenResult.claims;
-
-            // --- DEVELOPMENT OVERRIDE ---
-            // This simulates an admin claim for the specified UIDs for development purposes.
-            // In a real app, custom claims must be set via a secure backend.
-            const adminUIDs = ['2bIAW4LIstaHXKSSRhr2nRpvKr02', 'OTRO_ADMIN_UID_AQUI'];
-            if (adminUIDs.includes(firebaseUser.uid)) {
-              finalClaims = { ...finalClaims, role: 'Admin' };
-            }
-            // --- END OVERRIDE ---
-
-            setClaimsState({ claims: finalClaims, isLoadingClaims: false });
+            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
           } catch (error) {
             console.error("[FirebaseProvider] Error fetching user claims:", error);
             setClaimsState({ claims: null, isLoadingClaims: false });

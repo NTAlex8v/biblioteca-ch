@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { doc, collection } from 'firebase/firestore';
-import { useAuth, useFirestore, useUserClaims, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -20,7 +20,6 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-// This is now a client-side utility function, not a hook.
 async function fetchUsersFromApi(idToken: string): Promise<User[]> {
   const res = await fetch("/api/admin/users", {
     method: "POST",
@@ -30,6 +29,12 @@ async function fetchUsersFromApi(idToken: string): Promise<User[]> {
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
+     // Lanzar un error específico para el caso de "Forbidden"
+    if (res.status === 403) {
+      const err = new Error("Forbidden");
+      (err as any).isForbidden = true;
+      throw err;
+    }
     throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
   }
 
@@ -71,51 +76,51 @@ function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId
 export default function UsersAdminPage() {
   const auth = useAuth();
   const firestore = useFirestore();
-  const { claims, isLoadingClaims } = useUserClaims();
   const { toast } = useToast();
 
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const isAdmin = claims?.role === 'Admin';
+  const [isForbidden, setIsForbidden] = useState(false);
 
   useEffect(() => {
-    if (isLoadingClaims) {
-        return; // Esperar a que los claims se carguen
-    }
-
-    if (!isAdmin) {
-      setIsLoading(false);
-      return;
-    }
-
     const loadUsers = async () => {
       if (!auth.currentUser) {
-        setError("Autenticación requerida para ver usuarios.");
         setIsLoading(false);
+        setError("Autenticación requerida para ver usuarios.");
         return;
       }
 
       setIsLoading(true);
       setError(null);
+      setIsForbidden(false);
       
       try {
-        // Forzar la actualización del token para obtener los últimos claims (incluyendo los simulados)
+        // Forzar la actualización del token para obtener los últimos claims
         const idToken = await auth.currentUser.getIdToken(true);
         const fetchedUsers = await fetchUsersFromApi(idToken);
         setUsers(fetchedUsers);
       } catch (err: any) {
         console.error("Failed to fetch users:", err);
-        setError(err.message || "Ocurrió un error al cargar los usuarios.");
+        if (err.isForbidden) {
+          setIsForbidden(true);
+          setError("No tienes permiso para ver esta sección.");
+        } else {
+          setError(err.message || "Ocurrió un error al cargar los usuarios.");
+        }
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadUsers();
+    // Solo se llama si hay un usuario autenticado.
+    if(auth.currentUser) {
+        loadUsers();
+    } else {
+        setIsLoading(false);
+    }
 
-  }, [isAdmin, isLoadingClaims, auth.currentUser]);
+  }, [auth.currentUser]);
 
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
@@ -148,17 +153,8 @@ export default function UsersAdminPage() {
         currentUsers.map(u => (u.id === userId ? { ...u, role: newRole } : u))
     );
   };
-
-  if (isLoadingClaims) {
-    return (
-        <div className="container mx-auto flex justify-center items-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="ml-4">Verificando permisos...</p>
-        </div>
-    );
-  }
   
-  if (!isAdmin) {
+  if (isForbidden) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
               <Card className="w-full max-w-md">
@@ -166,10 +162,10 @@ export default function UsersAdminPage() {
                       <div className="mx-auto bg-destructive/20 p-3 rounded-full">
                           <AlertTriangle className="h-8 w-8 text-destructive" />
                       </div>
-                      <CardTitle className="mt-4">Acceso Restringido</CardTitle>
+                      <CardTitle className="mt-4">Acceso Denegado</CardTitle>
                   </CardHeader>
                   <CardContent className="text-center">
-                      <p className="text-muted-foreground">Esta sección es exclusiva para administradores.</p>
+                      <p className="text-muted-foreground">{error}</p>
                   </CardContent>
               </Card>
           </div>
