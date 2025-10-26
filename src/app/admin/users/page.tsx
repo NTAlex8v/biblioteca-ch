@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -88,13 +89,12 @@ export default function UsersAdminPage() {
   const { data: currentUserData, isLoading: isCurrentUserDataLoading } = useDoc<User>(userDocRef);
 
   const usersQuery = useMemoFirebase(() => {
-    // Only fetch users if the current user is an admin
-    if (!firestore || currentUserData?.role !== 'Admin') return null;
+    if (!firestore || !currentUserData || currentUserData.role !== 'Admin') return null;
     return collection(firestore, 'users');
   }, [firestore, currentUserData]);
 
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersQuery);
-
+  
   const isLoading = isUserLoading || isCurrentUserDataLoading;
 
   if (isLoading) {
@@ -191,3 +191,5 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+
+    
