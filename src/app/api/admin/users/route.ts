@@ -26,7 +26,6 @@ try {
     admin.initializeApp({
       credential: admin.credential.cert(credential),
     });
-    console.log("Firebase Admin initialized successfully from imported service account file.");
   }
 } catch (initErr: any) {
   console.error("Critical: Failed to initialize Firebase Admin SDK:", initErr.message);
