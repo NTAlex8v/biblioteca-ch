@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, doc, query, where, getDocs, limit } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -73,21 +73,24 @@ export default function UsersAdminPage() {
     const usersRef = collection(firestore, 'users');
     const q = query(usersRef, where('email', '==', searchEmail), limit(1));
 
-    try {
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        setFoundUser(null);
-        setSearchMessage('No se encontró ningún usuario con ese correo electrónico.');
-      } else {
-        const userDoc = querySnapshot.docs[0];
-        setFoundUser({ id: userDoc.id, ...userDoc.data() } as User);
-      }
-    } catch (e) {
-      console.error("Error searching user:", e);
-      setSearchMessage('Ocurrió un error al buscar el usuario.');
-    } finally {
-      setIsLoadingSearch(false);
-    }
+    getDocs(q).then((querySnapshot) => {
+        if (querySnapshot.empty) {
+            setFoundUser(null);
+            setSearchMessage('No se encontró ningún usuario con ese correo electrónico.');
+        } else {
+            const userDoc = querySnapshot.docs[0];
+            setFoundUser({ id: userDoc.id, ...userDoc.data() } as User);
+        }
+        setIsLoadingSearch(false);
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: usersRef.path,
+            operation: 'list', // A query is a 'list' operation in terms of rules
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setSearchMessage('Error de permisos al buscar el usuario.');
+        setIsLoadingSearch(false);
+    });
   };
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
@@ -215,3 +218,4 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+    
