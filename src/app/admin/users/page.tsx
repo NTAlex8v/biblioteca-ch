@@ -1,24 +1,36 @@
-
 "use client";
 
-import React from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims } from '@/firebase';
+import { collection, doc, query, where, getDocs, limit } from 'firebase/firestore';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
   Editor: 'default',
   User: 'secondary',
 };
+
+const searchSchema = z.object({
+  email: z.string().email("Por favor, introduce un correo electrónico válido."),
+});
+
 
 function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   
@@ -57,14 +69,18 @@ export default function UsersAdminPage() {
   const { user: currentUser } = useAppUser();
   const { toast } = useToast();
 
+  const [searchedUser, setSearchedUser] = useState<User | null>(null);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
   const isAdmin = claims?.role === 'Admin';
   
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  const searchForm = useForm<z.infer<typeof searchSchema>>({
+    resolver: zodResolver(searchSchema),
+    defaultValues: { email: "" },
+  });
 
-  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
@@ -86,12 +102,49 @@ export default function UsersAdminPage() {
     const userRef = doc(firestore, 'users', userId);
     updateDocumentNonBlocking(userRef, { role: newRole });
 
+    // Update local state to reflect role change immediately
+    if (searchedUser && searchedUser.id === userId) {
+        setSearchedUser({ ...searchedUser, role: newRole });
+    }
+
     logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
     toast({
       title: 'Rol actualizado',
       description: `El rol de ${userName} ha sido cambiado a ${newRole}. Los cambios pueden tardar en reflejarse.`,
     });
   };
+
+  const handleSearch = async (values: z.infer<typeof searchSchema>) => {
+    if (!firestore || !isAdmin) return;
+
+    setIsLoadingSearch(true);
+    setSearchError(null);
+    setSearchedUser(null);
+    setHasSearched(true);
+    
+    const usersRef = collection(firestore, 'users');
+    const q = query(usersRef, where('email', '==', values.email), limit(1));
+
+    try {
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            setSearchedUser(null);
+        } else {
+            const userDoc = querySnapshot.docs[0];
+            setSearchedUser({ id: userDoc.id, ...userDoc.data() } as User);
+        }
+    } catch (serverError: any) {
+        setSearchError("Ocurrió un error al buscar el usuario. Verifica los permisos de Firestore.");
+        const permissionError = new FirestorePermissionError({
+            path: usersRef.path,
+            operation: 'list', // A query is a 'list' operation in terms of rules
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+        setIsLoadingSearch(false);
+    }
+  };
+
 
   if (isLoadingClaims) {
     return (
@@ -124,14 +177,42 @@ export default function UsersAdminPage() {
     <div className="container mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
-        <p className="text-muted-foreground">Administra los roles de los usuarios en el sistema.</p>
+        <p className="text-muted-foreground">Busca un usuario por su correo electrónico para administrar su rol.</p>
       </div>
       
+      <Card className="mb-8">
+          <CardHeader>
+              <CardTitle>Buscar Usuario</CardTitle>
+          </CardHeader>
+          <CardContent>
+              <Form {...searchForm}>
+                  <form onSubmit={searchForm.handleSubmit(handleSearch)} className="flex items-start gap-4">
+                      <FormField
+                          control={searchForm.control}
+                          name="email"
+                          render={({ field }) => (
+                              <FormItem className="flex-grow">
+                                  <FormLabel className="sr-only">Email</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="usuario@ejemplo.com" {...field} />
+                                  </FormControl>
+                              </FormItem>
+                          )}
+                      />
+                      <Button type="submit" disabled={isLoadingSearch}>
+                          {isLoadingSearch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                          Buscar
+                      </Button>
+                  </form>
+              </Form>
+          </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-            <CardTitle>Usuarios Registrados</CardTitle>
+            <CardTitle>Resultados de la Búsqueda</CardTitle>
              <CardDescription>
-                {isLoadingUsers ? 'Cargando usuarios...' : `Mostrando ${users?.length || 0} usuarios.`}
+                {hasSearched ? "Mostrando el resultado de la búsqueda." : "Introduce un correo para buscar un usuario."}
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -145,48 +226,41 @@ export default function UsersAdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoadingUsers ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={4} className="h-16">
-                            <div className="w-full h-8 animate-pulse rounded-md bg-muted"></div>
+                  {isLoadingSearch ? (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
                         </TableCell>
-                      </TableRow>
-                    ))
-                  ) : users && users.length > 0 ? (
-                    users.map(user => (
-                      <TableRow key={user.id}>
+                    </TableRow>
+                  ) : searchError ? (
+                     <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                           {searchError}
+                        </TableCell>
+                    </TableRow>
+                  ) : searchedUser ? (
+                    <TableRow>
                         <TableCell>
                             <div className="flex items-center gap-3">
                                 <Avatar className="h-9 w-9">
-                                    <AvatarImage src={user.avatarUrl} alt={user.name}/>
-                                    <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                                    <AvatarImage src={searchedUser.avatarUrl} alt={searchedUser.name}/>
+                                    <AvatarFallback>{searchedUser.name?.charAt(0) || searchedUser.email?.charAt(0)}</AvatarFallback>
                                 </Avatar>
-                                <span className="font-medium">{user.name || 'Sin nombre'}</span>
+                                <span className="font-medium">{searchedUser.name || 'Sin nombre'}</span>
                             </div>
                         </TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{searchedUser.email}</TableCell>
                         <TableCell>
-                            <Badge variant={roleColors[user.role] || 'secondary'}>{user.role}</Badge>
+                            <Badge variant={roleColors[searchedUser.role] || 'secondary'}>{searchedUser.role}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <UserActions user={user} onRoleChange={handleRoleChange} />
+                          <UserActions user={searchedUser} onRoleChange={handleRoleChange} />
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : usersError ? (
-                    <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                             <div className="text-destructive">
-                                <p className="font-bold">Error de Permisos de Firestore</p>
-                                <p className="text-sm">Tus reglas de seguridad actuales no permiten listar todos los usuarios. Para gestionar roles, por favor, hazlo directamente desde la consola de Firebase.</p>
-                            </div>
-                        </TableCell>
-                    </TableRow>
                   ) : (
                     <TableRow>
                         <TableCell colSpan={4} className="h-24 text-center">
-                            No se encontraron usuarios.
+                            {hasSearched ? "No se encontró ningún usuario con ese correo electrónico." : "Realiza una búsqueda para ver los resultados."}
                         </TableCell>
                     </TableRow>
                   )}
@@ -197,3 +271,4 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+    
