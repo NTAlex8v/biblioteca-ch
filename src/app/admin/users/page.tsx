@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -21,9 +20,10 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 async function fetchUsersFromApi({ limit = 50, startAfterId }: { limit?: number; startAfterId?: string } = {}) {
-  const auth = getAuth();
+  const auth = useAuth();
+  if (!auth) throw new Error("Firebase Auth not initialized");
   const user = auth.currentUser;
-  if (!user) throw new Error("No auth user");
+  if (!user) throw new Error("No auth user found");
 
   // Obtener token (debe contener custom claim role: "Admin")
   const idToken = await user.getIdToken();
