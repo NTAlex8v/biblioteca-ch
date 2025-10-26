@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,7 +31,7 @@ async function fetchUsersFromApi(idToken: string): Promise<User[]> {
     const errorData = await res.json().catch(() => ({}));
      // Lanzar un error específico para el caso de "Forbidden"
     if (res.status === 403) {
-      const err = new Error("Forbidden");
+      const err = new Error("Forbidden: User is not an admin.");
       (err as any).isForbidden = true;
       throw err;
     }
@@ -87,7 +87,7 @@ export default function UsersAdminPage() {
     const loadUsers = async () => {
       if (!auth.currentUser) {
         setIsLoading(false);
-        setError("Autenticación requerida para ver usuarios.");
+        // Do not set an error here, the UI will just show nothing or a login prompt.
         return;
       }
 
@@ -96,7 +96,7 @@ export default function UsersAdminPage() {
       setIsForbidden(false);
       
       try {
-        // Forzar la actualización del token para obtener los últimos claims
+        // Forzar la actualización del token para obtener los últimos claims simulados
         const idToken = await auth.currentUser.getIdToken(true);
         const fetchedUsers = await fetchUsersFromApi(idToken);
         setUsers(fetchedUsers);
@@ -118,9 +118,10 @@ export default function UsersAdminPage() {
         loadUsers();
     } else {
         setIsLoading(false);
+        setError("Autenticación requerida para ver usuarios.");
     }
 
-  }, [auth.currentUser]);
+  }, [auth, auth.currentUser]);
 
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
@@ -138,20 +139,35 @@ export default function UsersAdminPage() {
     addDocumentNonBlocking(collection(firestore, 'users', auth.currentUser.uid, 'auditLogs'), log);
   };
 
-  const handleRoleChange = (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => {
-    if (!firestore) return;
-    const userRef = doc(firestore, 'users', userId);
-    updateDocumentNonBlocking(userRef, { role: newRole });
-    
-    logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
-    toast({
-      title: 'Rol actualizado',
-      description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
-    });
-     // Optimistically update UI
-    setUsers(currentUsers =>
-        currentUsers.map(u => (u.id === userId ? { ...u, role: newRole } : u))
-    );
+  const handleRoleChange = async (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => {
+    if (!firestore || !auth.currentUser) return;
+
+    try {
+        // For role changes, we need to call our API to let the backend handle it
+        // securely. For now, we update firestore directly as we don't have that API yet.
+        const userDocRef = doc(firestore, 'users', userId);
+        updateDocumentNonBlocking(userDocRef, { role: newRole });
+
+        // Optimistically update the UI
+        setUsers(currentUsers =>
+            currentUsers.map(u => (u.id === userId ? { ...u, role: newRole } : u))
+        );
+
+        logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
+        
+        toast({
+            title: 'Rol actualizado',
+            description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
+        });
+
+    } catch (err) {
+        console.error("Error changing role:", err);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No se pudo actualizar el rol.",
+        });
+    }
   };
   
   if (isForbidden) {
@@ -233,7 +249,7 @@ export default function UsersAdminPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios.
+                    No se encontraron usuarios o no tienes permiso para verlos.
                   </TableCell>
                 </TableRow>
               )}
