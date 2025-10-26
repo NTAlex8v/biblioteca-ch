@@ -162,7 +162,7 @@
           "format": "email"
         },
         "role": {
-          "$ref": "#/backend/auth/customClaims/role"
+          "$ref": "#/auth/customClaims/role"
         }
       },
       "required": [
@@ -245,46 +245,44 @@
   "firestore": {
     "/users/{userId}": {
       "schema": {
-        "$ref": "#/backend/entities/User"
+        "$ref": "#/entities/User"
       },
       "description": "Stores user profile information. User ID is the Firebase Auth UID.",
       "permissions": {
-        "read": "isAdmin() || isOwner()",
+        "read": "isAdmin() || isOwner(userId)",
         "list": "isAdmin()",
-        "write": "isAdmin() || isOwner()"
+        "write": "isAdmin() || isOwner(userId)"
       }
     },
     "/categories/{categoryId}": {
       "schema": {
-        "$ref": "#/backend/entities/Category"
+        "$ref": "#/entities/Category"
       },
       "description": "Stores top-level categories, managed by Admins."
     },
     "/folders/{folderId}": {
       "schema": {
-        "$ref": "#/backend/entities/Folder"
+        "$ref": "#/entities/Folder"
       },
       "description": "Stores user-created folders for organizing documents."
     },
     "/tags/{tagId}": {
       "schema": {
-        "$ref": "#/backend/entities/Tag"
+        "$ref": "#/entities/Tag"
       },
       "description": "Stores tags for cross-classification of documents."
     },
     "/documents/{documentId}": {
       "schema": {
-        "$ref": "#/backend/entities/Document"
+        "$ref": "#/entities/Document"
       },
       "description": "Stores the details of each document, including metadata and file URL."
     },
      "/auditLogs/{logId}": {
       "schema": {
-        "$ref": "#/backend/entities/AuditLog"
+        "$ref": "#/entities/AuditLog"
       },
       "description": "Global audit trail. Only Admins can read all logs. Users can read their own logs from a subcollection."
     }
   }
 }
-
-    
