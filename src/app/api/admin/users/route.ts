@@ -8,11 +8,12 @@ import serviceAccount from "../../../../../firebase-service-account.json";
 // Initialize Firebase Admin SDK if not already initialized
 try {
   if (!admin.apps.length) {
-    // Manually construct the credential object to ensure camelCase properties
+    // Manually construct the credential object to ensure correct property names (camelCase)
+    // and to handle the private key formatting.
     const credential = {
       projectId: serviceAccount.project_id,
       clientEmail: serviceAccount.client_email,
-      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'), // Ensure newlines are correctly formatted
+      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'),
     };
 
     admin.initializeApp({
@@ -21,6 +22,7 @@ try {
     console.log("Firebase Admin initialized successfully.");
   }
 } catch (error: any) {
+  // This catch block is crucial for debugging in the server environment.
   console.error("Firebase Admin Initialization Error:", error.message);
 }
 
