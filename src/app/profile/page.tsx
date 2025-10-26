@@ -61,9 +61,9 @@ export default function ProfilePage() {
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
     values: { // Use values to keep form in sync with firebase data
-        name: userData?.name || '',
-        email: userData?.email || '',
-        avatarUrl: userData?.avatarUrl || '',
+        name: userData?.name || user?.displayName || '',
+        email: userData?.email || user?.email || '',
+        avatarUrl: userData?.avatarUrl || user?.photoURL || '',
     },
     defaultValues: {
       name: "",
