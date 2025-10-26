@@ -67,11 +67,12 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     
     const path = typeof memoizedTargetRefOrQuery === 'string' ? memoizedTargetRefOrQuery : getPathFromRef(memoizedTargetRefOrQuery);
 
-    // CRITICAL FIX: Prevent listing the 'users' collection to avoid permission errors.
+    // CRITICAL FIX: Prevent listing the 'users' collection for non-admins to avoid permission errors.
     if (path === 'users' && claims?.role !== 'Admin') {
         setData([]);
         setIsLoading(false);
-        setError(new Error("Security rules prevent listing users. This is expected behavior."));
+        // This is not a "real" error, but a security measure. Setting an error message for the UI.
+        setError(new Error("You do not have permission to list users."));
         return;
     }
 
@@ -105,7 +106,11 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
               setError(contextualError); 
               setIsLoading(false);
 
-              errorEmitter.emit('permission-error', contextualError);
+              // We only emit the error globally if it's NOT a user list permission error,
+              // as we handle that gracefully in the UI.
+              if (path !== 'users') {
+                errorEmitter.emit('permission-error', contextualError);
+              }
           }
       );
     }
