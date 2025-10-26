@@ -1,8 +1,6 @@
 "use client";
 
-import { useDoc, useFirestore, useUser, useMemoFirebase, useUserClaims } from "@/firebase";
-import { doc } from "firebase/firestore";
-import type { User as AppUser } from "@/lib/types";
+import { useUserClaims } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
 import React from "react";
@@ -12,12 +10,9 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isUserLoading } = useUser();
   const { claims, isLoadingClaims } = useUserClaims();
 
-  const isLoading = isUserLoading || isLoadingClaims;
-
-  if (isLoading) {
+  if (isLoadingClaims) {
     return <div className="flex justify-center items-center h-full"><p>Verificando permisos...</p></div>;
   }
 

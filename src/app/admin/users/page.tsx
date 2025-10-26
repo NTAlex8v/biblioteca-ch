@@ -78,7 +78,6 @@ function UserActions({ user }: { user: User }) {
 
 export default function UsersAdminPage() {
   const firestore = useFirestore();
-  const { isUserLoading } = useAppUser();
   const { claims, isLoadingClaims } = useUserClaims();
 
   const isAdmin = claims?.role === 'Admin';
@@ -90,9 +89,7 @@ export default function UsersAdminPage() {
 
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersQuery);
   
-  const isLoading = isUserLoading || isLoadingClaims;
-
-  if (isLoading) {
+  if (isLoadingClaims) {
     return <div className="flex justify-center items-center h-full"><p>Cargando y verificando permisos...</p></div>;
   }
   

@@ -24,23 +24,16 @@ import {
   FolderKanban,
   History
 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
-import type { Category, User as AppUser } from "@/lib/types";
+import { useCollection, useFirestore, useUserClaims, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Category } from "@/lib/types";
 
 const SideNav = () => {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   
   const firestore = useFirestore();
-  const { user } = useUser();
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "users", user.uid);
-  }, [firestore, user]);
-
-  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const { claims } = useUserClaims();
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -49,7 +42,10 @@ const SideNav = () => {
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
-  const isAdminOrEditor = userData?.role === 'Admin' || userData?.role === 'Editor';
+  const isUserLoggedIn = !!claims;
+  const isAdmin = claims?.role === 'Admin';
+  const isEditor = claims?.role === 'Editor';
+  const isAdminOrEditor = isAdmin || isEditor;
 
   return (
     <Sidebar collapsible="offcanvas" variant="sidebar">
@@ -70,7 +66,7 @@ const SideNav = () => {
             </Link>
           </SidebarMenuItem>
 
-          {user && (
+          {isUserLoggedIn && (
             <>
               <SidebarGroup>
                 <SidebarGroupLabel>Biblioteca</SidebarGroupLabel>
@@ -111,7 +107,7 @@ const SideNav = () => {
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
-                  {userData?.role === 'Admin' && (
+                  {isAdmin && (
                     <>
                       <SidebarMenuItem>
                         <Link href="/admin/users">

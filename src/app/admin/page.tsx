@@ -14,6 +14,7 @@ export default function AdminDashboardPage() {
 
     const usersQuery = useMemoFirebase(() => {
         if (!firestore || !isAdmin) return null;
+        // This query now only runs if the user is an admin.
         return collection(firestore, 'users');
     }, [firestore, isAdmin]);
     
@@ -48,6 +49,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {/* Conditionally render the users card based on the admin role from claims */}
                 {isAdmin && <StatCard title="Total de Usuarios" value={users?.length || 0} icon={Users} isLoading={isLoadingUsers || isLoadingClaims} />}
                 <StatCard title="Total de Documentos" value={documents?.length || 0} icon={FileText} isLoading={isLoadingDocs} />
                 <StatCard title="Total de Categorías" value={categories?.length || 0} icon={Shapes} isLoading={isLoadingCats} />
