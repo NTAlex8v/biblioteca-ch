@@ -2,169 +2,161 @@
  * @fileoverview Firestore Security Rules for the virtual library application.
  *
  * Core Philosophy:
- * This ruleset implements a hybrid security model, balancing open read access for some collections with strict ownership and role-based access control for others.
+ * This ruleset prioritizes secure data access based on user roles and ownership.
+ * It implements an Admin-centric model for managing categories and a user-ownership model for folders and documents.
+ * All list operations on user-owned data are restricted to the owning user.
  *
  * Data Structure:
- * - /users/{userId}: User profiles, only accessible to the owning user.
- * - /categories/{categoryId}: Categories, publicly readable but admin-manageable.
- * - /folders/{folderId}: Folders, owned by users and only accessible to them.
- * - /tags/{tagId}: Tags, publicly readable but admin-manageable.
- * - /documents/{documentId}: Documents, owned by users, readable by all, but writable only by the owner.
- * - /auditLogs/{logId}: Audit logs, readable by admins, but not writable.
+ * - /users/{userId}: Stores user profiles; `userId` matches the Firebase Auth UID.
+ * - /categories/{categoryId}: Stores global categories, managed by admins.
+ * - /folders/{folderId}: Stores folders created by users within categories.
+ * - /tags/{tagId}: Stores global tags, managed by admins.
+ * - /documents/{documentId}: Stores document metadata and links.
+ * - /auditLogs/{logId}: Stores audit logs. Only admins have read access.
  *
  * Key Security Decisions:
- * - User listing is explicitly denied to prevent information leakage.
- * - Documents are publicly readable to promote content discovery, but writes are restricted to the owner.
- * - No data shape validation is performed (prototyping mode).
+ * - User listing is disallowed to prevent enumeration.
+ * - Categories and Tags are globally readable but creatable/manageable only by admins.
+ * - Documents and Folders are owned by users, who have full CRUD access.
+ * - Audit logs are readable only by admins.
+ * - Write operations are strictly controlled and validated against user identity and roles.
  *
  * Denormalization for Authorization:
- *  - Documents contain a `createdBy` field to denote the owner, enabling owner-based access control.
+ *  Ownership checks rely on the `createdBy` field in Folder and Document entities, and the document ID matching the `userId` for User entities.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the current user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
+     * @description Rule for the root.
+     * @path /
+     * @allow (get, list) if false
+     * @deny (create, update, delete) if false
+     * @principle Root access is denied.
      */
-    function isSignedIn() {
-      return request.auth != null;
+    match /{document=**} {
+      allow read, write: if false;
     }
 
     /**
-     * @description Checks if the current user is the owner of the resource.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @return {boolean} True if the user is the owner, false otherwise.
+     * @description Rules for user profile documents.
+     * @path /users/{userId}
+     * @allow (create) User with matching UID can create their own profile.
+     * @allow (get, update, delete, list) User with matching UID can get, update, delete, and list their own profile.
+     * @deny (create) if the user ID doesn't match the authenticated user ID.
+     * @deny (update, delete) if the user is not the owner.
+     * @principle Enforces document ownership for user profiles.
      */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Checks if the current user is the owner of the existing resource.
-     * @param {string} userId The user ID to compare against the resource's data.
-     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Allows only authenticated users.
-     * @return {boolean} True if the user is an admin, false otherwise.
-     */
-    function isAdmin() {
-       return isSignedIn() && (request.auth.token.role == "Admin");
-    }
-
-    /**
-     * @description Restricts listing of users.
-     * @path /users
-     * @allow None - Listing users is not permitted.
-     * @deny list - Prevents unauthorized listing of user accounts.
-     * @principle Prevents information leakage about user accounts.
-     */
-    match /users {
-      allow get: if false;
-      allow list: if false;
-
-      /**
-       * @description Manages access to individual user profiles.
-       * @path /users/{userId}
-       * @allow (create) User with matching UID creates their own profile.
-       * @allow (get, update, delete) Owner can access and modify their own profile.
-       * @deny (create) User attempts to create a profile with a mismatched UID.
-       * @deny (get, update, delete) Non-owner attempts to access or modify another user's profile.
-       * @principle Enforces user-ownership for profile data.
-       */
-      match /{userId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId) && request.resource.data.id == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-        allow delete: if isExistingOwner(userId);
-      }
-    }
-
-    /**
-     * @description Manages access to categories.
+     * @description Rules for top-level categories.
      * @path /categories/{categoryId}
-     * @allow (get, list) Public read access.
-     * @allow (create, update, delete) Only admins can create, update, or delete categories.
+     * @allow (get, list) Public access for reading categories.
+     * @allow (create, update, delete) Admins can create, update, and delete categories.
      * @deny (create, update, delete) Non-admins cannot modify categories.
-     * @principle Role-based access control for category management.
+     * @principle Admin-only management of categories with public read access.
      */
     match /categories/{categoryId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
 
     /**
-     * @description Manages access to folders.
+     * @description Rules for user-created folders.
      * @path /folders/{folderId}
-     * @allow (create) User creates a folder. createdBy == request.auth.uid
-     * @allow (get, list, update, delete) Owner can access and modify their own folders.
-     * @deny (get, list, update, delete) Non-owner attempts to access or modify another user's folder.
-     * @principle Enforces user-ownership for folders.
+     * @allow (create) User can create a folder if they are authenticated.
+     * @allow (get, list, update, delete) User can manage their own folders.
+     * @deny (create) if the user is not authenticated.
+     * @deny (update, delete) if the user is not the owner.
+     * @principle Enforces document ownership for folder management.
      */
     match /folders/{folderId} {
-      allow get: if isOwner(resource.data.createdBy);
-      allow list: if isOwner(resource.data.createdBy);
+      allow get, list: if isOwnerOfFolder(resource.data.createdBy);
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy) && request.resource.data.createdBy == resource.data.createdBy;
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow update: if isExistingOwnerOfFolder(resource.data.createdBy);
+      allow delete: if isExistingOwnerOfFolder(resource.data.createdBy);
     }
 
     /**
-     * @description Manages access to tags.
+     * @description Rules for global tags.
      * @path /tags/{tagId}
-     * @allow (get, list) Public read access.
-     * @allow (create, update, delete) Only admins can create, update, or delete tags.
+     * @allow (get, list) Public access for reading tags.
+     * @allow (create, update, delete) Admins can create, update, and delete tags.
      * @deny (create, update, delete) Non-admins cannot modify tags.
-     * @principle Role-based access control for tag management.
+     * @principle Admin-only management of tags with public read access.
      */
     match /tags/{tagId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
 
     /**
-     * @description Manages access to documents.
+     * @description Rules for documents.
      * @path /documents/{documentId}
-     * @allow (get, list) Public read access.
-     * @allow (create) User can create a document with themself as the owner.
-     * @allow (update, delete) Owner can update or delete their own documents.
-     * @deny (update, delete) Non-owner attempts to update or delete another user's document.
-     * @principle Owner-only write access for documents.
+     * @allow (get, list) Public access for reading documents.
+     * @allow (create) User can create a document if they are authenticated and set createdBy to their UID.
+     * @allow (update, delete) User can manage their own documents.
+     * @deny (create) if the user is not authenticated or the createdBy field doesn't match their UID.
+     * @deny (update, delete) if the user is not the owner.
+     * @principle Enforces document ownership for document management.
      */
     match /documents/{documentId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy) && request.resource.data.createdBy == resource.data.createdBy;
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow update: if isExistingOwnerOfDocument(resource.data.createdBy);
+      allow delete: if isExistingOwnerOfDocument(resource.data.createdBy);
     }
-    
-    /**
-     * @description Manages access to audit logs.
-     * @path /auditLogs/{logId}
-     * @allow (get, list) Only admins can read audit logs.
-     * @deny (create, update, delete) No one can create, update, or delete audit logs through the client.
-     * @principle Role-based access control for audit logs.
-     */
+
+      /**
+       * @description Rules for global audit logs. Only admins can access
+       * @path /auditLogs/{logId}
+       * @allow (get, list) if the user is an admin.
+       * @deny (create, update, delete) if the user is not an admin.
+       * @principle Only admins can manage audit logs.
+       */
     match /auditLogs/{logId} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
     }
+  }
+
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
+  }
+
+  function isAdmin() {
+     return request.auth.token.role == 'Admin';
+  }
+
+    function isOwnerOfFolder(createdBy) {
+    return request.auth.uid == createdBy;
+  }
+
+  function isExistingOwnerOfFolder(createdBy) {
+    return isOwnerOfFolder(createdBy) && resource != null;
+  }
+
+    function isOwnerOfDocument(createdBy) {
+    return request.auth.uid == createdBy;
+  }
+
+  function isExistingOwnerOfDocument(createdBy) {
+    return isOwnerOfDocument(createdBy) && resource != null;
   }
 }

@@ -20,6 +20,29 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
+async function fetchUsersFromApi({ limit = 50, startAfterId }: { limit?: number; startAfterId?: string } = {}) {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  if (!user) throw new Error("No auth user");
+
+  // Obtener token (debe contener custom claim role: "Admin")
+  const idToken = await user.getIdToken();
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, limit, startAfterId }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Error ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.users as User[];
+}
+
+
 function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
     const userName = user.name || user.email;
@@ -64,43 +87,55 @@ export default function UsersAdminPage() {
   const isAdmin = claims?.role === 'Admin';
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!auth?.currentUser || !isAdmin) {
+    let mounted = true;
+    
+    async function loadUsers() {
+      if (!isAdmin) {
           setIsLoading(false);
-          if(!isAdmin) setError("No tienes permisos para ver esta página.");
+          setError("No tienes permisos para ver esta página.");
           return;
       }
       setIsLoading(true);
       setError(null);
       try {
-        const idToken = await auth.currentUser.getIdToken(true);
-        const response = await fetch('/api/admin/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ idToken }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Error ${response.status}`);
+        const result = await fetchUsersFromApi({ limit: 100 });
+        if (mounted) {
+            setUsers(result);
         }
-        
-        const data = await response.json();
-        setUsers(data.users);
       } catch (err: any) {
-        console.error("Failed to fetch users:", err);
-        setError(err.message || 'No se pudieron cargar los usuarios.');
+        if (auth?.currentUser) {
+          try {
+            await auth.currentUser.getIdToken(true); // Forzar refresh del token
+            const retryResult = await fetchUsersFromApi({ limit: 100 });
+            if (mounted) {
+              setUsers(retryResult);
+            }
+            return; // Éxito en el reintento
+          } catch (retryErr: any) {
+            console.error("Fallo el reintento de carga de usuarios:", retryErr);
+             if (mounted) {
+                setError(retryErr.message || "Error al cargar usuarios tras reintentar.");
+             }
+          }
+        } else {
+             if (mounted) {
+                setError(err.message || "Error al cargar usuarios.");
+             }
+        }
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+            setIsLoading(false);
+        }
       }
-    };
-
-    if (!isLoadingClaims) {
-        fetchUsers();
     }
+    
+    if (!isLoadingClaims) {
+        loadUsers();
+    }
+
+    return () => { mounted = false; };
   }, [auth, isAdmin, isLoadingClaims]);
+
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !currentUser) return;
