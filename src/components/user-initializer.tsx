@@ -17,17 +17,12 @@ export default function UserInitializer() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Exclude this logic on auth pages
-    if (pathname === '/signup' || pathname === '/login') {
-      return;
-    }
-    
-    // Only run if services are ready, user is loaded, and claims are resolved
-    if (!firestore || isUserLoading || isLoadingClaims || !user) {
+    // Exclude this logic on auth pages or if services/claims are not ready
+    if (pathname === '/signup' || pathname === '/login' || !firestore || isUserLoading || isLoadingClaims || !user) {
       return;
     }
 
-    const checkAndCreateUserDocument = async () => {
+    const checkAndSyncUserDocument = async () => {
       try {
         const userRef = doc(firestore, "users", user.uid);
         const docSnap = await getDoc(userRef);
@@ -40,25 +35,25 @@ export default function UserInitializer() {
             id: user.uid,
             email: user.email,
             name: user.displayName || user.email,
-            avatarUrl: user.photoURL,
+            avatarUrl: user.photoURL || null,
             role: roleFromClaims, // Use role from claims
             createdAt: new Date().toISOString(),
           };
           setDocumentNonBlocking(userRef, userData, {});
         } else {
-          // Optional: If doc exists, check if role in DB matches claims
+          // If doc exists, check if role in DB matches claims
           const dbRole = docSnap.data()?.role;
           if (dbRole !== roleFromClaims) {
-            console.log(`Role mismatch. Updating DB role to: ${roleFromClaims}`);
+            console.log(`Role mismatch in DB. Updating DB role to: ${roleFromClaims}`);
             setDocumentNonBlocking(userRef, { role: roleFromClaims }, { merge: true });
           }
         }
       } catch (error) {
-        console.error("Error in UserInitializer (checkAndCreateUserDocument):", error);
+        console.error("Error in UserInitializer (checkAndSyncUserDocument):", error);
       }
     };
 
-    checkAndCreateUserDocument();
+    checkAndSyncUserDocument();
   }, [user, isUserLoading, firestore, pathname, claims, isLoadingClaims]);
 
   // This component renders nothing.
