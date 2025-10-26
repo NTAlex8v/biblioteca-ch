@@ -162,8 +162,7 @@
           "format": "email"
         },
         "role": {
-          "type": "string",
-          "description": "The role of the user (Admin, Editor, User)."
+          "$ref": "#/backend/auth/customClaims/role"
         }
       },
       "required": [
@@ -253,6 +252,11 @@
             "$ref": "#/backend/entities/User"
           },
           "description": "Stores user profile information. User ID is the Firebase Auth UID.",
+          "permissions": {
+              "read": "isAdmin() || isOwner()",
+              "list": "isAdmin()",
+              "write": "isAdmin() || isOwner()"
+          },
           "subcollections": [
             {
               "path": "auditLogs/{logId}",
