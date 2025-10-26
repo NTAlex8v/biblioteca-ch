@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useState } from 'react';
-import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useAuth } from '@/firebase';
+import { useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useUser as useAppUser, useUserClaims, useAuth, errorEmitter, FirestorePermissionError } from '@/firebase';
 import type { User, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,11 +72,10 @@ export default function UsersAdminPage() {
       setSearchError(null);
       setSearchedUser(null);
 
-      try {
-          const usersRef = collection(firestore, 'users');
-          const q = query(usersRef, where("email", "==", searchEmail.trim()));
-          const querySnapshot = await getDocs(q);
-
+      const usersRef = collection(firestore, 'users');
+      const q = query(usersRef, where("email", "==", searchEmail.trim()));
+      
+      getDocs(q).then((querySnapshot) => {
           if (querySnapshot.empty) {
               setSearchError("No se encontró ningún usuario con ese correo electrónico.");
           } else {
@@ -83,12 +83,16 @@ export default function UsersAdminPage() {
               const userId = querySnapshot.docs[0].id;
               setSearchedUser({ ...userData, id: userId });
           }
-      } catch (err: any) {
-          console.error("Error searching for user:", err);
-          setSearchError("Ocurrió un error al buscar el usuario. Verifica los permisos de Firestore.");
-      } finally {
+      }).catch((serverError) => {
+          setSearchError("Ocurrió un error al buscar el usuario. Revisa los permisos de Firestore.");
+          const permissionError = new FirestorePermissionError({
+              path: 'users',
+              operation: 'list', // A query is a 'list' operation
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      }).finally(() => {
           setIsLoading(false);
-      }
+      });
   };
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
@@ -217,7 +221,7 @@ export default function UsersAdminPage() {
         </Card>
       )}
 
-      {searchError && (
+      {searchError && !searchedUser && (
           <Card className="border-destructive">
               <CardHeader>
                   <CardTitle className="text-destructive">Error de Búsqueda</CardTitle>
