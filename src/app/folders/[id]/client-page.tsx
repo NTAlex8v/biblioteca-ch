@@ -33,7 +33,7 @@ const ItemSkeleton = () => (
     <div className="flex flex-col gap-2">
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-5 w-3-4" />
-        <Skeleton className="h-4 w-1-2" />
+        <Skeleton className="h-4 w-1/2" />
     </div>
 );
 
@@ -60,7 +60,11 @@ function FolderCard({ folder }: { folder: Folder }) {
             title: 'Carpeta eliminada',
             description: `La carpeta '${folder.name}' ha sido eliminada.`,
         });
-        router.push(`/category/${folder.categoryId}`);
+        if (folder.parentFolderId) {
+            router.push(`/folders/${folder.parentFolderId}`);
+        } else {
+            router.push(`/category/${folder.categoryId}`);
+        }
     };
 
     return (

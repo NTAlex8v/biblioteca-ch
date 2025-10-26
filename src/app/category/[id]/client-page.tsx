@@ -2,15 +2,15 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, useDoc } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
-import type { Document as DocumentType, Category, Folder } from '@/lib/types';
+import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +31,7 @@ interface CategoryClientPageProps {
 const ItemSkeleton = () => (
     <div className="flex flex-col gap-2">
         <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-5 w-3-4" />
         <Skeleton className="h-4 w-1/2" />
     </div>
 );
@@ -41,8 +41,14 @@ function FolderCard({ folder }: { folder: Folder }) {
     const { toast } = useToast();
     const firestore = useFirestore();
 
-    // This is a simplified check. For production, you'd use custom claims.
-    const isAdmin = false; // Replace with real admin check
+    const userDocRef = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return doc(firestore, "users", user.uid);
+    }, [firestore, user]);
+
+    const { data: userData } = useDoc<AppUser>(userDocRef);
+    const isAdmin = userData?.role === 'Admin';
+
 
     const handleDelete = () => {
         if (!firestore) return;
@@ -82,7 +88,7 @@ function FolderCard({ folder }: { folder: Folder }) {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente la carpeta y todos los documentos dentro de ella.
+                                    Esta acción no se puede deshacer. Esto eliminará permanentemente la carpeta.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
