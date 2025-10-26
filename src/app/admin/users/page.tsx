@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -12,36 +11,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { doc, collection } from 'firebase/firestore';
-import { useAuth, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase, useUserClaims } from '@/firebase';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
   Editor: 'default',
   User: 'secondary',
 };
-
-async function fetchUsersFromApi(idToken: string): Promise<User[]> {
-  const res = await fetch("/api/admin/users", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-     // Lanzar un error específico para el caso de "Forbidden"
-    if (res.status === 403) {
-      const err = new Error("Forbidden: User is not an admin.");
-      (err as any).isForbidden = true;
-      throw err;
-    }
-    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  return data.users as User[];
-}
-
 
 function UserActions({ user, onRoleChange }: { user: User; onRoleChange: (userId: string, newRole: 'Admin' | 'Editor' | 'User', userName: string) => void }) {
   const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
@@ -77,52 +53,16 @@ export default function UsersAdminPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { claims, isLoadingClaims } = useUserClaims();
+  const isAdmin = claims?.role === 'Admin';
+  
+  // This query will only run if the user is detected as an admin
+  const usersQuery = useMemoFirebase(() => {
+      if (!firestore || !isAdmin) return null;
+      return collection(firestore, 'users');
+  }, [firestore, isAdmin]);
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isForbidden, setIsForbidden] = useState(false);
-
-  useEffect(() => {
-    const loadUsers = async () => {
-      if (!auth.currentUser) {
-        setIsLoading(false);
-        // Do not set an error here, the UI will just show nothing or a login prompt.
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      setIsForbidden(false);
-      
-      try {
-        // Forzar la actualización del token para obtener los últimos claims simulados
-        const idToken = await auth.currentUser.getIdToken(true);
-        const fetchedUsers = await fetchUsersFromApi(idToken);
-        setUsers(fetchedUsers);
-      } catch (err: any) {
-        console.error("Failed to fetch users:", err);
-        if (err.isForbidden) {
-          setIsForbidden(true);
-          setError("No tienes permiso para ver esta sección.");
-        } else {
-          setError(err.message || "Ocurrió un error al cargar los usuarios.");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    // Solo se llama si hay un usuario autenticado.
-    if(auth.currentUser) {
-        loadUsers();
-    } else {
-        setIsLoading(false);
-        setError("Autenticación requerida para ver usuarios.");
-    }
-
-  }, [auth, auth.currentUser]);
-
+  const { data: users, isLoading: isLoadingUsers, error: usersError } = useCollection<User>(usersQuery);
 
   const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
     if (!firestore || !auth.currentUser) return;
@@ -143,22 +83,20 @@ export default function UsersAdminPage() {
     if (!firestore || !auth.currentUser) return;
 
     try {
-        // For role changes, we need to call our API to let the backend handle it
-        // securely. For now, we update firestore directly as we don't have that API yet.
         const userDocRef = doc(firestore, 'users', userId);
+        // Note: For custom claims to be truly effective, this should trigger a backend function.
+        // For this development environment, we directly update Firestore.
         updateDocumentNonBlocking(userDocRef, { role: newRole });
-
-        // Optimistically update the UI
-        setUsers(currentUsers =>
-            currentUsers.map(u => (u.id === userId ? { ...u, role: newRole } : u))
-        );
 
         logAction('role_change', userId, userName, `Rol de ${userName} cambiado a ${newRole}.`);
         
         toast({
             title: 'Rol actualizado',
-            description: `El rol de ${userName} ha sido cambiado a ${newRole}.`,
+            description: `El rol de ${userName} ha sido cambiado a ${newRole}. La página se recargará para aplicar los cambios.`,
         });
+
+        // A small delay and reload can help reflect claim changes in the UI
+        setTimeout(() => window.location.reload(), 2000);
 
     } catch (err) {
         console.error("Error changing role:", err);
@@ -170,7 +108,15 @@ export default function UsersAdminPage() {
     }
   };
   
-  if (isForbidden) {
+  if (isLoadingClaims) {
+      return (
+          <div className="container mx-auto flex justify-center items-center h-full">
+            <p>Verificando permisos...</p>
+          </div>
+      );
+  }
+
+  if (!isAdmin) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
               <Card className="w-full max-w-md">
@@ -181,7 +127,7 @@ export default function UsersAdminPage() {
                       <CardTitle className="mt-4">Acceso Denegado</CardTitle>
                   </CardHeader>
                   <CardContent className="text-center">
-                      <p className="text-muted-foreground">{error}</p>
+                      <p className="text-muted-foreground">No tienes los permisos necesarios para ver esta sección.</p>
                   </CardContent>
               </Card>
           </div>
@@ -199,7 +145,7 @@ export default function UsersAdminPage() {
         <CardHeader>
           <CardTitle>Todos los Usuarios</CardTitle>
           <CardDescription>
-            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
+            {isLoadingUsers ? 'Cargando usuarios...' : `Hay un total de ${users?.length || 0} usuarios.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -213,16 +159,16 @@ export default function UsersAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoadingUsers ? (
                  Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
                   </TableRow>
                 ))
-              ) : error ? (
+              ) : usersError ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    {error}
+                    Error al cargar usuarios: {usersError.message}
                   </TableCell>
                 </TableRow>
               ) : users && users.length > 0 ? (
@@ -249,7 +195,7 @@ export default function UsersAdminPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios o no tienes permiso para verlos.
+                    No se encontraron usuarios.
                   </TableCell>
                 </TableRow>
               )}
