@@ -2,8 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, useDoc } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import type { Document as DocumentType, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,17 +54,27 @@ function FolderCard({ folder }: { folder: Folder }) {
     const handleDelete = () => {
         if (!firestore) return;
         const docRef = doc(firestore, 'folders', folder.id);
-        deleteDocumentNonBlocking(docRef);
-        toast({
-            variant: "destructive",
-            title: 'Carpeta eliminada',
-            description: `La carpeta '${folder.name}' ha sido eliminada.`,
-        });
-        if (folder.parentFolderId) {
-            router.push(`/folders/${folder.parentFolderId}`);
-        } else {
-            router.push(`/category/${folder.categoryId}`);
-        }
+        
+        deleteDoc(docRef)
+            .then(() => {
+                toast({
+                    variant: "destructive",
+                    title: 'Carpeta eliminada',
+                    description: `La carpeta '${folder.name}' ha sido eliminada.`,
+                });
+                if (folder.parentFolderId) {
+                    router.push(`/folders/${folder.parentFolderId}`);
+                } else {
+                    router.push(`/category/${folder.categoryId}`);
+                }
+            })
+            .catch(() => {
+                const permissionError = new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'delete',
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
     };
 
     return (
@@ -83,7 +93,7 @@ function FolderCard({ folder }: { folder: Folder }) {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
                                         <Trash2 className="mr-2 h-4 w-4" />
                                         Eliminar
                                     </DropdownMenuItem>
@@ -113,7 +123,6 @@ function FolderCard({ folder }: { folder: Folder }) {
 
 export default function FolderClientPage({ folder }: FolderClientPageProps) {
   const firestore = useFirestore();
-  const { user } = useUser();
 
   const subFoldersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -144,22 +153,20 @@ export default function FolderClientPage({ folder }: FolderClientPageProps) {
                 {folder.name}
             </h1>
         </div>
-        {user && (
-            <div className="flex gap-2">
-                <Button asChild>
-                    <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Nueva Carpeta
-                    </Link>
-                </Button>
-                <Button asChild variant="secondary">
-                    <Link href={`/my-documents/new?categoryId=${folder.categoryId}&folderId=${folder.id}`}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Nuevo Documento
-                    </Link>
-                </Button>
-            </div>
-        )}
+        <div className="flex gap-2">
+            <Button asChild>
+                <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Nueva Carpeta
+                </Link>
+            </Button>
+            <Button asChild variant="secondary">
+                <Link href={`/my-documents/new?categoryId=${folder.categoryId}&folderId=${folder.id}`}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Nuevo Documento
+                </Link>
+            </Button>
+        </div>
       </div>
       
       { (isLoadingFolders || (subFolders && subFolders.length > 0)) && (
