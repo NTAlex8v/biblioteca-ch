@@ -4,8 +4,6 @@
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot } from "firebase/storage";
 import { initializeFirebase } from "./index";
 
-const { storage } = initializeFirebase();
-
 /**
  * Uploads a file to Firebase Storage and provides progress updates.
  * @param file The file to upload.
@@ -19,6 +17,9 @@ export const uploadFile = (
   userId: string,
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // Correctly initialize storage inside the function to ensure it's available client-side
+    const { storage } = initializeFirebase();
+
     if (!storage) {
         return reject(new Error("Firebase Storage no está inicializado."));
     }
@@ -35,7 +36,12 @@ export const uploadFile = (
       },
       (error) => {
         console.error("Fallo en la subida:", error);
-        reject(error);
+        // Specifically check for storage permission errors which are common
+        if (error.code === 'storage/unauthorized') {
+            reject(new Error("No tienes permisos para subir archivos. Revisa las reglas de Storage."));
+        } else {
+            reject(error);
+        }
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
