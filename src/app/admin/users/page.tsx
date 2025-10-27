@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import type { User as AppUser } from '@/lib/types';
+import type { User as AppUser, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -46,6 +47,7 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         setIsSubmitting(true);
         try {
             const userDocRef = doc(firestore, 'users', targetUser.id);
+            // We only need to update the role in Firestore. The claims will be "simulated" on next login.
             await setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
 
             onRoleChange(targetUser.id, newRole);
@@ -97,11 +99,10 @@ export default function UsersAdminPage() {
   const isAdmin = claims?.role === 'Admin';
   
   const usersQuery = useMemoFirebase(() => {
-    // Only create the query if the user is an admin and firestore is available
     if (isAdmin && firestore) {
       return collection(firestore, 'users');
     }
-    return null; // Return null if not admin or firestore is not ready
+    return null;
   }, [isAdmin, firestore]);
 
   const { data: usersData, isLoading: isLoadingUsers, error } = useCollection<AppUser>(usersQuery);
@@ -156,69 +157,59 @@ export default function UsersAdminPage() {
         <p className="text-muted-foreground">Administra los roles de todos los usuarios del sistema.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Todos los Usuarios</CardTitle>
-          <CardDescription>
-            {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users.length} usuarios en el sistema.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Usuario</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+               Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+                </TableRow>
+              ))
+            ) : error ? (
               <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                  <p className='font-bold mb-2'>Error de Permisos</p>
+                  <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                 Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
-                  </TableRow>
-                ))
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    <p className='font-bold mb-2'>Error de Permisos</p>
-                    <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
+            ) : users.length > 0 ? (
+              users.map(user => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={user.avatarUrl} alt={user.name} />
+                        <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="font-medium">{user.name || 'Sin Nombre'}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                      <Badge variant={roleColors[user.role] || 'outline'}>{user.role}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <UserActions user={user} onRoleChange={handleRoleChange} />
                   </TableCell>
                 </TableRow>
-              ) : users.length > 0 ? (
-                users.map(user => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage src={user.avatarUrl} alt={user.name} />
-                          <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="font-medium">{user.name || 'Sin Nombre'}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                        <Badge variant={roleColors[user.role] || 'outline'}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActions user={user} onRoleChange={handleRoleChange} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No se encontraron usuarios.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  No se encontraron usuarios.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
     </div>
   );
 }
