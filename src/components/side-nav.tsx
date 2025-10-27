@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -48,7 +49,9 @@ const SideNav = () => {
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
           <Book className="h-7 w-7 text-primary" />
-          <span className="text-lg font-semibold">CMI Tahuantinsuyo Bajo</span>
+          <span className="text-lg font-semibold">
+            <span>CMI Tahuantinsuyo Bajo</span>
+          </span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
