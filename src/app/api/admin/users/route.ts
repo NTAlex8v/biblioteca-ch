@@ -1,14 +1,20 @@
+
 import { NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
 import type { UserRecord } from 'firebase-admin/auth';
 import type { User as AppUser } from '@/lib/types';
 import serviceAccount from '@/../firebase-service-account.json';
 
-// Correct initialization for Next.js API routes
+// Corrected initialization for Next.js API routes
 if (!admin.apps.length) {
   try {
+    const sanitizedServiceAccount = {
+      ...serviceAccount,
+      private_key: serviceAccount.private_key.replace(/\\n/g, '\n'),
+    };
+
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as any),
+      credential: admin.credential.cert(sanitizedServiceAccount as any),
     });
   } catch (error: any) {
     console.error('Firebase Admin SDK initialization error:', error.stack);
