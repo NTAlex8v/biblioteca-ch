@@ -173,7 +173,7 @@ const intelligentSearchFlow = ai.defineFlow(
         toolChoice: 'auto'
     });
 
-    const toolOutputs = llmResponse.toolRequests().map(request => request.output());
+    const toolOutputs = llmResponse.requests.map(request => request.output);
     
     // Flatten the results from all tool calls into a single array
     const allResults = (await Promise.all(toolOutputs)).flat();
