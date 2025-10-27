@@ -62,15 +62,22 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     resolver: zodResolver(documentSchema),
     defaultValues: document ? {
         ...document,
+        title: document.title || "",
+        author: document.author || "",
         year: document.year || new Date().getFullYear(),
-        fileUrl: document.fileUrl || '',
+        description: document.description || "",
+        fileUrl: document.fileUrl || "",
+        categoryId: document.categoryId || categoryIdFromParams || "",
+        thumbnailUrl: document.thumbnailUrl || "",
+        subject: document.subject || "",
+        version: document.version || "1.0",
     } : {
       title: "",
       author: "",
       year: new Date().getFullYear(),
       description: "",
       fileUrl: "",
-      categoryId: categoryIdFromParams || undefined,
+      categoryId: categoryIdFromParams || "",
       thumbnailUrl: "",
       subject: "",
       version: "1.0",
@@ -81,13 +88,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const handleUploadTypeChange = (type: 'file' | 'url') => {
     setUploadType(type);
-    if (type === 'file') {
-      setValue('fileUrl', '');
-      setValue('pdfFile', undefined);
-    } else {
-      setValue('pdfFile', undefined);
-      setValue('fileUrl', '');
-    }
+    setValue('fileUrl', '');
+    setValue('pdfFile', undefined);
     clearErrors(['fileUrl', 'pdfFile']);
   };
 
@@ -231,7 +233,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingCategories || !!categoryIdFromParams || isFormDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!categoryIdFromParams || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
