@@ -1,133 +1,201 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with document ownership.
+ * @description Role-based access control.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a combination of user-ownership and role-based access control.
+ * Users can manage their own data, while admins have elevated privileges.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles; accessible only to the user and admins.
- * - /categories/{categoryId}: Stores categories; managed only by admins.
- * - /folders/{folderId}: Stores folders; created and managed by individual users.
- * - /tags/{tagId}: Stores tags; publicly accessible.
- * - /documents/{documentId}: Stores documents; created and managed by individual users.
- * - /auditLogs/{logId}: Stores audit logs; only admins can read all logs.
+ * - /users/{userId}: User profile information; accessible to the user and admins.
+ * - /categories/{categoryId}: Top-level categories; publicly readable, admin-writable.
+ * - /folders/{folderId}: User-created folders; accessible to the owner.
+ * - /tags/{tagId}: Tags for cross-classification; publicly readable, admin-writable.
+ * - /documents/{documentId}: Document details; publicly readable, owner-writable.
+ * - /auditLogs/{logId}: System audit logs; accessible only to admins.
  *
  * Key Security Decisions:
- * - Only admins can create or modify categories.
- * - Users can only create, modify, or delete their own folders and documents.
- * - Tags are globally accessible for reading but writes are not permitted
- * - Users can only read their own audit logs
- * - Listing all users is disallowed except for Admin roles
+ * - Public read access to categories, tags and documents.
+ * - Admin role is determined by checking the 'role' field in the user's document.
+ * - Data consistency is enforced between the path and the document's internal ID for user documents.
  *
  * Denormalization for Authorization:
- * - Documents and Folders include a `createdBy` field to track ownership.
+ * - The 'createdBy' field is used in /folders and /documents to establish ownership.
  *
  * Structural Segregation:
- * - No explicit structural segregation is used.  All data is stored in top-level collections.
+ * - No explicit segregation between public and private data is implemented as public read access is enabled for some collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants access to user-specific data, ensuring only the user or an admin can read/write.
-     * @path /users/{userId}
-     * @allow (get, update, delete) User with matching {userId}
-     * @allow (create) User creating their own profile
-     * @allow (list) Admin user listing all users
-     * @deny (get, update, delete) Other users trying to access this data
-     * @deny (create) Non-authenticated users
-     * @principle Enforces user ownership and prevents unauthorized access to user profiles.
+     * @description Checks if the user is signed in.
      */
-    match /users/{userId} {
-      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow list: if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
-    }
-
-    /**
-     * @description Restricts category management to admins only.
-     * @path /categories/{categoryId}
-     * @allow (get, list) Public access for all users
-     * @allow (create, update, delete) Admin users managing categories
-     * @deny (create, update, delete) Non-admin users attempting to manage categories
-     * @principle Limits category modifications to authorized personnel.
-     */
-    match /categories/{categoryId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && isAdmin();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete: if isSignedIn() && isAdmin();
-    }
-
-    /**
-     * @description Allows users to manage their own folders within categories.
-     * @path /folders/{folderId}
-     * @allow (get, list) Authenticated users.
-     * @allow (create, update, delete) Users creating, updating or deleting their own folders
-     * @deny (create, update, delete) Other users attempting to modify these folders
-     * @principle Enforces user ownership of folders and prevents unauthorized modifications.
-     */
-    match /folders/{folderId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(resource.data.createdBy);
-      allow delete: if isSignedIn() && isExistingOwner(resource.data.createdBy);
-    }
-
-    /**
-     * @description Grants public read access to tags, but prevents any modifications.
-     * @path /tags/{tagId}
-     * @allow (get, list) Public access for all users
-     * @deny (create, update, delete) All write operations on tags
-     * @principle Provides open access to tags while restricting modifications.
-     */
-    match /tags/{tagId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
-    }
-
-    /**
-     * @description Allows users to manage their own documents.
-     * @path /documents/{documentId}
-     * @allow (get, list) Public access for all users
-     * @allow (create, update, delete) Users creating, updating or deleting their own documents
-     * @deny (create, update, delete) Other users attempting to modify these documents
-     * @principle Enforces user ownership of documents and prevents unauthorized modifications.
-     */
-    match /documents/{documentId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(resource.data.createdBy);
-      allow delete: if isSignedIn() && isExistingOwner(resource.data.createdBy);
-    }
-
-     /**
-      * @description Allows admins to read all audit logs, and users to read only their own.
-      * @path /auditLogs/{logId}
-      * @allow (get, list) Admin users managing categories
-      * @deny (create, update, delete) All users.
-      * @principle Admins can read all audit logs, and users can read only their own.
-      */
-    match /auditLogs/{logId} {
-       allow get, list: if isSignedIn() && isAdmin();
-       allow create, update, delete: if false;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * @description Checks if the authenticated user is the owner of the resource.
+     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    /**
+     * @description Checks if the authenticated user is the owner of the resource and that the resource exists.
+     */
     function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && resource != null;
+        return isOwner(userId) && resource != null;
     }
 
+    /**
+     * @description Checks if the user has the Admin role by reading their user document.
+     */
     function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
+      // 1. Asegura que el usuario esté autenticado.
+      return isSignedIn() &&
+      // 2. Obtiene el documento de perfil del usuario que hace la petición.
+             get(/databases/$(database)/documents/users/$(request.auth.uid))
+      // 3. Accede a los datos de ese documento y comprueba el campo 'role'.
+                .data.role == 'Admin';
+    }
+
+    /**
+     * @description Rules for the /users/{userId} collection.
+     * @path /users/{userId}
+     * @allow (get) User A can read their own profile: auth.uid == 'userA'
+     * @allow (get) An admin can read User A's profile: isAdmin() == true
+     * @deny (get) User B cannot read User A's profile: auth.uid == 'userB'
+     * @allow (list) An admin can list all users: isAdmin() == true
+     * @deny (list) A non-admin user cannot list all users: isAdmin() == false
+     * @allow (create) User A can create their own profile if the ID matches: auth.uid == 'userA' && request.resource.data.id == 'userA'
+     * @allow (create) An admin can create any user profile: isAdmin() == true
+     * @deny (create) User A cannot create a profile with a mismatched ID: auth.uid == 'userA' && request.resource.data.id != 'userA'
+     * @allow (update) User A can update their own profile if the ID is not changed: auth.uid == 'userA' && resource.data.id == 'userA' && request.resource.data.id == 'userA'
+     * @allow (update) An admin can update any user profile: isAdmin() == true
+     * @deny (update) User A cannot change their own ID: auth.uid == 'userA' && request.resource.data.id != 'userA'
+     * @allow (delete) User A can delete their own profile: auth.uid == 'userA'
+     * @allow (delete) An admin can delete any user profile: isAdmin() == true
+     * @deny (delete) User B cannot delete User A's profile: auth.uid == 'userB'
+     * @principle Enforces document ownership for users, but allows full access for Admins. Validates relational integrity between path and document id on create and enforces immutability of the id on update.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if (isOwner(userId) && request.resource.data.id == userId) || isAdmin();
+      allow update: if (isExistingOwner(userId) && request.resource.data.id == resource.data.id) || isAdmin();
+      allow delete: if isExistingOwner(userId) || isAdmin();
+    }
+
+    /**
+     * @description Rules for the /categories/{categoryId} collection.
+     * @path /categories/{categoryId}
+     * @allow (get) Anyone can read a category: true
+     * @allow (list) Anyone can list categories: true
+     * @allow (create) An admin can create a category: isAdmin() == true
+     * @deny (create) A non-admin user cannot create a category: isAdmin() == false
+     * @allow (update) An admin can update a category: isAdmin() == true
+     * @deny (update) A non-admin user cannot update a category: isAdmin() == false
+     * @allow (delete) An admin can delete a category: isAdmin() == true
+     * @deny (delete) A non-admin user cannot delete a category: isAdmin() == false
+     * @principle Admin-only write access, public read access.
+     */
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for the /folders/{folderId} collection.
+     * @path /folders/{folderId}
+     * @allow (get) User A can read a folder they created: isSignedIn() == true && resource.data.createdBy == 'userA'
+     * @deny (get) User A cannot read a folder if not signed in: isSignedIn() == false
+     * @deny (get) User B cannot read a folder created by User A: isSignedIn() == true && resource.data.createdBy == 'userA' && auth.uid == 'userB'
+     * @allow (list) Any signed in user can list folders: isSignedIn() == true
+     * @deny (list) Unauthenticated user can't list folders: isSignedIn() == false
+     * @allow (create) User A can create a folder with their ID: isSignedIn() == true && request.resource.data.createdBy == 'userA'
+     * @deny (create) User A cannot create a folder if not signed in: isSignedIn() == false
+     * @deny (create) User B cannot create a folder with User A's ID: isSignedIn() == true && request.resource.data.createdBy == 'userA' && auth.uid == 'userB'
+     * @allow (update) User A can update their own folder and createdBy is the same: isExistingOwner(resource.data.createdBy) == true && resource.data.createdBy == resource.data.createdBy
+     * @deny (update) User B cannot update User A's folder: isExistingOwner(resource.data.createdBy) == false
+     * @allow (delete) User A can delete their own folder: isExistingOwner(resource.data.createdBy) == true
+     * @deny (delete) User B cannot delete User A's folder: isExistingOwner(resource.data.createdBy) == false
+     * @principle Enforces document ownership for all operations.
+     */
+    match /folders/{folderId} {
+      allow get: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy) && resource.data.createdBy == request.resource.data.createdBy;
+      allow delete: if isExistingOwner(resource.data.createdBy);
+    }
+
+    /**
+     * @description Rules for the /tags/{tagId} collection.
+     * @path /tags/{tagId}
+     * @allow (get) Anyone can read a tag: true
+     * @allow (list) Anyone can list tags: true
+     * @allow (create) An admin can create a tag: isAdmin() == true
+     * @deny (create) A non-admin user cannot create a tag: isAdmin() == false
+     * @allow (update) An admin can update a tag: isAdmin() == true
+     * @deny (update) A non-admin user cannot update a tag: isAdmin() == false
+     * @allow (delete) An admin can delete a tag: isAdmin() == true
+     * @deny (delete) A non-admin user cannot delete a tag: isAdmin() == false
+     * @principle Admin-only write access, public read access.
+     */
+    match /tags/{tagId} {
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for the /documents/{documentId} collection.
+     * @path /documents/{documentId}
+     * @allow (get) Anyone can read a document: true
+     * @allow (list) Anyone can list documents: true
+     * @allow (create) User A can create a document with their ID: isSignedIn() == true && request.resource.data.createdBy == 'userA'
+     * @deny (create) User A cannot create a document if not signed in: isSignedIn() == false
+     * @deny (create) User B cannot create a document with User A's ID: isSignedIn() == true && request.resource.data.createdBy == 'userA' && auth.uid == 'userB'
+     * @allow (update) User A can update their own document and createdBy is the same: isExistingOwner(resource.data.createdBy) == true  && resource.data.createdBy == resource.data.createdBy
+     * @deny (update) User B cannot update User A's document: isExistingOwner(resource.data.createdBy) == false
+     * @allow (delete) User A can delete their own document: isExistingOwner(resource.data.createdBy) == true
+     * @deny (delete) User B cannot delete User A's document: isExistingOwner(resource.data.createdBy) == false
+     * @principle Public read access, owner-only write access.
+     */
+    match /documents/{documentId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy) && resource.data.createdBy == request.resource.data.createdBy;
+      allow delete: if isExistingOwner(resource.data.createdBy);
+    }
+
+    /**
+     * @description Rules for the /auditLogs/{logId} collection.
+     * @path /auditLogs/{logId}
+     * @allow (get) Only admins can read an audit log: isAdmin() == true
+     * @deny (get) Non-admins cannot read audit logs: isAdmin() == false
+     * @allow (list) Only admins can list audit logs: isAdmin() == true
+     * @deny (list) Non-admins cannot list audit logs: isAdmin() == false
+     * @allow (create) Only admins can create an audit log: isAdmin() == true
+     * @deny (create) Non-admins cannot create audit logs: isAdmin() == false
+     * @allow (update) Only admins can update an audit log: isAdmin() == true
+     * @deny (update) Non-admins cannot update audit logs: isAdmin() == false
+     * @allow (delete) Only admins can delete an audit log: isAdmin() == true
+     * @deny (delete) Non-admins cannot delete audit logs: isAdmin() == false
+     * @principle Admin-only access.
+     */
+    match /auditLogs/{logId} {
+        allow get, list: if isAdmin();
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
     }
   }
 }
