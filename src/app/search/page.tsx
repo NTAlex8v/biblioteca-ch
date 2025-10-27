@@ -2,7 +2,8 @@
 "use client";
 
 import { useSearchParams } from 'next/navigation';
-import { useActionState, useFormStatus } from 'react';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { enhanceSearchWithAI, EnhanceSearchWithAIOutput } from '@/ai/flows/enhance-search-with-ai';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
