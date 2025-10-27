@@ -2,27 +2,33 @@ import { NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
 import type { UserRecord } from 'firebase-admin/auth';
 import type { User as AppUser } from '@/lib/types';
+
+// The full service account object is required for this to work.
 import serviceAccount from '@/../firebase-service-account.json';
 
 // Helper to initialize Firebase Admin SDK, ensuring it's done only once.
 function initializeAdminApp() {
+    // Check if the app is already initialized to avoid errors
     if (admin.apps.length > 0) {
         return admin;
     }
     try {
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+            // The credential object is constructed using the imported JSON.
+            // The 'as any' is a workaround for type mismatches between different versions
+            // of the Firebase SDK that can occur in some environments.
+            credential: admin.credential.cert(serviceAccount as any),
         });
     } catch (error: any) {
         console.error('Firebase Admin SDK initialization error:', error);
-        // Throw an error that can be caught in the handlers
+        // This error will be caught by the calling function's try-catch block.
         throw new Error('Admin SDK initialization failed');
     }
     return admin;
 }
 
 
-// Helper function to verify the user token and admin role
+// Helper function to verify the user token and admin role from claims
 async function verifyAdmin(request: Request): Promise<admin.auth.DecodedIdToken> {
     const authorization = request.headers.get('Authorization');
     if (!authorization?.startsWith('Bearer ')) {
@@ -59,13 +65,14 @@ export async function GET(request: Request) {
 
         const usersWithRoles: AppUser[] = allUsers.map((user, index) => {
             const userDoc = userDocs[index];
+            // The single source of truth for the role is the Firestore document.
             const userData = userDoc.exists ? userDoc.data() : null;
             return {
                 id: user.uid,
                 email: user.email || '',
                 name: user.displayName || '',
                 avatarUrl: user.photoURL || '',
-                role: userData?.role || 'User', // Default to 'User' if not found
+                role: userData?.role || 'User', // Default to 'User' if not found in Firestore
             };
         });
 
@@ -95,11 +102,18 @@ export async function POST(request: Request) {
         }
         
         const firestore = adminApp.firestore();
+        // Update the user's document in Firestore. This is our source of truth.
         await firestore.collection('users').doc(uid).set({ role: role }, { merge: true });
 
-        // IMPORTANT: In a real production app, you would set custom claims here like this:
-        // await admin.auth().setCustomUserClaims(uid, { role: role });
-        // This makes the role available in Security Rules and on the ID token.
+        // IMPORTANT: For real-world security, you must also set custom claims.
+        // This is what makes the role available in Security Rules and on the ID token for backend services.
+        // We are simulating this on the client, but in production, this is mandatory.
+        try {
+            await admin.auth().setCustomUserClaims(uid, { role: role });
+        } catch(claimError) {
+            // Log this error but don't fail the whole request, as the primary data source (Firestore) was updated.
+            console.error(`Failed to set custom claims for ${uid}, but Firestore role was updated.`, claimError);
+        }
 
         return NextResponse.json({ success: true, message: `Rol de usuario actualizado a ${role}.` });
 
