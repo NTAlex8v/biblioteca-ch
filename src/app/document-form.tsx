@@ -60,27 +60,17 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    defaultValues: document ? {
-        ...document,
-        title: document.title || "",
-        author: document.author || "",
-        year: document.year || new Date().getFullYear(),
-        description: document.description || "",
-        fileUrl: document.fileUrl || "",
-        categoryId: document.categoryId || categoryIdFromParams || "",
-        thumbnailUrl: document.thumbnailUrl || "",
-        subject: document.subject || "",
-        version: document.version || "1.0",
-    } : {
-      title: "",
-      author: "",
-      year: new Date().getFullYear(),
-      description: "",
-      fileUrl: "",
-      categoryId: categoryIdFromParams || "",
-      thumbnailUrl: "",
-      subject: "",
-      version: "1.0",
+    defaultValues: {
+      title: document?.title || "",
+      author: document?.author || "",
+      year: document?.year || new Date().getFullYear(),
+      description: document?.description || "",
+      fileUrl: document?.fileUrl || "",
+      categoryId: document?.categoryId || categoryIdFromParams || "",
+      thumbnailUrl: document?.thumbnailUrl || "",
+      subject: document?.subject || "",
+      version: document?.version || "1.0",
+      pdfFile: undefined,
     },
   });
 
@@ -134,9 +124,9 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         year: values.year,
         description: values.description,
         categoryId: values.categoryId,
-        subject: values.subject,
-        version: values.version,
-        thumbnailUrl: values.thumbnailUrl,
+        subject: values.subject || '',
+        version: values.version || '',
+        thumbnailUrl: values.thumbnailUrl || '',
         fileUrl: fileUrl,
         folderId: folderIdFromParams || (document ? document.folderId : null),
         lastUpdated: new Date().toISOString(),
@@ -378,4 +368,3 @@ export default function DocumentForm({ document }: DocumentFormProps) {
     );
 }
 
-    
