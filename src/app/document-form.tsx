@@ -16,7 +16,7 @@ import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBloc
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category, Tag } from "@/lib/types";
 import { Loader2, UploadCloud, Link as LinkIcon } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { uploadFile } from "@/firebase/storage";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
@@ -61,20 +61,42 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {
-      title: document?.title || "",
-      author: document?.author || "",
-      year: document?.year || new Date().getFullYear(),
-      description: document?.description || "",
-      fileUrl: document?.fileUrl || "",
-      categoryId: document?.categoryId || categoryIdFromParams || "",
-      thumbnailUrl: document?.thumbnailUrl || "",
-      subject: document?.subject || "",
-      version: document?.version || "1.0",
+      title: '',
+      author: '',
+      year: new Date().getFullYear(),
+      description: '',
+      fileUrl: '',
+      categoryId: categoryIdFromParams || '',
+      thumbnailUrl: '',
+      subject: '',
+      version: '1.0',
       pdfFile: undefined,
     },
   });
 
-  const { formState: { isSubmitting }, control, setValue, clearErrors } = form;
+  const { formState: { isSubmitting }, control, setValue, clearErrors, reset } = form;
+
+  useEffect(() => {
+    if (document) {
+      reset({
+        title: document.title || '',
+        author: document.author || '',
+        year: document.year || new Date().getFullYear(),
+        description: document.description || '',
+        fileUrl: document.fileUrl || '',
+        categoryId: document.categoryId || '',
+        thumbnailUrl: document.thumbnailUrl || '',
+        subject: document.subject || '',
+        version: document.version || '1.0',
+        pdfFile: undefined,
+      });
+       if(document.fileUrl && !document.fileUrl.startsWith('https://firebasestorage.googleapis.com')){
+        setUploadType('url');
+      } else {
+        setUploadType('file');
+      }
+    }
+  }, [document, reset]);
 
   const handleUploadTypeChange = (type: 'file' | 'url') => {
     setUploadType(type);
@@ -172,7 +194,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Título</FormLabel>
                   <FormControl>
-                    <Input placeholder="Título del documento" {...field} disabled={isFormDisabled} />
+                    <Input placeholder="Título del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -185,7 +207,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Autor</FormLabel>
                   <FormControl>
-                    <Input placeholder="Autor del documento" {...field} disabled={isFormDisabled} />
+                    <Input placeholder="Autor del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -198,7 +220,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Año de Publicación</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} />
+                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -211,7 +233,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Descripción</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} disabled={isFormDisabled} />
+                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -246,7 +268,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Materia</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: Fisiología" {...field} disabled={isFormDisabled} />
+                    <Input placeholder="Ej: Fisiología" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -272,7 +294,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                      <FormField
                         control={control}
                         name="pdfFile"
-                        render={({ field: { onChange, ...rest } }) => (
+                        render={({ field: { onChange, value, ...rest } }) => (
                             <FormItem>
                                 <FormLabel>Archivo PDF</FormLabel>
                                 <FormControl>
@@ -299,7 +321,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                         <FormItem>
                         <FormLabel>URL del Archivo (PDF)</FormLabel>
                         <FormControl>
-                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} />
+                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
                         </FormControl>
                          <FormDescription>
                             Pega el enlace a un archivo PDF.
@@ -325,7 +347,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>URL de la Portada (Opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} disabled={isFormDisabled} />
+                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -338,7 +360,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Versión</FormLabel>
                   <FormControl>
-                    <Input placeholder="1.0" {...field} disabled={isFormDisabled} />
+                    <Input placeholder="1.0" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -368,3 +390,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
     );
 }
 
+
+    
