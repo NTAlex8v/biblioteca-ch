@@ -2,12 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import type { Document as DocumentType, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -24,9 +24,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 interface FolderClientPageProps {
-  folder: Folder;
+  folderId: string;
 }
 
 const ItemSkeleton = () => (
@@ -121,23 +122,73 @@ function FolderCard({ folder }: { folder: Folder }) {
     );
 }
 
-export default function FolderClientPage({ folder }: FolderClientPageProps) {
+export default function FolderClientPage({ folderId }: FolderClientPageProps) {
   const firestore = useFirestore();
+  const router = useRouter();
+
+  const folderDocRef = useMemoFirebase(() => {
+    if (!firestore || !folderId) return null;
+    return doc(firestore, 'folders', folderId);
+  }, [firestore, folderId]);
+
+  const { data: folder, isLoading: isLoadingFolder, error: folderError } = useDoc<Folder>(folderDocRef);
 
   const subFoldersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'folders'), where('parentFolderId', '==', folder.id));
-  }, [firestore, folder.id]);
+    if (!firestore || !folderId) return null;
+    return query(collection(firestore, 'folders'), where('parentFolderId', '==', folderId));
+  }, [firestore, folderId]);
 
   const documentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('folderId', '==', folder.id));
-  }, [firestore, folder.id]);
+    if (!firestore || !folderId) return null;
+    return query(collection(firestore, 'documents'), where('folderId', '==', folderId));
+  }, [firestore, folderId]);
 
   const { data: subFolders, isLoading: isLoadingFolders } = useCollection<Folder>(subFoldersQuery);
   const { data: documents, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
-  const isLoading = isLoadingFolders || isLoadingDocuments;
+  const isLoading = isLoadingFolders || isLoadingDocuments || isLoadingFolder;
+
+  // Handle not found after loading
+  React.useEffect(() => {
+    if (!isLoadingFolder && !folder && !folderError) {
+        notFound();
+    }
+  }, [isLoadingFolder, folder, folderError]);
+
+  if (isLoadingFolder) {
+      return (
+         <div className="container mx-auto flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-4 text-muted-foreground">Cargando carpeta...</p>
+        </div>
+      )
+  }
+
+  if (folderError) {
+      // The FirestorePermissionError is thrown globally by the useDoc hook,
+      // so we just need a local UI state.
+       return (
+          <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
+                          <AlertTriangle className="h-8 w-8 text-destructive" />
+                      </div>
+                      <CardTitle className="mt-4">Acceso Denegado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-muted-foreground">No tienes permisos para ver esta carpeta.</p>
+                       <Button onClick={() => router.back()} className="mt-4">Volver</Button>
+                  </CardContent>
+              </Card>
+          </div>
+      );
+  }
+
+  if (!folder) {
+      // This will be caught by the notFound() in the effect, but as a fallback:
+      return null;
+  }
 
   return (
     <div className="container mx-auto">
