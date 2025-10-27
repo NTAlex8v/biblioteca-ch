@@ -53,13 +53,18 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
   const placeholderImage = PlaceHolderImages[placeholderIndex];
   const thumbnailUrl = document.thumbnailUrl || placeholderImage.imageUrl;
 
-  const handleEdit = (e: React.MouseEvent) => {
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     e.preventDefault();
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    handleActionClick(e);
     router.push(`/my-documents/edit/${document.id}`);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
+    handleActionClick(e);
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
     deleteDoc(docRef)
@@ -80,75 +85,74 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
   };
 
   return (
-    <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary group">
-        <CardHeader className="p-0 relative">
-            <Link href={`/documents/${document.id}`} className="absolute inset-0 z-0" />
-            {isOwner && (
-                <div className="absolute top-2 right-2 z-10">
-                    <AlertDialog>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="secondary" size="icon" className="h-8 w-8">
-                                    <span className="sr-only">Abrir menú</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={handleEdit}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Eliminar
+    <Link href={`/documents/${document.id}`} className="block h-full group">
+        <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 group-hover:shadow-lg group-hover:border-primary">
+            <CardHeader className="p-0 relative">
+                {isOwner && (
+                    <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
+                        <AlertDialog>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="secondary" size="icon" className="h-8 w-8">
+                                        <span className="sr-only">Abrir menú</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={handleEdit}>
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        Editar
                                     </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </div>
-            )}
-            <div className="relative aspect-[2/3] w-full">
-            <Image
-              src={thumbnailUrl}
-              alt={`Cover of ${document.title}`}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              data-ai-hint="book cover"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 flex-grow relative">
-          <Link href={`/documents/${document.id}`} className="absolute inset-0 z-0" />
-          <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2">
-            {document.title}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground line-clamp-1">{document.author}</p>
-        </CardContent>
-        <CardFooter className="p-4 pt-0 relative">
-           <Link href={`/documents/${document.id}`} className="absolute inset-0 z-0" />
-           <div className="flex flex-wrap gap-1">
-            {documentTags.slice(0, 2).map(tag => (
-              <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-            ))}
-          </div>
-        </CardFooter>
-      </Card>
+                                    <DropdownMenuSeparator />
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Eliminar
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                )}
+                <div className="relative aspect-[2/3] w-full">
+                <Image
+                  src={thumbnailUrl}
+                  alt={`Cover of ${document.title}`}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  data-ai-hint="book cover"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 flex-grow">
+              <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2">
+                {document.title}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground line-clamp-1">{document.author}</p>
+            </CardContent>
+            <CardFooter className="p-4 pt-0">
+               <div className="flex flex-wrap gap-1">
+                {documentTags.slice(0, 2).map(tag => (
+                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                ))}
+              </div>
+            </CardFooter>
+          </Card>
+    </Link>
   );
 };
 
