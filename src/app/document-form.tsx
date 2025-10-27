@@ -28,13 +28,13 @@ const documentSchema = z.object({
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
   fileUrl: z.string().optional(),
   pdfFile: z.instanceof(File).optional(),
-  categoryId: z.string({ required_error: "Debes seleccionar una categoría." }),
+  categoryId: z.string({ required_error: "Debes seleccionar una categoría." }).min(1, "Debes seleccionar una categoría."),
   thumbnailUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
   subject: z.string().optional(),
   version: z.string().optional(),
 }).refine(data => data.fileUrl || data.pdfFile, {
     message: "Debe proporcionar una URL o subir un archivo PDF.",
-    path: ["pdfFile"], // Show error on the file input field
+    path: ["pdfFile"],
 });
 
 
@@ -61,15 +61,15 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {
-      title: '',
-      author: '',
-      year: new Date().getFullYear(),
-      description: '',
-      fileUrl: '',
-      categoryId: categoryIdFromParams || '',
-      thumbnailUrl: '',
-      subject: '',
-      version: '1.0',
+      title: document?.title || "",
+      author: document?.author || "",
+      year: document?.year || new Date().getFullYear(),
+      description: document?.description || "",
+      fileUrl: document?.fileUrl || "",
+      categoryId: document?.categoryId || categoryIdFromParams || "",
+      thumbnailUrl: document?.thumbnailUrl || "",
+      subject: document?.subject || "",
+      version: document?.version || "1.0",
       pdfFile: undefined,
     },
   });
@@ -79,6 +79,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   useEffect(() => {
     if (document) {
       reset({
+        ...document,
         title: document.title || '',
         author: document.author || '',
         year: document.year || new Date().getFullYear(),
@@ -106,41 +107,46 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   };
 
   const onSubmit = async (values: z.infer<typeof documentSchema>) => {
-    if (!firestore || !user) return;
+    if (!firestore || !user) {
+        toast({ variant: "destructive", title: "Error de autenticación", description: "Debes iniciar sesión para realizar esta acción." });
+        return;
+    }
     
-    let fileUrl = values.fileUrl || '';
+    let finalFileUrl = values.fileUrl || '';
 
+    // Prioritize file upload if a file is selected
     if (uploadType === 'file' && values.pdfFile) {
+        setUploadProgress(0); // Start progress bar
         try {
             const downloadURL = await uploadFile(
                 values.pdfFile,
                 (progress) => setUploadProgress(progress),
                 user.uid
             );
-            fileUrl = downloadURL;
+            finalFileUrl = downloadURL;
         } catch (error) {
             toast({
                 variant: "destructive",
                 title: "Error al subir archivo",
-                description: "No se pudo subir el archivo PDF. Inténtalo de nuevo.",
+                description: "No se pudo subir el archivo PDF. Revisa tu conexión y las reglas de Storage.",
             });
-            setUploadProgress(null);
-            return;
+            setUploadProgress(null); // Reset progress on error
+            return; // Stop execution if upload fails
         }
     }
-     setUploadProgress(null);
+     setUploadProgress(null); // Clear progress after successful upload
      
-    if (!fileUrl) {
+    // After potential upload, check if we have a URL to proceed
+    if (!finalFileUrl) {
         toast({
             variant: "destructive",
-            title: "Falta archivo",
+            title: "Falta archivo o URL",
             description: "Por favor, sube un archivo PDF o proporciona una URL válida.",
         });
-        return;
+        return; // Stop execution if no URL is available
     }
 
-
-    const data: Omit<DocumentType, 'id'> = {
+    const dataToSave = {
         title: values.title,
         author: values.author,
         year: values.year,
@@ -149,22 +155,22 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         subject: values.subject || '',
         version: values.version || '',
         thumbnailUrl: values.thumbnailUrl || '',
-        fileUrl: fileUrl,
-        folderId: folderIdFromParams || (document ? document.folderId : null),
+        fileUrl: finalFileUrl, // Use the final URL
+        folderId: folderIdFromParams || document?.folderId || null,
         lastUpdated: new Date().toISOString(),
         createdBy: document?.createdBy || user.uid,
     };
 
     if (document) {
       const docRef = doc(firestore, "documents", document.id);
-      setDocumentNonBlocking(docRef, data);
+      setDocumentNonBlocking(docRef, dataToSave);
       toast({
         title: "Documento Actualizado",
         description: "El documento ha sido actualizado exitosamente.",
       });
     } else {
       const collectionRef = collection(firestore, "documents");
-      addDocumentNonBlocking(collectionRef, data);
+      addDocumentNonBlocking(collectionRef, dataToSave);
       toast({
         title: "Documento Creado",
         description: "El nuevo documento ha sido añadido a la biblioteca.",
@@ -173,11 +179,12 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
     if (folderIdFromParams) {
       router.push(`/folders/${folderIdFromParams}`);
-    } else if (data.categoryId) {
-      router.push(`/category/${data.categoryId}`);
+    } else if (dataToSave.categoryId) {
+      router.push(`/category/${dataToSave.categoryId}`);
     } else {
       router.push('/my-documents');
     }
+    router.refresh();
   };
 
   const isFormDisabled = isSubmitting || uploadProgress !== null;
@@ -220,7 +227,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Año de Publicación</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} value={field.value || new Date().getFullYear()} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -337,6 +344,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <div className="md:col-span-2">
                     <Label>Progreso de Carga</Label>
                     <Progress value={uploadProgress} className="w-full mt-2" />
+                    <p className="text-sm text-muted-foreground mt-1 text-center">{Math.round(uploadProgress)}%</p>
                 </div>
             )}
             
@@ -389,6 +397,3 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
-
-
-    

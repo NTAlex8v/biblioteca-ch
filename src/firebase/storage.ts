@@ -2,9 +2,8 @@
 'use client';
 
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot } from "firebase/storage";
-import { initializeFirebase } from "./index"; // Asegúrate que esta importación sea correcta
+import { initializeFirebase } from "./index";
 
-// Obtiene la instancia de storage una sola vez
 const { storage } = initializeFirebase();
 
 /**
@@ -24,7 +23,6 @@ export const uploadFile = (
         return reject(new Error("Firebase Storage no está inicializado."));
     }
 
-    // Create a unique file path
     const filePath = `documents/${userId}/${Date.now()}-${file.name}`;
     const storageRef = ref(storage, filePath);
 
@@ -32,23 +30,18 @@ export const uploadFile = (
 
     uploadTask.on('state_changed',
       (snapshot: UploadTaskSnapshot) => {
-        // Observe state change events such as progress, pause, and resume
         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
         onProgress(progress);
       },
       (error) => {
-        // Handle unsuccessful uploads
         console.error("Fallo en la subida:", error);
         reject(error);
       },
       () => {
-        // Handle successful uploads on complete
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           resolve(downloadURL);
-        });
+        }).catch(reject);
       }
     );
   });
 };
-
-    
