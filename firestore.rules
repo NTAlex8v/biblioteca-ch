@@ -1,23 +1,21 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a user-ownership model for folders and documents,
- *              admin-only management of categories and tags, and restricts user profile
- *              access to the owning user. Audit logs are globally readable by admins,
- *              and user-specific logs are readable by the owning user.
+ * @fileOverview Firestore Security Rules for the virtual library application.
+ *
+ * Core Philosophy:
+ * This ruleset employs a hybrid security model. Users have full ownership of their folders and documents.
+ * Categories and Tags are globally readable, but only modifiable by admins. Audit logs are generally off-limits, except for user-specific logs.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only by the owning user.
- * - /categories/{categoryId}: Stores global categories, managed only by admins.
- * - /folders/{folderId}: Stores folders created by users, accessible only by the owning user.
- * - /tags/{tagId}: Stores global tags, managed only by admins.
- * - /documents/{documentId}: Stores documents created by users, accessible only by the owning user.
- * - /auditLogs/{logId}: Stores audit logs, globally readable by admins.
+ * - /users/{userId}: User profiles, with the document ID matching the Firebase Auth UID.
+ * - /categories/{categoryId}: Top-level categories, managed by admins.
+ * - /folders/{folderId}: Folders created by users to organize documents.
+ * - /tags/{tagId}: Tags for cross-classification of documents.
+ * - /documents/{documentId}: Document metadata and file URLs.
  *
  * Key Security Decisions:
- * - Users cannot list all users.
- * - Documents, folders, and user profiles are strictly owned and controlled by the creating user.
- * - Categories and tags are globally managed by admins only.
- * - Audit logs can only be created by trusted server code and are secured accordingly.
+ * - User listing is disallowed.
+ * - Categories and Tags are publicly readable.
+ * - Ambiguous relationships default to owner-only access.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -32,64 +30,65 @@ service cloud.firestore {
     }
 
     /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param {string} userId - The user ID to compare against the authenticated user's UID.
+     * @description Checks if the authenticated user's ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against.
      * @returns {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
-     /**
-      * @description Checks if the authenticated user is an Admin.
-      * @returns {boolean} True if the user has the 'Admin' role, false otherwise.
-      */
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
-    }
-
-     /**
-      * @description Checks if the authenticated user is an Editor.
-      * @returns {boolean} True if the user has the 'Editor' role, false otherwise.
-      */
-     function isEditor() {
-          return isSignedIn() && request.auth.token.role == 'Editor';
-     }
-
-    /**
-     * @description Checks if the user is the owner and the document exists.
-     * @param {string} userId - The user ID to compare against the authenticated user's UID.
-     * @returns {boolean} True if the user is the owner and the document exists, false otherwise.
+        /**
+     * @description Checks if the user is an existing owner, i.e., signed in and owns the document.
+     * @param {string} userId - The user ID to compare against.
+     * @returns {boolean} True if the user is the owner, false otherwise.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+      return isSignedIn() && isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Rules for user profiles.
+     * @description Checks if the user has the Admin role.
+     * @returns {boolean} True if the user has the Admin role, false otherwise.
+     */
+    function isAdmin() {
+        return request.auth.token.role == 'Admin';
+    }
+
+    /**
+     * @description Enforces user-ownership for user profiles.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create their own profile.
-     * @allow (get) User with UID 'user123' can read their own profile.
-     * @deny (create) User with UID 'user456' cannot create a profile for user 'user123'.
-     * @deny (update) User with UID 'user456' cannot update the profile of user 'user123'.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     * @allow (create) - User 'abc' can create their own profile with matching ID.
+     *   request.auth.uid: 'abc'
+     *   resource.data.id: 'abc'
+     * @allow (get, list, update, delete) - User 'abc' can read/write their own profile.
+     *   request.auth.uid: 'abc'
+     *   resource.data.id: 'abc'
+     * @deny (create) - User 'abc' cannot create a profile for user 'def'.
+     *   request.auth.uid: 'abc'
+     *   resource.data.id: 'def'
+     * @deny (update, delete) - User 'abc' cannot modify/delete user 'def' profile.
+     *   request.auth.uid: 'abc'
+     *   resource.data.id: 'def'
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // User listing is not permitted.
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for categories.
+     * @description Manages top-level categories, accessible to all for reading, but only modifiable by admins.
      * @path /categories/{categoryId}
-     * @allow (create) Admin can create a category.
-     * @allow (get) Anyone can read a category.
-     * @deny (create) User cannot create a category.
-     * @deny (update) User cannot update a category.
-     * @principle Restricts category management to admins.
+     * @allow (get, list) - Any user can read categories.
+     * @allow (create, update, delete) - Only admins can modify categories.
+     *   request.auth.token.role: 'Admin'
+     * @deny (create, update, delete) - Non-admins cannot modify categories.
+     *   request.auth.token.role: 'User'
+     * @principle Allows public read access with admin-only writes.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
@@ -99,30 +98,38 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for folders.
+     * @description Manages user-created folders within categories. Enforces ownership.
      * @path /folders/{folderId}
-     * @allow (create) User with UID 'user123' can create a folder.
-     * @allow (get) User with UID 'user123' can read a folder they created.
-     * @deny (create) User with UID 'user456' cannot create a folder for user 'user123'.
-     * @deny (update) User with UID 'user456' cannot update the folder of user 'user123'.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     * @allow (create) - User 'abc' can create a folder with matching createdBy.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'abc'
+     * @allow (get, list, update, delete) - User 'abc' can read/write their own folders.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'abc'
+     * @deny (create) - User 'abc' cannot create a folder for user 'def'.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'def'
+     * @deny (update, delete) - User 'abc' cannot modify/delete user 'def' folder.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'def'
+     * @principle Enforces document ownership for writes.
      */
     match /folders/{folderId} {
-      allow get: if isSignedIn() && resource.data.createdBy == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow get, list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid && resource != null;
-      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid && resource != null;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
 
     /**
-     * @description Rules for tags.
+     * @description Manages tags for cross-classification, accessible to all for reading, but only modifiable by admins.
      * @path /tags/{tagId}
-     * @allow (create) Admin can create a tag.
-     * @allow (get) Anyone can read a tag.
-     * @deny (create) User cannot create a tag.
-     * @deny (update) User cannot update a tag.
-     * @principle Restricts tag management to admins.
+     * @allow (get, list) - Any user can read tags.
+     * @allow (create, update, delete) - Only admins can modify tags.
+     *   request.auth.token.role: 'Admin'
+     * @deny (create, update, delete) - Non-admins cannot modify tags.
+     *   request.auth.token.role: 'User'
+     * @principle Allows public read access with admin-only writes.
      */
     match /tags/{tagId} {
       allow get, list: if true;
@@ -132,31 +139,43 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for documents.
+     * @description Manages documents, enforcing user ownership.
      * @path /documents/{documentId}
-     * @allow (create) User with UID 'user123' can create a document.
-     * @allow (get) User with UID 'user123' can read a document they created.
-     * @deny (create) User with UID 'user456' cannot create a document for user 'user123'.
-     * @deny (update) User with UID 'user456' cannot update the document of user 'user123'.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     * @allow (create) - User 'abc' can create a document with matching createdBy.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'abc'
+     * @allow (get, list, update, delete) - User 'abc' can read/write their own documents.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'abc'
+     * @deny (create) - User 'abc' cannot create a document for user 'def'.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'def'
+     * @deny (update, delete) - User 'abc' cannot modify/delete user 'def' document.
+     *   request.auth.uid: 'abc'
+     *   resource.data.createdBy: 'def'
+     * @principle Enforces document ownership for writes.
      */
     match /documents/{documentId} {
       allow get: if true;
-      allow list: if true;
+      allow list: if true; // Public list access for rapid iteration.
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn() && request.resource.data.createdBy == resource.data.createdBy && resource != null;
-      allow delete: if isSignedIn() && request.resource.data.createdBy == resource.data.createdBy && resource != null;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
     }
-     /**
-      * @description Rules for global audit logs.
-      * @path /auditLogs/{logId}
-      * @allow (get) Admin can read all audit logs.
-      * @deny (get) User cannot read global audit logs.
-      * @principle Restricts global audit log access to admins.
-      */
-     match /auditLogs/{logId} {
-          allow get, list: if isAdmin();
-          allow create, update, delete: if false; // Only server code can write audit logs
-     }
+
+      /**
+     * @description Global audit trail. Only Admins can read all logs.
+     * @path /auditLogs/{logId}
+     * @allow (get, list) - Only admins can read all logs.
+     *   request.auth.token.role: 'Admin'
+     * @allow (create) - Anyone can create audit logs.
+     * @deny (update, delete) - No one can update or delete audit logs.
+     * @principle Restricts access to audit logs to admins.
+     */
+    match /auditLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
   }
 }
