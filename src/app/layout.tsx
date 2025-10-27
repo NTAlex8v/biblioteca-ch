@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
 import SideNav from '@/components/side-nav';
 import Header from '@/components/header';
 import { Providers } from '@/components/providers';
@@ -35,7 +34,6 @@ export default function RootLayout({
               <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
             </div>
           </div>
-          <Toaster />
         </Providers>
       </body>
     </html>
