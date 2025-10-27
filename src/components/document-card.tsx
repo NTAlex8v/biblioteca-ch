@@ -4,8 +4,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import type { Document, Tag } from '@/lib/types';
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection, doc, deleteDoc } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -61,12 +61,21 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     e.preventDefault();
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
-    deleteDocumentNonBlocking(docRef);
-    toast({
-      variant: "destructive",
-      title: 'Documento eliminado',
-      description: 'El documento ha sido eliminado permanentemente.',
-    });
+    deleteDoc(docRef)
+      .then(() => {
+        toast({
+          variant: "destructive",
+          title: 'Documento eliminado',
+          description: 'El documento ha sido eliminado permanentemente.',
+        });
+      })
+      .catch(() => {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   return (

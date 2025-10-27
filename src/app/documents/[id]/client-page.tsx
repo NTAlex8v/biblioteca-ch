@@ -9,8 +9,8 @@ import Link from 'next/link';
 import type { Document as DocumentType, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import {
@@ -53,13 +53,23 @@ export default function DocumentDetailClient({ document, categoryName, documentT
   const handleDelete = () => {
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
-    deleteDocumentNonBlocking(docRef);
-    toast({
-      variant: "destructive",
-      title: 'Documento eliminado',
-      description: 'El documento ha sido eliminado permanentemente.',
-    });
-    router.push('/');
+    
+    deleteDoc(docRef)
+      .then(() => {
+        toast({
+          variant: "destructive",
+          title: 'Documento eliminado',
+          description: 'El documento ha sido eliminado permanentemente.',
+        });
+        router.push('/');
+      })
+      .catch(() => {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   return (
