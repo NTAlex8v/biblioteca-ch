@@ -72,6 +72,8 @@ export default function DocumentDetailClient({ document, categoryName, documentT
       });
   };
 
+  const pdfViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(document.fileUrl)}&embedded=true`;
+
   return (
     <>
       <div className="container mx-auto max-w-5xl">
@@ -172,7 +174,7 @@ export default function DocumentDetailClient({ document, categoryName, documentT
                   <CardContent className="p-2">
                     <div className="relative w-full aspect-[4/5]">
                        <iframe
-                        src={document.fileUrl}
+                        src={pdfViewerUrl}
                         title={`PDF Viewer for ${document.title}`}
                         className="w-full h-full"
                         style={{ border: 'none' }}
