@@ -2,8 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection, query, where, doc, deleteDoc, getDocs } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,8 +49,22 @@ function FolderCard({ folder }: { folder: Folder }) {
     const { data: userData } = useDoc<AppUser>(userDocRef);
     const isAdmin = userData?.role === 'Admin';
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (!firestore) return;
+
+        // Check for documents within the folder
+        const documentsQuery = query(collection(firestore, 'documents'), where('folderId', '==', folder.id));
+        const documentSnapshot = await getDocs(documentsQuery);
+
+        if (!documentSnapshot.empty) {
+            toast({
+                variant: "destructive",
+                title: 'No se puede eliminar la carpeta',
+                description: 'Primero debe eliminar todos los documentos dentro de la carpeta antes de poder eliminarla.',
+            });
+            return;
+        }
+        
         const docRef = doc(firestore, 'folders', folder.id);
 
         deleteDoc(docRef)
