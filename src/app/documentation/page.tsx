@@ -119,7 +119,13 @@ export default function DocumentationPage() {
                     <AccordionItem value="sub-item-4">
                         <AccordionTrigger className="text-sm">Búsqueda Mejorada con IA</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                            La sección de "Búsqueda Mejorada con IA" permite realizar consultas complejas. El sistema utiliza un modelo de lenguaje para analizar la consulta y, basándose en patrones de acceso y tendencias, ofrece resultados mejorados y recomendaciones de material relevante.
+                            <p className="mb-2">La búsqueda con IA va más allá de una simple coincidencia de palabras. El sistema utiliza un modelo de lenguaje avanzado que actúa como un asistente inteligente:</p>
+                            <ul className="list-disc pl-5 space-y-2">
+                                <li><strong>Análisis de Intención:</strong> La IA interpreta tu consulta para entender qué estás buscando realmente (documentos, carpetas o categorías).</li>
+                                <li><strong>Uso de Herramientas:</strong> El modelo tiene acceso a "herramientas" que le permiten buscar directamente en la base de datos de la biblioteca. Por ejemplo, si buscas "guías de pediatría", la IA usará su herramienta para buscar documentos y carpetas con esos términos.</li>
+                                <li><strong>Resultados Reales:</strong> A diferencia de un chatbot que genera texto, esta IA devuelve una lista de resultados reales y existentes en la biblioteca.</li>
+                                <li><strong>Presentación Unificada:</strong> Los resultados (ya sean documentos, carpetas o categorías) se presentan en una lista clara y unificada, con enlaces directos para que puedas acceder al contenido inmediatamente.</li>
+                            </ul>
                         </AccordionContent>
                     </AccordionItem>
                      <AccordionItem value="sub-item-5">
