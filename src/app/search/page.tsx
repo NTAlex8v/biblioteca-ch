@@ -1,16 +1,18 @@
 
-"use client";
+'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useActionState } from 'react';
+import { useActionState, Suspense } from 'react';
 import { useFormStatus } from 'react-dom';
-import { enhanceSearchWithAI, EnhanceSearchWithAIOutput } from '@/ai/flows/enhance-search-with-ai';
+import { intelligentSearch, IntelligentSearchOutput, IntelligentSearchInput } from '@/ai/flows/enhance-search-with-ai';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Search, Sparkles, Wand2 } from 'lucide-react';
-import React, { Suspense } from 'react';
+import { Loader2, Search, Sparkles, Wand2, FileText, Folder, Shapes } from 'lucide-react';
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -22,18 +24,90 @@ function SubmitButton() {
   );
 }
 
-async function formAction(prevState: any, formData: FormData): Promise<EnhanceSearchWithAIOutput | { error: string }> {
+async function formAction(prevState: any, formData: FormData): Promise<IntelligentSearchOutput | { error: string }> {
     const query = formData.get('query') as string;
     
-    // In a real app, these would be dynamically fetched
-    const userAccessPatterns = "User frequently accesses material on 'fisiopatología' and 'epidemiología'.";
-    const overallTrends = "Increased interest in 'salud pública' and 'virología' over the last 3 months.";
+    if (!query) {
+        return { results: [] };
+    }
 
     try {
-        return await enhanceSearchWithAI({ query, userAccessPatterns, overallTrends });
+        const response = await intelligentSearch({ query });
+        return response;
     } catch (e: any) {
+        console.error("AI Search Error:", e);
         return { error: e.message || "Ocurrió un error al contactar al servicio de IA." };
     }
+}
+
+function SearchResults({ state }: { state: IntelligentSearchOutput | { error: string } | null }) {
+    if (!state) return null;
+
+    if ('error' in state) {
+        return (
+             <Card className="border-destructive bg-destructive/10">
+                <CardHeader>
+                    <CardTitle className="text-destructive">Error</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p>{state.error}</p>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (!state.results || state.results.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>No se encontraron resultados</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">La IA no encontró documentos, carpetas o categorías que coincidan con tu búsqueda. Intenta con otros términos.</p>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    const resultTypeConfig = {
+        document: { icon: FileText, path: '/documents/', label: 'Documento' },
+        folder: { icon: Folder, path: '/folders/', label: 'Carpeta' },
+        category: { icon: Shapes, path: '/category/', label: 'Categoría' },
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="text-primary" />
+                Resultados de la Búsqueda
+              </CardTitle>
+              <CardDescription>Resultados encontrados por la IA en la base de datos.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col gap-4">
+                    {state.results.map((item, index) => {
+                        const config = resultTypeConfig[item.type];
+                        const Icon = config.icon;
+                        const href = `${config.path}${item.id}`;
+                        const title = item.type === 'document' ? (item as any).title : (item as any).name;
+
+                        return (
+                            <Link href={href} key={`${item.id}-${index}`} className="block p-4 rounded-lg border hover:bg-accent transition-colors">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Icon className="h-5 w-5 text-muted-foreground" />
+                                        <span className="font-medium">{title}</span>
+                                    </div>
+                                    <Badge variant="outline">{config.label}</Badge>
+                                </div>
+                            </Link>
+                        )
+                    })}
+                </div>
+            </CardContent>
+        </Card>
+    )
 }
 
 function SearchPageComponent() {
@@ -42,9 +116,6 @@ function SearchPageComponent() {
 
   const [state, action] = useActionState(formAction, null);
   
-  const results = state && 'enhancedResults' in state ? state : null;
-  const error = state && 'error' in state ? state.error : null;
-
   return (
     <>
       <Card className="mb-8">
@@ -68,50 +139,7 @@ function SearchPageComponent() {
         </CardContent>
       </Card>
 
-      {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{error}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {results && (
-        <div className="grid gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="text-accent" />
-                Resultados Mejorados
-              </CardTitle>
-              <CardDescription>Resultados optimizados basados en tu consulta y el contexto.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-                <p>{results.enhancedResults}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="text-accent" />
-                Material Recomendado
-              </CardTitle>
-              <CardDescription>Sugerencias basadas en tu búsqueda y tendencias actuales.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-                 <p>{results.recommendations}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <SearchResults state={state} />
     </>
   );
 }
