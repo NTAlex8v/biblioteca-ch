@@ -139,6 +139,17 @@ function FolderCard({ folder }: { folder: Folder }) {
 export default function FolderClientPage({ folderId }: FolderClientPageProps) {
   const firestore = useFirestore();
   const router = useRouter();
+  const { user } = useUser();
+  const { toast } = useToast();
+
+  const handleActionClick = () => {
+    toast({
+        variant: "destructive",
+        title: "Acción requerida",
+        description: "Debes iniciar sesión para realizar esta acción.",
+    });
+    router.push('/login');
+  };
 
   const folderDocRef = useMemoFirebase(() => {
     if (!firestore || !folderId) return null;
@@ -219,18 +230,33 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
             </h1>
         </div>
         <div className="flex gap-2">
-            <Button asChild>
-                <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nueva Carpeta
-                </Link>
-            </Button>
-            <Button asChild variant="secondary">
-                <Link href={`/my-documents/new?categoryId=${folder.categoryId}&folderId=${folder.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nuevo Documento
-                </Link>
-            </Button>
+             {user ? (
+                <>
+                    <Button asChild>
+                        <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Nueva Carpeta
+                        </Link>
+                    </Button>
+                    <Button asChild variant="secondary">
+                        <Link href={`/my-documents/new?categoryId=${folder.categoryId}&folderId=${folder.id}`}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Nuevo Documento
+                        </Link>
+                    </Button>
+                </>
+             ) : (
+                <>
+                    <Button onClick={handleActionClick}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nueva Carpeta
+                    </Button>
+                    <Button onClick={handleActionClick} variant="secondary">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nuevo Documento
+                    </Button>
+                </>
+             )}
         </div>
       </div>
       

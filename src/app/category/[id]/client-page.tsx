@@ -23,6 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 interface CategoryClientPageProps {
   category: Category;
@@ -130,6 +131,18 @@ function FolderCard({ folder }: { folder: Folder }) {
 
 export default function CategoryClientPage({ category }: CategoryClientPageProps) {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleActionClick = () => {
+    toast({
+        variant: "destructive",
+        title: "Acción requerida",
+        description: "Debes iniciar sesión para realizar esta acción.",
+    });
+    router.push('/login');
+  };
 
   const foldersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -160,18 +173,33 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
             <p className="text-muted-foreground">{category.description}</p>
         </div>
         <div className="flex gap-2">
-            <Button asChild>
-                <Link href={`/folders/new?categoryId=${category.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nueva Carpeta
-                </Link>
-            </Button>
-            <Button asChild variant="secondary">
-                <Link href={`/my-documents/new?categoryId=${category.id}`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Nuevo Documento
-                </Link>
-            </Button>
+            {user ? (
+                <>
+                    <Button asChild>
+                        <Link href={`/folders/new?categoryId=${category.id}`}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Nueva Carpeta
+                        </Link>
+                    </Button>
+                    <Button asChild variant="secondary">
+                        <Link href={`/my-documents/new?categoryId=${category.id}`}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Nuevo Documento
+                        </Link>
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <Button onClick={handleActionClick}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nueva Carpeta
+                    </Button>
+                    <Button onClick={handleActionClick} variant="secondary">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Nuevo Documento
+                    </Button>
+                </>
+            )}
         </div>
       </div>
       
