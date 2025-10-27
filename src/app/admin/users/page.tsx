@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import type { User as AppUser, AuditLog } from '@/lib/types';
@@ -8,7 +8,7 @@ import { MoreHorizontal, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, FirestorePermissionError } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -41,30 +41,21 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
       addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
     };
 
-    const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (!firestore || isSubmitting || currentUser?.uid === targetUser.id) return;
+    const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
+        if (!firestore || isSubmitting || !currentUser || currentUser?.uid === targetUser.id) return;
 
         setIsSubmitting(true);
-        try {
-            const userDocRef = doc(firestore, 'users', targetUser.id);
-            // We only need to update the role in Firestore. The claims will be "simulated" on next login.
-            await setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
+        const userDocRef = doc(firestore, 'users', targetUser.id);
+        
+        setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
 
-            onRoleChange(targetUser.id, newRole);
-            logAction('role_change', targetUser.id, targetUser.name || targetUser.email, `Cambió el rol de ${targetUser.name || targetUser.email} a ${newRole}.`);
-            toast({
-                title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
-            });
-        } catch (error: any) {
-            toast({
-                variant: "destructive",
-                title: "Error al cambiar rol",
-                description: error.message || 'No se pudo completar la acción.',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
+        onRoleChange(targetUser.id, newRole);
+        logAction('role_change', targetUser.id, targetUser.name || targetUser.email || 'N/A', `Cambió el rol de ${targetUser.name || targetUser.email} a ${newRole}.`);
+        toast({
+            title: "Rol Actualizado",
+            description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
+        });
+        setIsSubmitting(false);
     };
 
     const isCurrentUser = currentUser?.uid === targetUser.id;
@@ -149,6 +140,7 @@ export default function UsersAdminPage() {
   }
 
   const isLoading = isLoadingUsers || isLoadingClaims;
+  const isPermissionError = error instanceof FirestorePermissionError;
 
   return (
     <div className="container mx-auto">
@@ -173,11 +165,16 @@ export default function UsersAdminPage() {
                   <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
                 </TableRow>
               ))
-            ) : error ? (
+            ) : isPermissionError ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                  <p className='font-bold mb-2'>Error de Permisos</p>
-                  <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  <div className="text-destructive">
+                    <p className='font-bold mb-2'>Error de Permisos</p>
+                    <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
+                     <pre className="mt-4 text-left bg-muted/50 p-2 rounded-md text-xs overflow-auto">
+                      <code>{error.message}</code>
+                    </pre>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : users.length > 0 ? (
