@@ -97,7 +97,7 @@ export default function DocumentationPage() {
             <AccordionItem value="item-3">
               <AccordionTrigger>Funcionalidades Principales</AccordionTrigger>
               <AccordionContent>
-                <Accordion type="multiple" collapsible className="w-full">
+                <Accordion type="multiple" className="w-full">
                     <AccordionItem value="sub-item-1">
                         <AccordionTrigger className="text-sm">Gestión de Documentos</AccordionTrigger>
                         <AccordionContent className="pl-4">
