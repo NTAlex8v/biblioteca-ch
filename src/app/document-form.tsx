@@ -10,13 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category } from "@/lib/types";
 import { Loader2 } from "lucide-react";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { uploadFile } from "@/firebase/storage";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 const documentSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
@@ -41,6 +46,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const [uploadType] = useState<'url' | 'pdf'>('url');
 
   const categoryIdFromParams = searchParams.get('categoryId');
   const folderIdFromParams = searchParams.get('folderId');
@@ -56,7 +62,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
       year: new Date().getFullYear(),
       description: "",
       fileUrl: "",
-      categoryId: categoryIdFromParams || "",
+      categoryId: "",
       thumbnailUrl: "",
       subject: "",
       version: "1.0",
@@ -66,21 +72,18 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const { formState: { isSubmitting }, reset } = form;
 
   useEffect(() => {
-    if (document) {
-      reset({
-        title: document.title || "",
-        author: document.author || "",
-        year: document.year || new Date().getFullYear(),
-        description: document.description || "",
-        fileUrl: document.fileUrl || "",
-        categoryId: document.categoryId || "",
-        thumbnailUrl: document.thumbnailUrl || "",
-        subject: document.subject || "",
-        version: document.version || "1.0",
-      });
-    } else if (categoryIdFromParams) {
-        reset(vals => ({...vals, categoryId: categoryIdFromParams}))
-    }
+        const initialValues = {
+            title: document?.title || "",
+            author: document?.author || "",
+            year: document?.year || new Date().getFullYear(),
+            description: document?.description || "",
+            fileUrl: document?.fileUrl || "",
+            categoryId: document?.categoryId || categoryIdFromParams || "",
+            thumbnailUrl: document?.thumbnailUrl || "",
+            subject: document?.subject || "",
+            version: document?.version || "1.0",
+        };
+        reset(initialValues);
   }, [document, categoryIdFromParams, reset]);
 
 
@@ -227,22 +230,52 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
             />
             
             <div className="md:col-span-2">
-               <FormField
-                control={form.control}
-                name="fileUrl"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>URL del Archivo (PDF)</FormLabel>
-                    <FormControl>
-                        <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
-                    </FormControl>
-                     <FormDescription>
-                        Pega el enlace a un archivo PDF.
-                    </FormDescription>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+                <div className="flex border-b mb-4">
+                    <button
+                        type="button"
+                        className={cn(
+                            "px-4 py-2 text-sm font-medium",
+                            uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'
+                        )}
+                    >
+                        Usar URL
+                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <button
+                                  type="button"
+                                  disabled
+                                  className="px-4 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed"
+                              >
+                                  Subir Archivo PDF
+                              </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                              <p>Función temporalmente deshabilitada.</p>
+                          </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                </div>
+
+                <div className={cn(uploadType === 'url' ? 'block' : 'hidden')}>
+                    <FormField
+                    control={form.control}
+                    name="fileUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>URL del Archivo (PDF)</FormLabel>
+                        <FormControl>
+                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                        </FormControl>
+                        <FormDescription>
+                            Pega el enlace a un archivo PDF.
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
             </div>
             
             <FormField
@@ -294,3 +327,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
+    
