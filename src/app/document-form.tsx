@@ -63,6 +63,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     defaultValues: document ? {
         ...document,
         year: document.year || new Date().getFullYear(),
+        fileUrl: document.fileUrl || '',
     } : {
       title: "",
       author: "",
@@ -80,11 +81,12 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const handleUploadTypeChange = (type: 'file' | 'url') => {
     setUploadType(type);
-    // Clear the other field to prevent validation errors and accidental data
     if (type === 'file') {
       setValue('fileUrl', '');
+      setValue('pdfFile', undefined);
     } else {
       setValue('pdfFile', undefined);
+      setValue('fileUrl', '');
     }
     clearErrors(['fileUrl', 'pdfFile']);
   };
@@ -373,3 +375,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
+    
