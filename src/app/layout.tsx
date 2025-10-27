@@ -6,8 +6,8 @@ import Header from '@/components/header';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
-  title: 'BiblioteCH',
-  description: 'Biblioteca virtual BiblioteCH',
+  title: 'CMI Tahuantinsuyo Bajo',
+  description: 'Biblioteca virtual CMI Tahuantinsuyo Bajo',
   icons: {
     icon: '/images/libro_bibliotech.png',
   },

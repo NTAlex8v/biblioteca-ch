@@ -48,7 +48,7 @@ const SideNav = () => {
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
           <Book className="h-7 w-7 text-primary" />
-          <span className="text-lg font-semibold">BiblioteCH</span>
+          <span className="text-lg font-semibold">CMI Tahuantinsuyo Bajo</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -145,7 +145,7 @@ const SideNav = () => {
       </SidebarContent>
       <SidebarFooter>
         <div className="text-xs text-muted-foreground p-2 text-center group-data-[collapsible=icon]:hidden">
-            © 2024 BiblioteCH
+            © 2024 CMI Tahuantinsuyo Bajo
         </div>
       </SidebarFooter>
     </Sidebar>
