@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { initializeFirebase } from '@/firebase/server-initialization';
-import { collection, getDocs, query, where, or } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder } from '@/lib/types';
 
 
@@ -48,17 +48,44 @@ export type IntelligentSearchOutput = z.infer<typeof IntelligentSearchOutputSche
 // Firestore search functions
 const searchDocuments = async (searchQuery: string): Promise<DocumentType[]> => {
     const { firestore } = initializeFirebase();
-    const q = query(
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    
+    const titleQuery = query(
         collection(firestore, 'documents'),
-        or(
-            where('title', '>=', searchQuery), where('title', '<=', searchQuery + '\uf8ff'),
-            where('description', '>=', searchQuery), where('description', '<=', searchQuery + '\uf8ff'),
-            where('author', '>=', searchQuery), where('author', '<=', searchQuery + '\uf8ff')
-        )
+        where('title', '>=', searchQuery), where('title', '<=', searchQuery + '\uf8ff')
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DocumentType));
+    const descriptionQuery = query(
+        collection(firestore, 'documents'),
+        where('description', '>=', searchQuery), where('description', '<=', searchQuery + '\uf8ff')
+    );
+    const authorQuery = query(
+        collection(firestore, 'documents'),
+        where('author', '>=', searchQuery), where('author', '<=', searchQuery + '\uf8ff')
+    );
+
+    const [titleSnapshot, descriptionSnapshot, authorSnapshot] = await Promise.all([
+        getDocs(titleQuery),
+        getDocs(descriptionQuery),
+        getDocs(authorQuery)
+    ]);
+
+    const resultsMap = new Map<string, DocumentType>();
+
+    const processSnapshot = (snapshot: any) => {
+        snapshot.docs.forEach((doc: any) => {
+            if (!resultsMap.has(doc.id)) {
+                resultsMap.set(doc.id, { id: doc.id, ...doc.data() } as DocumentType);
+            }
+        });
+    };
+
+    processSnapshot(titleSnapshot);
+    processSnapshot(descriptionSnapshot);
+    processSnapshot(authorSnapshot);
+    
+    return Array.from(resultsMap.values());
 };
+
 
 const searchFolders = async (searchQuery: string): Promise<Folder[]> => {
     const { firestore } = initializeFirebase();
