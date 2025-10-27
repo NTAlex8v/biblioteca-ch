@@ -7,7 +7,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage';
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
+// IMPORTANTE: NO MODIFICAR ESTA FUNCIÓN
 export function initializeFirebase() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const auth = getAuth(app);

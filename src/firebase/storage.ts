@@ -2,8 +2,9 @@
 'use client';
 
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot } from "firebase/storage";
-import { initializeFirebase } from ".";
+import { initializeFirebase } from "./index"; // Asegúrate que esta importación sea correcta
 
+// Obtiene la instancia de storage una sola vez
 const { storage } = initializeFirebase();
 
 /**
@@ -20,7 +21,7 @@ export const uploadFile = (
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (!storage) {
-        return reject(new Error("Firebase Storage is not initialized."));
+        return reject(new Error("Firebase Storage no está inicializado."));
     }
 
     // Create a unique file path
@@ -37,7 +38,7 @@ export const uploadFile = (
       },
       (error) => {
         // Handle unsuccessful uploads
-        console.error("Upload failed:", error);
+        console.error("Fallo en la subida:", error);
         reject(error);
       },
       () => {
