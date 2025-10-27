@@ -21,7 +21,8 @@ import {
   Users,
   LayoutDashboard,
   FolderKanban,
-  History
+  History,
+  FileText,
 } from "lucide-react";
 import { useCollection, useFirestore, useUserClaims, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
@@ -64,6 +65,14 @@ const SideNav = () => {
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+              <Link href="/documentation">
+                <SidebarMenuButton isActive={isActive("/documentation")} tooltip="Documentación">
+                  <FileText />
+                  <span>Documentación</span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
 
           {isUserLoggedIn && (
             <>
