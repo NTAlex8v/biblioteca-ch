@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,9 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUserClaims, useUser } from '@/firebase';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
+import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
+import { collection, doc } from 'firebase/firestore';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -18,59 +19,21 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
   User: 'secondary',
 };
 
-async function fetchUsersFromApi(idToken: string): Promise<AppUser[]> {
-  const res = await fetch("/api/admin/users", {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${idToken}`,
-    },
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(errorData.error || 'No tienes permiso para ver los usuarios.');
-    }
-    throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  return data.users;
-}
-
-async function updateUserRole(idToken: string, uid: string, role: string) {
-    const res = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ uid, role }),
-    });
-
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'No se pudo actualizar el rol del usuario.');
-    }
-
-    return await res.json();
-}
-
-
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
     const { user: currentUser } = useUser();
-    const auth = useAuth();
+    const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (!auth?.currentUser || isSubmitting || currentUser?.uid === targetUser.id) return;
+        if (!firestore || isSubmitting || currentUser?.uid === targetUser.id) return;
 
         setIsSubmitting(true);
         try {
-            const idToken = await auth.currentUser.getIdToken(true);
-            await updateUserRole(idToken, targetUser.id, newRole);
+            const userDocRef = doc(firestore, 'users', targetUser.id);
+            // We only need to update the role in Firestore. The custom claim will be updated on next login.
+            await setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
+
             onRoleChange(targetUser.id, newRole);
             toast({
                 title: "Rol Actualizado",
@@ -115,34 +78,26 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
 
 export default function UsersAdminPage() {
   const { claims, isLoadingClaims } = useUserClaims();
-  const auth = useAuth();
+  const firestore = useFirestore();
   const isAdmin = claims?.role === 'Admin';
   
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const usersQuery = useMemoFirebase(() => {
+    // Only create the query if the user is an admin and firestore is available
+    if (isAdmin && firestore) {
+      return collection(firestore, 'users');
+    }
+    return null; // Return null if not admin or firestore is not ready
+  }, [isAdmin, firestore]);
 
-  useEffect(() => {
-    const loadUsers = async () => {
-      if (isAdmin && auth?.currentUser) {
-        setIsLoadingUsers(true);
-        setError(null);
-        try {
-          const idToken = await auth.currentUser.getIdToken(true);
-          const fetchedUsers = await fetchUsersFromApi(idToken);
-          setUsers(fetchedUsers);
-        } catch (e: any) {
-          setError(e);
-          console.error("Error fetching users:", e);
-        } finally {
-          setIsLoadingUsers(false);
-        }
-      } else if (!isLoadingClaims) {
-        setIsLoadingUsers(false);
-      }
-    };
-    loadUsers();
-  }, [isAdmin, auth, isLoadingClaims]);
+  const { data: usersData, isLoading: isLoadingUsers, error } = useCollection<AppUser>(usersQuery);
+  const [users, setUsers] = useState<AppUser[]>([]);
+
+  React.useEffect(() => {
+    if (usersData) {
+        setUsers(usersData);
+    }
+  }, [usersData]);
+
 
   const handleRoleChange = (uid: string, newRole: string) => {
     setUsers(currentUsers => 
