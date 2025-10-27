@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useSearchParams } from 'next/navigation';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react';
 import { enhanceSearchWithAI, EnhanceSearchWithAIOutput } from '@/ai/flows/enhance-search-with-ai';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +39,7 @@ function SearchPageComponent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
 
-  const [state, action] = useFormState(formAction, null);
+  const [state, action] = useActionState(formAction, null);
   
   const results = state && 'enhancedResults' in state ? state : null;
   const error = state && 'error' in state ? state.error : null;
