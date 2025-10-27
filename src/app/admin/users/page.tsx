@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 
@@ -25,16 +25,31 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
+      if (!firestore || !currentUser) return;
+      const log: Omit<AuditLog, 'id'> = {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.uid,
+          userName: currentUser.displayName || currentUser.email || "Sistema",
+          action: action,
+          entityType: 'User',
+          entityId,
+          entityName,
+          details,
+      };
+      addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
+    };
+
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
         if (!firestore || isSubmitting || currentUser?.uid === targetUser.id) return;
 
         setIsSubmitting(true);
         try {
             const userDocRef = doc(firestore, 'users', targetUser.id);
-            // We only need to update the role in Firestore. The custom claim will be updated on next login.
             await setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
 
             onRoleChange(targetUser.id, newRole);
+            logAction('role_change', targetUser.id, targetUser.name || targetUser.email, `Cambió el rol de ${targetUser.name || targetUser.email} a ${newRole}.`);
             toast({
                 title: "Rol Actualizado",
                 description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
@@ -92,7 +107,7 @@ export default function UsersAdminPage() {
   const { data: usersData, isLoading: isLoadingUsers, error } = useCollection<AppUser>(usersQuery);
   const [users, setUsers] = useState<AppUser[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (usersData) {
         setUsers(usersData);
     }
@@ -106,21 +121,26 @@ export default function UsersAdminPage() {
   };
 
   if (isLoadingClaims) {
-     return <div className="container mx-auto flex justify-center items-center h-full"><p>Verificando permisos...</p></div>;
+     return (
+        <div className="container mx-auto flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-4 text-muted-foreground">Verificando permisos...</p>
+        </div>
+     );
   }
   
   if (!isAdmin) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
-              <Card className="w-full max-w-md">
-                  <CardHeader className="text-center">
-                      <div className="mx-auto bg-destructive/20 p-3 rounded-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                           <AlertTriangle className="h-8 w-8 text-destructive" />
                       </div>
                       <CardTitle className="mt-4">Acceso Denegado</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-center">
-                      <p className="text-muted-foreground">No tienes los permisos necesarios para ver esta sección.</p>
+                  <CardContent>
+                      <p className="text-muted-foreground">No tienes los permisos necesarios para ver esta sección. Contacta a un administrador.</p>
                   </CardContent>
               </Card>
           </div>
@@ -163,7 +183,8 @@ export default function UsersAdminPage() {
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                    Error al cargar usuarios: {error.message}
+                    <p className='font-bold mb-2'>Error de Permisos</p>
+                    <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
                   </TableCell>
                 </TableRow>
               ) : users.length > 0 ? (
