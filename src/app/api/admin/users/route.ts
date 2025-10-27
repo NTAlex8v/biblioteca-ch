@@ -4,26 +4,19 @@ import type { UserRecord } from 'firebase-admin/auth';
 import type { User as AppUser } from '@/lib/types';
 import serviceAccount from '@/../firebase-service-account.json';
 
-// Helper function to initialize Firebase Admin SDK
+// Helper to initialize Firebase Admin SDK, ensuring it's done only once.
 function initializeAdminApp() {
-    // Check if the app is already initialized to prevent errors
-    if (admin.apps.length === 0) {
-        try {
-            // The service account JSON needs to be structured correctly for initialization
-            const credential = {
-                projectId: serviceAccount.project_id,
-                clientEmail: serviceAccount.client_email,
-                privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'),
-            };
-
-            admin.initializeApp({
-                credential: admin.credential.cert(credential),
-            });
-        } catch (error: any) {
-            console.error('Firebase Admin SDK initialization error:', error);
-            // This error will be caught by the calling function
-            throw new Error(`Firebase Admin SDK initialization error: ${error.message}`);
-        }
+    if (admin.apps.length > 0) {
+        return admin;
+    }
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+        });
+    } catch (error: any) {
+        console.error('Firebase Admin SDK initialization error:', error);
+        // Throw an error that can be caught in the handlers
+        throw new Error('Admin SDK initialization failed');
     }
     return admin;
 }
@@ -36,9 +29,12 @@ async function verifyAdmin(request: Request): Promise<admin.auth.DecodedIdToken>
         throw new Error('Unauthorized');
     }
     const idToken = authorization.split('Bearer ')[1];
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
     
-    // The role is verified from the simulated claim sent by the client
+    // Initialize admin app if not already
+    const adminApp = initializeAdminApp();
+    const decodedToken = await adminApp.auth().verifyIdToken(idToken);
+    
+    // The role is verified from the claim, which is simulated on the client
     if (decodedToken.role !== 'Admin') {
         throw new Error('Forbidden');
     }
@@ -48,14 +44,14 @@ async function verifyAdmin(request: Request): Promise<admin.auth.DecodedIdToken>
 // GET handler to list all users
 export async function GET(request: Request) {
     try {
-        initializeAdminApp();
+        const adminApp = initializeAdminApp();
         await verifyAdmin(request);
         
-        const listUsersResult = await admin.auth().listUsers();
+        const listUsersResult = await adminApp.auth().listUsers();
         const allUsers: UserRecord[] = listUsersResult.users;
 
         // Fetch corresponding user documents from Firestore to get the role
-        const firestore = admin.firestore();
+        const firestore = adminApp.firestore();
         const userDocsPromises = allUsers.map(user => 
             firestore.collection('users').doc(user.uid).get()
         );
@@ -90,7 +86,7 @@ export async function GET(request: Request) {
 // POST handler to update a user's role
 export async function POST(request: Request) {
     try {
-        initializeAdminApp();
+        const adminApp = initializeAdminApp();
         await verifyAdmin(request);
         const { uid, role } = await request.json();
 
@@ -98,14 +94,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Faltan los parámetros uid o role.' }, { status: 400 });
         }
         
-        // Firestore is the source of truth for the role in this app's logic
-        const firestore = admin.firestore();
+        const firestore = adminApp.firestore();
         await firestore.collection('users').doc(uid).set({ role: role }, { merge: true });
 
         // IMPORTANT: In a real production app, you would set custom claims here like this:
         // await admin.auth().setCustomUserClaims(uid, { role: role });
         // This makes the role available in Security Rules and on the ID token.
-        // For this project, we rely on reading from Firestore on the client as a simulation.
 
         return NextResponse.json({ success: true, message: `Rol de usuario actualizado a ${role}.` });
 
