@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { initializeFirebase } from '@/firebase/server-initialization';
-import { collection, getDocs, query, where, or_ } from 'firebase/firestore';
+import { collection, getDocs, query, where, or } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder } from '@/lib/types';
 
 
@@ -50,7 +50,7 @@ const searchDocuments = async (searchQuery: string): Promise<DocumentType[]> => 
     const { firestore } = initializeFirebase();
     const q = query(
         collection(firestore, 'documents'),
-        or_(
+        or(
             where('title', '>=', searchQuery), where('title', '<=', searchQuery + '\uf8ff'),
             where('description', '>=', searchQuery), where('description', '<=', searchQuery + '\uf8ff'),
             where('author', '>=', searchQuery), where('author', '<=', searchQuery + '\uf8ff')
