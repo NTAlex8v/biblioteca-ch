@@ -14,27 +14,20 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Document as DocumentType, Category, Tag } from "@/lib/types";
-import { Loader2, UploadCloud, Link as LinkIcon } from "lucide-react";
-import { Suspense, useState, useEffect } from "react";
-import { uploadFile } from "@/firebase/storage";
-import { Progress } from "@/components/ui/progress";
-import { Label } from "@/components/ui/label";
+import type { Document as DocumentType, Category } from "@/lib/types";
+import { Loader2 } from "lucide-react";
+import { Suspense, useEffect } from "react";
 
 const documentSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
   author: z.string().min(3, "El autor debe tener al menos 3 caracteres."),
   year: z.coerce.number().min(1900, "El año debe ser válido.").max(new Date().getFullYear(), "El año no puede ser en el futuro."),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
-  fileUrl: z.string().optional(),
-  pdfFile: z.instanceof(File).optional(),
+  fileUrl: z.string().url("Debe proporcionar una URL válida para el archivo PDF."),
   categoryId: z.string({ required_error: "Debes seleccionar una categoría." }).min(1, "Debes seleccionar una categoría."),
   thumbnailUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
   subject: z.string().optional(),
   version: z.string().optional(),
-}).refine(data => data.fileUrl || data.pdfFile, {
-    message: "Debe proporcionar una URL o subir un archivo PDF.",
-    path: ["pdfFile"],
 });
 
 
@@ -48,9 +41,6 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
-  
-  const [uploadType, setUploadType] = useState<'file' | 'url'>(document?.fileUrl && !document.fileUrl.startsWith('https://firebasestorage.googleapis.com') ? 'url' : 'file');
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const categoryIdFromParams = searchParams.get('categoryId');
   const folderIdFromParams = searchParams.get('folderId');
@@ -61,50 +51,38 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {
-      title: document?.title || "",
-      author: document?.author || "",
-      year: document?.year || new Date().getFullYear(),
-      description: document?.description || "",
-      fileUrl: document?.fileUrl || "",
-      categoryId: document?.categoryId || categoryIdFromParams || "",
-      thumbnailUrl: document?.thumbnailUrl || "",
-      subject: document?.subject || "",
-      version: document?.version || "1.0",
-      pdfFile: undefined,
+      title: "",
+      author: "",
+      year: new Date().getFullYear(),
+      description: "",
+      fileUrl: "",
+      categoryId: categoryIdFromParams || "",
+      thumbnailUrl: "",
+      subject: "",
+      version: "1.0",
     },
   });
 
-  const { formState: { isSubmitting }, control, setValue, clearErrors, reset } = form;
+  const { formState: { isSubmitting }, reset } = form;
 
   useEffect(() => {
     if (document) {
       reset({
-        ...document,
-        title: document.title || '',
-        author: document.author || '',
+        title: document.title || "",
+        author: document.author || "",
         year: document.year || new Date().getFullYear(),
-        description: document.description || '',
-        fileUrl: document.fileUrl || '',
-        categoryId: document.categoryId || '',
-        thumbnailUrl: document.thumbnailUrl || '',
-        subject: document.subject || '',
-        version: document.version || '1.0',
-        pdfFile: undefined,
+        description: document.description || "",
+        fileUrl: document.fileUrl || "",
+        categoryId: document.categoryId || "",
+        thumbnailUrl: document.thumbnailUrl || "",
+        subject: document.subject || "",
+        version: document.version || "1.0",
       });
-       if(document.fileUrl && !document.fileUrl.startsWith('https://firebasestorage.googleapis.com')){
-        setUploadType('url');
-      } else {
-        setUploadType('file');
-      }
+    } else if (categoryIdFromParams) {
+        reset(vals => ({...vals, categoryId: categoryIdFromParams}))
     }
-  }, [document, reset]);
+  }, [document, categoryIdFromParams, reset]);
 
-  const handleUploadTypeChange = (type: 'file' | 'url') => {
-    setUploadType(type);
-    setValue('fileUrl', '');
-    setValue('pdfFile', undefined);
-    clearErrors(['fileUrl', 'pdfFile']);
-  };
 
   const onSubmit = async (values: z.infer<typeof documentSchema>) => {
     if (!firestore || !user) {
@@ -112,40 +90,6 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         return;
     }
     
-    let finalFileUrl = values.fileUrl || '';
-
-    // Prioritize file upload if a file is selected
-    if (uploadType === 'file' && values.pdfFile) {
-        setUploadProgress(0); // Start progress bar
-        try {
-            const downloadURL = await uploadFile(
-                values.pdfFile,
-                (progress) => setUploadProgress(progress),
-                user.uid
-            );
-            finalFileUrl = downloadURL;
-        } catch (error) {
-            toast({
-                variant: "destructive",
-                title: "Error al subir archivo",
-                description: "No se pudo subir el archivo PDF. Revisa tu conexión y las reglas de Storage.",
-            });
-            setUploadProgress(null); // Reset progress on error
-            return; // Stop execution if upload fails
-        }
-    }
-     setUploadProgress(null); // Clear progress after successful upload
-     
-    // After potential upload, check if we have a URL to proceed
-    if (!finalFileUrl) {
-        toast({
-            variant: "destructive",
-            title: "Falta archivo o URL",
-            description: "Por favor, sube un archivo PDF o proporciona una URL válida.",
-        });
-        return; // Stop execution if no URL is available
-    }
-
     const dataToSave = {
         title: values.title,
         author: values.author,
@@ -155,7 +99,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         subject: values.subject || '',
         version: values.version || '',
         thumbnailUrl: values.thumbnailUrl || '',
-        fileUrl: finalFileUrl, // Use the final URL
+        fileUrl: values.fileUrl,
         folderId: folderIdFromParams || document?.folderId || null,
         lastUpdated: new Date().toISOString(),
         createdBy: document?.createdBy || user.uid,
@@ -187,7 +131,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     router.refresh();
   };
 
-  const isFormDisabled = isSubmitting || uploadProgress !== null;
+  const isFormDisabled = isSubmitting;
 
   return (
     <Form {...form}>
@@ -195,7 +139,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         <Card>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
             <FormField
-              control={control}
+              control={form.control}
               name="title"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
@@ -208,7 +152,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             <FormField
-              control={control}
+              control={form.control}
               name="author"
               render={({ field }) => (
                 <FormItem>
@@ -221,7 +165,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
              <FormField
-              control={control}
+              control={form.control}
               name="year"
               render={({ field }) => (
                 <FormItem>
@@ -234,7 +178,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             <FormField
-              control={control}
+              control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
@@ -247,7 +191,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             <FormField
-              control={control}
+              control={form.control}
               name="categoryId"
               render={({ field }) => (
                 <FormItem>
@@ -269,7 +213,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             <FormField
-              control={control}
+              control={form.control}
               name="subject"
               render={({ field }) => (
                 <FormItem>
@@ -282,74 +226,27 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             
-            <div className="md:col-span-2 grid gap-4">
-                <div>
-                    <FormLabel>Fuente del Documento</FormLabel>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                        <Button type="button" variant={uploadType === 'file' ? 'default' : 'outline'} onClick={() => handleUploadTypeChange('file')} disabled={isFormDisabled}>
-                            <UploadCloud className="mr-2"/>
-                            Subir Archivo
-                        </Button>
-                        <Button type="button" variant={uploadType === 'url' ? 'default' : 'outline'} onClick={() => handleUploadTypeChange('url')} disabled={isFormDisabled}>
-                            <LinkIcon className="mr-2"/>
-                            Usar URL
-                        </Button>
-                    </div>
-                </div>
-
-                {uploadType === 'file' ? (
-                     <FormField
-                        control={control}
-                        name="pdfFile"
-                        render={({ field: { onChange, value, ...rest } }) => (
-                            <FormItem>
-                                <FormLabel>Archivo PDF</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={(e) => onChange(e.target.files?.[0])}
-                                        {...rest}
-                                        disabled={isFormDisabled}
-                                    />
-                                </FormControl>
-                                <FormDescription>
-                                    Selecciona un archivo PDF para subir.
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                ) : (
-                    <FormField
-                    control={control}
-                    name="fileUrl"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>URL del Archivo (PDF)</FormLabel>
-                        <FormControl>
-                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
-                        </FormControl>
-                         <FormDescription>
-                            Pega el enlace a un archivo PDF.
-                        </FormDescription>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+            <div className="md:col-span-2">
+               <FormField
+                control={form.control}
+                name="fileUrl"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>URL del Archivo (PDF)</FormLabel>
+                    <FormControl>
+                        <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    </FormControl>
+                     <FormDescription>
+                        Pega el enlace a un archivo PDF.
+                    </FormDescription>
+                    <FormMessage />
+                    </FormItem>
                 )}
+                />
             </div>
             
-            {uploadProgress !== null && (
-                <div className="md:col-span-2">
-                    <Label>Progreso de Carga</Label>
-                    <Progress value={uploadProgress} className="w-full mt-2" />
-                    <p className="text-sm text-muted-foreground mt-1 text-center">{Math.round(uploadProgress)}%</p>
-                </div>
-            )}
-            
             <FormField
-              control={control}
+              control={form.control}
               name="thumbnailUrl"
               render={({ field }) => (
                 <FormItem>
@@ -362,7 +259,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               )}
             />
             <FormField
-              control={control}
+              control={form.control}
               name="version"
               render={({ field }) => (
                 <FormItem>
@@ -380,8 +277,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               Cancelar
             </Button>
             <Button type="submit" disabled={isFormDisabled}>
-                {isSubmitting || uploadProgress !== null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {uploadProgress !== null ? 'Subiendo...' : (document ? "Guardar Cambios" : "Crear Documento")}
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {document ? "Guardar Cambios" : "Crear Documento"}
             </Button>
           </CardFooter>
         </Card>
