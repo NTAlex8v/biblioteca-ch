@@ -49,8 +49,9 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     return allTags.filter(tag => document.tagIds?.includes(tag.id));
   }, [document, allTags]);
 
-  const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
-  const thumbnailUrl = document.thumbnailUrl || randomImage.imageUrl;
+  const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
+  const placeholderImage = PlaceHolderImages[placeholderIndex];
+  const thumbnailUrl = document.thumbnailUrl || placeholderImage.imageUrl;
 
   const handleEdit = (e: React.MouseEvent) => {
     e.preventDefault();

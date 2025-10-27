@@ -9,7 +9,7 @@ import Link from 'next/link';
 import type { Document as DocumentType, Tag } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -47,8 +47,11 @@ export default function DocumentDetailClient({ document, categoryName, documentT
     }
   }, [document.lastUpdated]);
   
-  const randomImage = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
-  const thumbnailUrl = document?.thumbnailUrl || randomImage.imageUrl;
+  // Deterministic placeholder image based on document ID
+  const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
+  const placeholderImage = PlaceHolderImages[placeholderIndex];
+  const thumbnailUrl = document?.thumbnailUrl || placeholderImage.imageUrl;
+
 
   const handleDelete = () => {
     if (!firestore) return;
