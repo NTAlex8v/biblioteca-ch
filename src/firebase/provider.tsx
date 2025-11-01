@@ -77,22 +77,23 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isLoadingClaims: true,
   });
 
-  const refreshClaims = useCallback(async (user: User | null) => {
-      if (user) {
+  const refreshClaims = useCallback(async () => {
+      const currentUser = auth?.currentUser;
+      if (currentUser) {
           setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
           try {
               // Pass `true` to force a refresh of the token from the server
-              const idTokenResult = await user.getIdTokenResult(true);
-              const role = idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined;
-              setClaimsState({ claims: { role: role || 'User' }, isLoadingClaims: false });
+              const idTokenResult = await currentUser.getIdTokenResult(true);
+              const role = (idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined) || 'User';
+              setClaimsState({ claims: { role }, isLoadingClaims: false });
           } catch (error) {
                console.error("Error refreshing user claims:", error);
-               setClaimsState({ claims: null, isLoadingClaims: false });
+               setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false }); // Default to 'User' on error
           }
       } else {
            setClaimsState({ claims: null, isLoadingClaims: false });
       }
-  }, []);
+  }, [auth]);
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
@@ -106,8 +107,13 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth,
       async (firebaseUser) => {
         setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-        // When auth state changes (login/logout), refresh claims.
-        await refreshClaims(firebaseUser);
+        if (firebaseUser) {
+          // When auth state changes (login), refresh claims immediately.
+          await refreshClaims();
+        } else {
+          // User is logged out, clear claims.
+          setClaimsState({ claims: null, isLoadingClaims: false });
+        }
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
@@ -125,11 +131,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);
 
-    // This is the manual refresh function exposed to the app
-    const manualRefresh = async () => {
-        await refreshClaims(userState.user);
-    };
-
     return {
       areServicesAvailable: servicesAvailable,
       firebaseApp: servicesAvailable ? firebaseApp : null,
@@ -137,7 +138,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth: servicesAvailable ? auth : null,
       ...userState,
       ...claimsState,
-      refreshClaims: manualRefresh,
+      refreshClaims, // Expose the manual refresh function
     };
   }, [firebaseApp, firestore, auth, userState, claimsState, refreshClaims]);
 

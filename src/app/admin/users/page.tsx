@@ -23,7 +23,7 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
-    const { user: currentUser } = useUser();
+    const { user: currentUser, isUserLoading } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { refreshClaims } = useUserClaims();
@@ -34,18 +34,21 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         setIsSubmitting(true);
         try {
             const functions = getFunctions();
+            // Ensure you have deployed a function named 'setRole'
             const setRole = httpsCallable(functions, 'setRole');
             await setRole({ uid: targetUser.id, role: newRole });
             
-            // This is the crucial step: force a refresh of the token to get the new claims.
-            await refreshClaims();
+            // If the admin is changing their own role, refresh their claims
+            if (currentUser.uid === targetUser.id) {
+                await refreshClaims();
+            }
             
             // This optimistically updates the local UI state.
             onRoleChange(targetUser.id, newRole);
 
             toast({
                 title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
+                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El cambio se reflejará completamente en su próximo inicio de sesión.`,
             });
 
         } catch (error: any) {
@@ -60,12 +63,12 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         }
     };
 
-    const isCurrentUser = currentUser?.uid === targetUser.id;
+    const isCurrentUserTarget = currentUser?.uid === targetUser.id;
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSubmitting || isCurrentUser}>
+                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSubmitting || isCurrentUserTarget}>
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                 </Button>
             </DropdownMenuTrigger>
