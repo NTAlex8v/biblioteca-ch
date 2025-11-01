@@ -102,11 +102,14 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             const userDocRef = doc(firestore, "users", firebaseUser.uid);
             const userDocSnap = await getDoc(userDocRef);
 
-            if (userDocSnap.exists() && userDocSnap.data().role === 'Admin') {
-                // If the user has 'Admin' role in Firestore, we add it to the claims object
-                // on the client-side. This allows the UI and API calls to behave as if the
-                // user had a real custom claim.
-                finalClaims = { ...finalClaims, role: 'Admin' };
+            if (userDocSnap.exists()) {
+                const userRole = userDocSnap.data().role;
+                if (userRole) {
+                    // If the user has a role in Firestore, we add it to the claims object
+                    // on the client-side. This allows the UI and API calls to behave as if the
+                    // user had a real custom claim.
+                    finalClaims = { ...finalClaims, role: userRole };
+                }
             }
              // --- END OVERRIDE ---
 
