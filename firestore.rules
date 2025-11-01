@@ -30,7 +30,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      // Only an Admin can change the role field. The user can change their own name/avatar.
+      allow update: if isOwner(userId) && !("role" in request.resource.data);
       allow delete: if isAdmin();
     }
 
@@ -64,15 +65,16 @@ service cloud.firestore {
     match /documents/{documentId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isOwner(resource.data.createdBy);
-      allow delete: if isOwner(resource.data.createdBy) || isAdmin();
+      allow update: if isOwner(resource.data.createdBy) || isAdminOrEditor();
+      allow delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
     }
     
     // Audit logs can only be read by their owner.
-    // Creation should be handled by server-side logic (e.g., Cloud Functions).
+    // Creation is also restricted to the owner (client-side logging).
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
-      allow create, update, delete: if false;
+      allow create: if isOwner(userId);
+      allow update, delete: if false; // Logs should be immutable
     }
   }
 }

@@ -1,10 +1,9 @@
 
 'use server';
 
-import { onCall } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from 'firebase-admin';
 import { z } from 'zod';
-import { HttpsError } from "firebase-functions/v1/auth";
 import { defineFunction } from "firebase-functions/v2/builder";
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -21,7 +20,6 @@ const SetRoleInputSchema = z.object({
 export const setRole = defineFunction(
     {
         region: 'us-central1', // Example region, adjust as necessary
-        // You can add other options like memory, timeout, etc. here
     },
     onCall(async (request) => {
         // 1. Authentication Check: Ensure the user calling the function is authenticated.
