@@ -8,29 +8,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
-    }
-
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Correctly checks for 'Admin' role using custom claims on the ID token.
     function isAdmin() {
-      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+      return isSignedIn() && request.auth.token.role == 'Admin';
     }
 
+    // Correctly checks for 'Admin' or 'Editor' role using custom claims.
     function isAdminOrEditor() {
-      let userRole = getUserRole(request.auth.uid);
-      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
+      return isSignedIn() && (request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor');
     }
     
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      // Un admin puede actualizar el rol de cualquier usuario.
-      // Un usuario puede actualizar su propio perfil (excepto el rol).
+      // An admin can update the role of any user.
+      // A user can update their own profile (except the role).
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }

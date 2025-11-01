@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, Firesto
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -21,21 +22,28 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
-    const { user: currentUser } = useUser();
+    const { user: currentUser, isUserLoading } = useUser();
+    const { refreshClaims } = useUserClaims();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const firestore = useFirestore();
-
+    
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id) return;
+        if (isSubmitting || !currentUser || isUserLoading || currentUser?.uid === targetUser.id) return;
         
         setIsSubmitting(true);
+        
         try {
-            const userDocRef = doc(firestore, 'users', targetUser.id);
-            updateDocumentNonBlocking(userDocRef, { role: newRole });
-            
-            // This optimistically updates the local UI state.
+            const functions = getFunctions();
+            const setRole = httpsCallable(functions, 'setRole');
+            await setRole({ uid: targetUser.id, role: newRole });
+
+            // Optimistically update the local UI state
             onRoleChange(targetUser.id, newRole);
+            
+            // If the admin is changing their own role, refresh their claims
+            if (currentUser.uid === targetUser.id) {
+                await refreshClaims();
+            }
 
             toast({
                 title: "Rol Actualizado",
