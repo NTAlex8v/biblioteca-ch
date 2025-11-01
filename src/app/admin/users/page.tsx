@@ -33,16 +33,19 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         setIsSubmitting(true);
         try {
             await setRole({ uid: targetUser.id, role: newRole });
-            onRoleChange(targetUser.id, newRole);
-
-            // If the admin is changing their own role, refresh their claims
+            
+            // Important: After the role is set via the function, we must refresh the
+            // claims on the client side for the changes to take effect for the *current user*.
             if(currentUser.uid === targetUser.id) {
                 await refreshClaims();
             }
 
+            // Update the local state for the UI to reflect the change immediately for other users.
+            onRoleChange(targetUser.id, newRole);
+
             toast({
                 title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El usuario debe volver a iniciar sesión para ver los cambios.`,
+                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El usuario debe volver a iniciar sesión para ver los cambios si no es el usuario actual.`,
             });
         } catch (error: any) {
             console.error("Error setting role:", error);
