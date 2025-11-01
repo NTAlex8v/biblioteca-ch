@@ -36,89 +36,78 @@ service cloud.firestore {
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
-
+    
     /**
-     * @description Enforces access control for user profiles. Only the authenticated user can read/write their own profile.
-     * @path /users/{userId}
-     * @allow (create) User 'user123' can create their profile if request.auth.uid == 'user123'.
-     * @allow (get) User 'user123' can read their profile at /users/user123.
-     * @deny (update) User 'user456' cannot update /users/user123.
-     * @deny (delete) User 'user456' cannot delete /users/user123.
-     * @principle Enforces document ownership for writes.
+     * @description Checks if the user has the 'Admin' role via custom claims.
+     * @return {bool} True if the user is an Admin, false otherwise.
      */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'Admin';
     }
 
     /**
-     * @description Enforces access control for categories.  Write operations should be restricted to admins (TODO). Read operations are public.
+     * @description Checks if the user has the 'Admin' or 'Editor' role via custom claims.
+     * @return {bool} True if the user is an Admin or Editor, false otherwise.
+     */
+    function isAdminOrEditor() {
+      return isSignedIn() && (request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor');
+    }
+
+    /**
+     * @description Enforces access control for user profiles. Only the authenticated user can read/write their own profile. Admins can read any profile.
+     * @path /users/{userId}
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin(); // Admins can change roles
+      allow delete: if isAdmin(); // Only admins can delete user profiles
+    }
+
+    /**
+     * @description Enforces access control for categories. Write operations are restricted to Admins and Editors. Read operations are public.
      * @path /categories/{categoryId}
-     * @allow (get) Any user can read a category.
-     * @allow (list) Any user can list categories.
-     * @deny (create) Non-admin user cannot create a category.
-     * @principle Public read, restricted write.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check once implemented.
+      allow create, update, delete: if isAdminOrEditor();
     }
 
     /**
-     * @description Enforces access control for folders. Only the creator can modify/delete. Read access is public.
+     * @description Enforces access control for folders. Only the creator can modify/delete. Admins can also delete. Read access is public.
      * @path /folders/{folderId}
-     * @allow (create) User 'user123' can create a folder.
-     * @allow (get) Any user can read a folder.
-     * @deny (update) User 'user456' cannot update a folder created by 'user123'.
-     * @principle Owner-only writes, public reads.
      */
     match /folders/{folderId} {
       allow get, list: if true;
       allow create: if isSignedIn();
       allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
     }
 
     /**
-     * @description Enforces access control for tags. Write operations should be restricted to admins (TODO). Read operations are public.
+     * @description Enforces access control for tags. Write operations are restricted to Admins and Editors. Read operations are public.
      * @path /tags/{tagId}
-     * @allow (get) Any user can read a tag.
-     * @allow (list) Any user can list tags.
-     * @deny (create) Non-admin user cannot create a tag.
-     * @principle Public read, restricted write.
      */
     match /tags/{tagId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check once implemented.
+      allow create, update, delete: if isAdminOrEditor();
     }
 
     /**
-     * @description Enforces access control for documents. Only the creator can modify/delete. Read access is public.
+     * @description Enforces access control for documents. Only the creator can modify/delete. Admins can also delete. Read access is public.
      * @path /documents/{documentId}
-     * @allow (create) User 'user123' can create a document.
-     * @allow (get) Any user can read a document.
-     * @deny (update) User 'user456' cannot update a document created by 'user123'.
-     * @principle Owner-only writes, public reads.
      */
     match /documents/{documentId} {
       allow get, list: if true;
       allow create: if isSignedIn();
       allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
     }
 
     /**
-     * @description Enforces access control for the global auditLogs collection.  No one should have access at this level.
+     * @description Enforces access control for the global auditLogs collection. No one should have access at this level.
      * @path /auditLogs/{logId}
-     * @deny (get) No user can read directly from the /auditLogs collection.
-     * @deny (list) No user can list directly from the /auditLogs collection.
-     * @deny (create) No user can create directly in the /auditLogs collection.
-     * @deny (update) No user can update directly in the /auditLogs collection.
-     * @deny (delete) No user can delete directly in the /auditLogs collection.
-     * @principle Deny all access to the global auditLogs collection.  Use subcollection.
      */
     match /auditLogs/{logId} {
       allow get, list, create, update, delete: if false;
@@ -127,12 +116,6 @@ service cloud.firestore {
     /**
      * @description Enforces access control for user-specific audit logs. Only the authenticated user can read their own audit logs.
      * @path /users/{userId}/auditLogs/{logId}
-     * @allow (get) User 'user123' can read their own audit log at /users/user123/auditLogs/log1.
-     * @allow (list) User 'user123' can list their own audit logs.
-     * @deny (create) User 'user456' cannot create an audit log under /users/user123/auditLogs.
-     * @deny (update) User 'user456' cannot update an audit log under /users/user123/auditLogs.
-     * @deny (delete) User 'user456' cannot delete an audit log under /users/user123/auditLogs.
-     * @principle Restricts access to a user's own audit log data tree.
      */
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
