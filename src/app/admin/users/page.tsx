@@ -23,6 +23,7 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
     const { user: currentUser } = useUser();
+    const { refreshClaims } = useUserClaims();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,6 +34,12 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         try {
             await setRole({ uid: targetUser.id, role: newRole });
             onRoleChange(targetUser.id, newRole);
+
+            // If the admin is changing their own role, refresh their claims
+            if(currentUser.uid === targetUser.id) {
+                await refreshClaims();
+            }
+
             toast({
                 title: "Rol Actualizado",
                 description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El usuario debe volver a iniciar sesión para ver los cambios.`,

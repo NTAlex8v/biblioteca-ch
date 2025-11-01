@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore, doc, getDoc, getFirestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged, IdTokenResult } from 'firebase/auth';
@@ -29,6 +29,7 @@ export interface FirebaseContextState {
   // User claims state
   claims: IdTokenResult['claims'] | null;
   isLoadingClaims: boolean;
+  refreshClaims: () => Promise<void>; // Function to manually trigger a claims refresh
 }
 
 // Return type for useUser() - specific to user auth state
@@ -42,6 +43,7 @@ export interface UserHookResult {
 export interface UserClaimsHookResult {
     claims: IdTokenResult['claims'] | null;
     isLoadingClaims: boolean;
+    refreshClaims: () => Promise<void>;
 }
 
 // React Context
@@ -75,7 +77,49 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isLoadingClaims: true,
   });
 
-  // Effect to subscribe to Firebase auth state changes and manage claims
+  const fetchUserAndClaims = useCallback(async (firebaseUser: User | null) => {
+    setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
+
+    if (firebaseUser) {
+        setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
+        try {
+            // Force refresh the token to get the latest custom claims
+            const idTokenResult = await firebaseUser.getIdTokenResult(true); 
+            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
+
+            // Also update the user document in Firestore non-blockingly
+            if (firestore) {
+              const userDocRef = doc(firestore, "users", firebaseUser.uid);
+              const userDocSnap = await getDoc(userDocRef);
+              if (!userDocSnap.exists()) {
+                 const newUserData = {
+                    email: firebaseUser.email,
+                    name: firebaseUser.displayName,
+                    avatarUrl: firebaseUser.photoURL,
+                    role: 'User', // Default role
+                    createdAt: new Date().toISOString(),
+                };
+                // We are not blocking on this setDoc call
+                await getDoc(userDocRef).then(snapshot => {
+                  if (!snapshot.exists()) {
+                    setDoc(userDocRef, newUserData, { merge: true });
+                  }
+                });
+              }
+            }
+
+        } catch (error) {
+            console.error("[FirebaseProvider] Error fetching user claims:", error);
+            setClaimsState({ claims: null, isLoadingClaims: false });
+        }
+    } else {
+        // No user, clear claims
+        setClaimsState({ claims: null, isLoadingClaims: false });
+    }
+  }, [firestore]);
+
+
+  // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
     if (!auth) {
       setUserState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
@@ -85,24 +129,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => {
-        setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-
-        if (firebaseUser) {
-          setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
-          try {
-            // Force refresh the token to get the latest custom claims
-            const idTokenResult = await firebaseUser.getIdTokenResult(true); 
-            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
-          } catch (error) {
-            console.error("[FirebaseProvider] Error fetching user claims:", error);
-            setClaimsState({ claims: null, isLoadingClaims: false });
-          }
-        } else {
-          // No user, clear claims
-          setClaimsState({ claims: null, isLoadingClaims: false });
-        }
-      },
+      fetchUserAndClaims,
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserState({ user: null, isUserLoading: false, userError: error });
@@ -110,7 +137,14 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]);
+  }, [auth, fetchUserAndClaims]);
+
+  const refreshClaims = useCallback(async () => {
+    if (userState.user) {
+        await fetchUserAndClaims(userState.user);
+    }
+  }, [userState.user, fetchUserAndClaims]);
+
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
@@ -122,8 +156,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth: servicesAvailable ? auth : null,
       ...userState,
       ...claimsState,
+      refreshClaims,
     };
-  }, [firebaseApp, firestore, auth, userState, claimsState]);
+  }, [firebaseApp, firestore, auth, userState, claimsState, refreshClaims]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -191,6 +226,6 @@ export const useUser = (): UserHookResult => {
  * @returns {UserClaimsHookResult} Object with claims and isLoadingClaims.
  */
 export const useUserClaims = (): UserClaimsHookResult => {
-  const { claims, isLoadingClaims } = useFirebaseContext();
-  return { claims, isLoadingClaims };
+  const { claims, isLoadingClaims, refreshClaims } = useFirebaseContext();
+  return { claims, isLoadingClaims, refreshClaims };
 };
