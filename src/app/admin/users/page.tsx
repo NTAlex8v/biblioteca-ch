@@ -1,18 +1,18 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import type { User as AppUser, AuditLog } from '@/lib/types';
+import type { User as AppUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, AlertTriangle, Loader2, Edit } from 'lucide-react';
+import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError } from '@/firebase';
+import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { setRole } from '@/firebase/functions';
 
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
@@ -23,29 +23,25 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
     const { user: currentUser } = useUser();
-    const { refreshClaims } = useUserClaims();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const firestore = useFirestore();
 
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (isSubmitting || !currentUser || currentUser?.uid === targetUser.id) return;
+        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id) return;
 
         setIsSubmitting(true);
         try {
-            await setRole({ uid: targetUser.id, role: newRole });
-            
-            // Important: After the role is set via the function, we must refresh the
-            // claims on the client side for the changes to take effect for the *current user*.
-            if(currentUser.uid === targetUser.id) {
-                await refreshClaims();
-            }
+            const userDocRef = doc(firestore, 'users', targetUser.id);
+            // Directly update the role field in the user's document.
+            // Firestore security rules will verify if the current user is an Admin.
+            updateDocumentNonBlocking(userDocRef, { role: newRole });
 
-            // Update the local state for the UI to reflect the change immediately for other users.
             onRoleChange(targetUser.id, newRole);
 
             toast({
                 title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El usuario debe volver a iniciar sesión para ver los cambios si no es el usuario actual.`,
+                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
             });
         } catch (error: any) {
             console.error("Error setting role:", error);
@@ -86,6 +82,7 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
 }
 
 export default function UsersAdminPage() {
+  // We use useUserClaims here primarily to get the user's role on the client-side for UI purposes.
   const { claims, isLoadingClaims } = useUserClaims();
   const firestore = useFirestore();
   const isAdmin = claims?.role === 'Admin';

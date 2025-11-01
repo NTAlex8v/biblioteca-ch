@@ -12,32 +12,40 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-
-    // Function to check for Admin role from custom claims
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
+    
+    // Function to get user role from their Firestore document
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
-    // Function to check for Admin or Editor role from custom claims
+    // Function to check for Admin role by reading the user's document
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+    }
+
+    // Function to check for Admin or Editor role by reading the user's document
     function isAdminOrEditor() {
-      return isSignedIn() && (request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor');
+      let userRole = getUserRole(request.auth.uid);
+      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
     }
     
     // User profiles can be read by anyone to get names/avatars.
     // List is only for admins.
-    // Updates can only be done by the owner for their own profile.
-    // Role changes are handled exclusively by a Cloud Function.
+    // Updates can only be done by the owner for their own profile,
+    // but the role field can only be changed by an Admin.
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
-      // Allow create on signup and update by owner, but NOT role field.
       allow create: if isOwner(userId);
+      // Allow owner to update their own info, but not their role
       allow update: if isOwner(userId) && !("role" in request.resource.data);
+      // Allow an admin to update anyone's role
+      allow update: if isAdmin() && "role" in request.resource.data;
       allow delete: if isAdmin();
     }
 
     // Categories can be read by anyone.
-    // Writes are restricted to Admins and Editors via custom claims.
+    // Writes are restricted to Admins and Editors.
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create, update, delete: if isAdminOrEditor();
@@ -51,8 +59,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
     }
-
-
 
     // Tags can be read by anyone.
     // Writes are restricted to Admins and Editors.
@@ -71,10 +77,10 @@ service cloud.firestore {
     }
     
     // Audit logs can only be read by their owner.
-    // Creation is handled by server-side logic (e.g., Cloud Functions).
+    // Creation should be handled by server-side logic (e.g., Cloud Functions).
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
-      allow create, update, delete: if false; // Only backend processes can create logs
+      allow create, update, delete: if false;
     }
   }
 }
