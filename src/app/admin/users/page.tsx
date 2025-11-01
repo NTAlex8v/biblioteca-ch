@@ -23,7 +23,7 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
-    const { user: currentUser, isUserLoading } = useUser();
+    const { user: currentUser } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { refreshClaims } = useUserClaims();
@@ -34,7 +34,6 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         setIsSubmitting(true);
         try {
             const functions = getFunctions();
-            // Ensure you have deployed a function named 'setRole'
             const setRole = httpsCallable(functions, 'setRole');
             await setRole({ uid: targetUser.id, role: newRole });
             
