@@ -25,13 +25,13 @@ service cloud.firestore {
     
     // User profiles can be read by anyone to get names/avatars.
     // List is only for admins.
-    // Updates can only be done by the owner for their own profile.
+    // Updates can only be done by the owner for their own profile, or by an Admin for any profile.
     // Role changes are handled by a Cloud Function, which has elevated privileges.
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
