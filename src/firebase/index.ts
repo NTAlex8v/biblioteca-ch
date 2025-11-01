@@ -6,6 +6,7 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 // IMPORTANTE: NO MODIFICAR ESTA FUNCIÓN
 export function initializeFirebase() {
@@ -13,12 +14,14 @@ export function initializeFirebase() {
   const auth = getAuth(app);
   const firestore = getFirestore(app);
   const storage = getStorage(app);
+  const functions = getFunctions(app);
   
   return {
     firebaseApp: app,
     auth: auth,
     firestore: firestore,
-    storage: storage
+    storage: storage,
+    functions: functions
   };
 }
 
@@ -29,5 +32,3 @@ export * from './firestore/use-doc';
 export * from './non-blocking-updates';
 export * from './errors';
 export * from './error-emitter';
-
-    

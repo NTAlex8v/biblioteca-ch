@@ -8,10 +8,11 @@ import { MoreHorizontal, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, FirestorePermissionError } from '@/firebase';
+import { useAuth, useUserClaims, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { setRole } from '@/firebase/functions';
 
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
@@ -22,40 +23,30 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
     const { user: currentUser } = useUser();
-    const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const logAction = (action: 'create' | 'update' | 'delete' | 'role_change', entityId: string, entityName: string, details: string) => {
-      if (!firestore || !currentUser) return;
-      const log: Omit<AuditLog, 'id'> = {
-          timestamp: new Date().toISOString(),
-          userId: currentUser.uid,
-          userName: currentUser.displayName || currentUser.email || "Sistema",
-          action: action,
-          entityType: 'User',
-          entityId,
-          entityName,
-          details,
-      };
-      addDocumentNonBlocking(collection(firestore, 'users', currentUser.uid, 'auditLogs'), log);
-    };
-
-    const handleRoleChange = (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (!firestore || isSubmitting || !currentUser || currentUser?.uid === targetUser.id) return;
+    const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
+        if (isSubmitting || !currentUser || currentUser?.uid === targetUser.id) return;
 
         setIsSubmitting(true);
-        const userDocRef = doc(firestore, 'users', targetUser.id);
-        
-        setDocumentNonBlocking(userDocRef, { role: newRole }, { merge: true });
-
-        onRoleChange(targetUser.id, newRole);
-        logAction('role_change', targetUser.id, targetUser.name || targetUser.email || 'N/A', `Cambió el rol de ${targetUser.name || targetUser.email} a ${newRole}.`);
-        toast({
-            title: "Rol Actualizado",
-            description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
-        });
-        setIsSubmitting(false);
+        try {
+            await setRole({ uid: targetUser.id, role: newRole });
+            onRoleChange(targetUser.id, newRole);
+            toast({
+                title: "Rol Actualizado",
+                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}. El usuario debe volver a iniciar sesión para ver los cambios.`,
+            });
+        } catch (error: any) {
+            console.error("Error setting role:", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cambiar el rol",
+                description: error.message || "No se pudo actualizar el rol del usuario.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const isCurrentUser = currentUser?.uid === targetUser.id;

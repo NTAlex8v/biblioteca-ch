@@ -1,137 +1,78 @@
-/**
- * @description This ruleset enforces access control based on user roles stored in Firestore documents.
- * @dataStructure User roles ('Admin', 'Editor', 'User') are stored in the 'role' field of documents in the '/users/{userId}' collection.
- * @keySecurityDecisions
- *   - Security rules now read from `/users/{userId}` to determine a user's role, instead of relying on custom claims.
- *   - Admin and Editor roles grant write access to 'categories' and 'tags'.
- *   - Users can only manage documents and folders they have created.
- *   - Admins have override permissions for deleting content and managing users.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Checks if the current user is signed in.
-     * @return {bool} True if the user is authenticated, false otherwise.
-     */
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the current user's UID matches the provided userId.
-     * @param {string} userId - The user ID to compare against the request's authentication UID.
-     * @return {bool} True if the user is the owner, false otherwise.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * @description Checks if the user is an existing owner (signed in, owns the resource, and the resource exists).
-     * @param {string} userId - The user ID to compare against the request's authentication UID.
-     * @return {bool} True if the user is the existing owner, false otherwise.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    // Function to check for Admin role from custom claims
+    function isAdmin() {
+      return request.auth.token.role == 'Admin';
+    }
+
+    // Function to check for Admin or Editor role from custom claims
+    function isAdminOrEditor() {
+      return request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor';
     }
     
-    /**
-     * @description Retrieves the role of a user from their document in the 'users' collection.
-     * @param {string} userId - The UID of the user whose role is being checked.
-     * @return {string} The role of the user (e.g., 'Admin', 'Editor', 'User') or null if not found.
-     */
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
-    }
-
-    /**
-     * @description Checks if the currently authenticated user has the 'Admin' role.
-     * @return {bool} True if the user is an Admin, false otherwise.
-     */
-    function isAdmin() {
-      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
-    }
-
-    /**
-     * @description Checks if the currently authenticated user has either the 'Admin' or 'Editor' role.
-     * @return {bool} True if the user is an Admin or Editor, false otherwise.
-     */
-    function isAdminOrEditor() {
-      let userRole = getUserRole(request.auth.uid);
-      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
-    }
-
-    /**
-     * @description Enforces access control for user profiles. Only the authenticated user can read/write their own profile. Admins can read any profile.
-     * @path /users/{userId}
-     */
+    // User profiles can be read by their owner or an admin.
+    // List is only for admins.
+    // Updates can only be done by the owner. Role changes are handled by a Cloud Function.
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin(); // Admins can change roles
-      allow delete: if isAdmin(); // Only admins can delete user profiles
+      allow update: if isOwner(userId);
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Enforces access control for categories. Write operations are restricted to Admins and Editors. Read operations are public.
-     * @path /categories/{categoryId}
-     */
+    // Categories can be read by anyone.
+    // Writes are restricted to Admins and Editors.
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create, update, delete: if isAdminOrEditor();
     }
 
-    /**
-     * @description Enforces access control for folders. Only the creator can modify/delete. Admins can also delete. Read access is public.
-     * @path /folders/{folderId}
-     */
+    // Folders can be read by anyone.
+    // Create is allowed for any signed-in user.
+    // Update/Delete is restricted to the folder's creator or an admin.
     match /folders/{folderId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
+      allow update: if isOwner(resource.data.createdBy);
+      allow delete: if isOwner(resource.data.createdBy) || isAdmin();
     }
 
-    /**
-     * @description Enforces access control for tags. Write operations are restricted to Admins and Editors. Read operations are public.
-     * @path /tags/{tagId}
-     */
+    // Tags can be read by anyone.
+    // Writes are restricted to Admins and Editors.
     match /tags/{tagId} {
       allow get, list: if true;
       allow create, update, delete: if isAdminOrEditor();
     }
-
-    /**
-     * @description Enforces access control for documents. Only the creator can modify/delete. Admins can also delete. Read access is public.
-     * @path /documents/{documentId}
-     */
+    
+    // Documents can be read by anyone.
+    // Create is allowed for any signed-in user.
+    // Update/Delete is restricted to the document's creator or an admin.
     match /documents/{documentId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isExistingOwner(resource.data.createdBy);
-      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
+      allow update: if isOwner(resource.data.createdBy);
+      allow delete: if isOwner(resource.data.createdBy) || isAdmin();
     }
-
-    /**
-     * @description Enforces access control for the global auditLogs collection. No one should have access at this level.
-     * @path /auditLogs/{logId}
-     */
-    match /auditLogs/{logId} {
-      allow get, list, create, update, delete: if false;
-    }
-
-    /**
-     * @description Enforces access control for user-specific audit logs. Only the authenticated user can read their own audit logs.
-     * @path /users/{userId}/auditLogs/{logId}
-     */
+    
+    // Audit logs can only be read by their owner.
+    // Creation should be handled by server-side logic (e.g., Cloud Functions).
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
-      allow create: if false; // Should only be created by a trusted function.
-      allow update: if false; // No updates allowed.
-      allow delete: if false; // No deletes allowed.
+      allow create, update, delete: if false;
     }
   }
 }

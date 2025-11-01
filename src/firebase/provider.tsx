@@ -77,8 +77,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   // Effect to subscribe to Firebase auth state changes and manage claims
   useEffect(() => {
-    if (!auth || !firestore) {
-      setUserState({ user: null, isUserLoading: false, userError: new Error("Auth or Firestore service not provided.") });
+    if (!auth) {
+      setUserState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       setClaimsState({ claims: null, isLoadingClaims: false });
       return;
     }
@@ -91,31 +91,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         if (firebaseUser) {
           setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
           try {
-            // First, get the real claims from the token.
-            const idTokenResult = await firebaseUser.getIdTokenResult(true);
-            let finalClaims = idTokenResult.claims;
-
-            // --- DYNAMIC DEVELOPMENT OVERRIDE ---
-            // In a real app, custom claims are set by a backend. Here, we read the user's
-            // document from Firestore to simulate the role for development purposes.
-            // This makes the Firestore document the source of truth for the UI and client-side logic.
-            const userDocRef = doc(firestore, "users", firebaseUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-                const userRole = userDocSnap.data().role;
-                if (userRole) {
-                    // If the user has a role in Firestore, we add it to the claims object
-                    // on the client-side. This allows the UI and API calls to behave as if the
-                    // user had a real custom claim.
-                    finalClaims = { ...finalClaims, role: userRole };
-                }
-            }
-             // --- END OVERRIDE ---
-
-            setClaimsState({ claims: finalClaims, isLoadingClaims: false });
+            // Force refresh the token to get the latest custom claims
+            const idTokenResult = await firebaseUser.getIdTokenResult(true); 
+            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
           } catch (error) {
-            console.error("[FirebaseProvider] Error fetching user data or claims:", error);
+            console.error("[FirebaseProvider] Error fetching user claims:", error);
             setClaimsState({ claims: null, isLoadingClaims: false });
           }
         } else {
@@ -130,7 +110,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth, firestore]);
+  }, [auth]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
