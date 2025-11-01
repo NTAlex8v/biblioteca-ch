@@ -37,24 +37,16 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
             const setRole = httpsCallable(functions, 'setRole');
             await setRole({ uid: targetUser.id, role: newRole });
             
-            // This is crucial: we update the local state optimistically
+            // This is the crucial step: force a refresh of the token to get the new claims.
+            await refreshClaims();
+            
+            // This optimistically updates the local UI state.
             onRoleChange(targetUser.id, newRole);
 
-            // If the admin is changing their OWN role, they should re-login to see UI changes.
-            if (currentUser.uid === targetUser.id) {
-                toast({
-                    title: "Rol Actualizado",
-                    description: `Tu rol ha sido cambiado a ${newRole}. Por favor, cierra sesión y vuelve a iniciarla para ver los cambios.`,
-                });
-            } else {
-                 toast({
-                    title: "Rol Actualizado",
-                    description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
-                });
-            }
-            
-            // Force a refresh of the current user's token to reflect their own potential new abilities.
-            await refreshClaims();
+            toast({
+                title: "Rol Actualizado",
+                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
+            });
 
         } catch (error: any) {
             console.error("Error setting role:", error);
@@ -220,3 +212,4 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+
