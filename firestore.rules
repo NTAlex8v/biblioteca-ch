@@ -1,11 +1,11 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for user-specific data and restricts administrative control to designated users.
- * @dataStructure The database is organized with top-level collections for core entities (users, categories, folders, tags, documents, auditLogs). User-specific data (auditLogs) is nested under `/users/{userId}`.
+ * @description This ruleset enforces access control based on user roles stored in Firestore documents.
+ * @dataStructure User roles ('Admin', 'Editor', 'User') are stored in the 'role' field of documents in the '/users/{userId}' collection.
  * @keySecurityDecisions
- *   - Users can only access their own auditLogs under `/users/{userId}/auditLogs`.
- *   - Global `auditLogs` collection is not accessible by regular users.
- *   - Data validation is relaxed during prototyping to allow for rapid iteration, focusing on authorization.
- *   - All write operations require authentication.
+ *   - Security rules now read from `/users/{userId}` to determine a user's role, instead of relying on custom claims.
+ *   - Admin and Editor roles grant write access to 'categories' and 'tags'.
+ *   - Users can only manage documents and folders they have created.
+ *   - Admins have override permissions for deleting content and managing users.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -38,19 +38,29 @@ service cloud.firestore {
     }
     
     /**
-     * @description Checks if the user has the 'Admin' role via custom claims.
-     * @return {bool} True if the user is an Admin, false otherwise.
+     * @description Retrieves the role of a user from their document in the 'users' collection.
+     * @param {string} userId - The UID of the user whose role is being checked.
+     * @return {string} The role of the user (e.g., 'Admin', 'Editor', 'User') or null if not found.
      */
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
     /**
-     * @description Checks if the user has the 'Admin' or 'Editor' role via custom claims.
+     * @description Checks if the currently authenticated user has the 'Admin' role.
+     * @return {bool} True if the user is an Admin, false otherwise.
+     */
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+    }
+
+    /**
+     * @description Checks if the currently authenticated user has either the 'Admin' or 'Editor' role.
      * @return {bool} True if the user is an Admin or Editor, false otherwise.
      */
     function isAdminOrEditor() {
-      return isSignedIn() && (request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor');
+      let userRole = getUserRole(request.auth.uid);
+      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
     }
 
     /**
