@@ -78,21 +78,21 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   });
 
   const refreshClaims = useCallback(async () => {
-      const currentUser = auth?.currentUser;
-      if (currentUser) {
-          setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
-          try {
-              // Pass `true` to force a refresh of the token from the server
-              const idTokenResult = await currentUser.getIdTokenResult(true);
-              const role = (idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined) || 'User';
-              setClaimsState({ claims: { role }, isLoadingClaims: false });
-          } catch (error) {
-               console.error("Error refreshing user claims:", error);
-               setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false }); // Default to 'User' on error
-          }
-      } else {
-           setClaimsState({ claims: null, isLoadingClaims: false });
-      }
+    const currentUser = auth?.currentUser;
+    if (currentUser) {
+        setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
+        try {
+            // Pass `true` to force a refresh of the token from the server
+            const idTokenResult = await currentUser.getIdTokenResult(true);
+            const role = (idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined) || 'User';
+            setClaimsState({ claims: { role }, isLoadingClaims: false });
+        } catch (error) {
+             console.error("Error refreshing user claims:", error);
+             setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false }); // Default to 'User' on error
+        }
+    } else {
+         setClaimsState({ claims: null, isLoadingClaims: false });
+    }
   }, [auth]);
 
   // Effect to subscribe to Firebase auth state changes
