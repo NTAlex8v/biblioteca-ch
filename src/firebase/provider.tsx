@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, getDoc } from 'firebase/firestore';
+import { Firestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged, IdTokenResult } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
@@ -77,14 +77,22 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isLoadingClaims: true,
   });
 
-  const refreshClaims = useCallback(async () => {
-      if (userState.user) {
-          // Pass `true` to force a refresh of the token from the server
-          const idTokenResult = await userState.user.getIdTokenResult(true);
-          const role = idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined;
-          setClaimsState({ claims: { role: role || 'User' }, isLoadingClaims: false });
+  const refreshClaims = useCallback(async (user: User | null) => {
+      if (user) {
+          setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
+          try {
+              // Pass `true` to force a refresh of the token from the server
+              const idTokenResult = await user.getIdTokenResult(true);
+              const role = idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined;
+              setClaimsState({ claims: { role: role || 'User' }, isLoadingClaims: false });
+          } catch (error) {
+               console.error("Error refreshing user claims:", error);
+               setClaimsState({ claims: null, isLoadingClaims: false });
+          }
+      } else {
+           setClaimsState({ claims: null, isLoadingClaims: false });
       }
-  }, [userState.user]);
+  }, []);
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
@@ -98,21 +106,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth,
       async (firebaseUser) => {
         setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-        if (firebaseUser) {
-            setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
-            try {
-                // When auth state changes, get the ID token result which contains custom claims
-                const idTokenResult = await firebaseUser.getIdTokenResult();
-                const role = idTokenResult.claims.role as 'Admin' | 'Editor' | 'User' | undefined;
-                setClaimsState({ claims: { role: role || 'User' }, isLoadingClaims: false });
-            } catch (error) {
-                console.error("Error fetching user claims:", error);
-                setClaimsState({ claims: null, isLoadingClaims: false });
-            }
-        } else {
-            // No user, clear claims
-            setClaimsState({ claims: null, isLoadingClaims: false });
-        }
+        // When auth state changes (login/logout), refresh claims.
+        await refreshClaims(firebaseUser);
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
@@ -124,11 +119,17 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => {
       authUnsubscribe();
     };
-  }, [auth]);
+  }, [auth, refreshClaims]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);
+
+    // This is the manual refresh function exposed to the app
+    const manualRefresh = async () => {
+        await refreshClaims(userState.user);
+    };
+
     return {
       areServicesAvailable: servicesAvailable,
       firebaseApp: servicesAvailable ? firebaseApp : null,
@@ -136,7 +137,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth: servicesAvailable ? auth : null,
       ...userState,
       ...claimsState,
-      refreshClaims,
+      refreshClaims: manualRefresh,
     };
   }, [firebaseApp, firestore, auth, userState, claimsState, refreshClaims]);
 
