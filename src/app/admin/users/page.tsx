@@ -9,10 +9,11 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
@@ -25,24 +26,36 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
     const { user: currentUser } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const firestore = useFirestore();
+    const { refreshClaims } = useUserClaims();
 
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id) return;
-
+        if (isSubmitting || !currentUser || currentUser?.uid === targetUser.id) return;
+        
         setIsSubmitting(true);
         try {
-            const userDocRef = doc(firestore, 'users', targetUser.id);
-            // Directly update the role field in the user's document.
-            // Firestore security rules will verify if the current user is an Admin.
-            updateDocumentNonBlocking(userDocRef, { role: newRole });
-
+            const functions = getFunctions();
+            const setRole = httpsCallable(functions, 'setRole');
+            await setRole({ uid: targetUser.id, role: newRole });
+            
+            // This is crucial: we update the local state optimistically
             onRoleChange(targetUser.id, newRole);
 
-            toast({
-                title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
-            });
+            // If the admin is changing their OWN role, they should re-login to see UI changes.
+            if (currentUser.uid === targetUser.id) {
+                toast({
+                    title: "Rol Actualizado",
+                    description: `Tu rol ha sido cambiado a ${newRole}. Por favor, cierra sesión y vuelve a iniciarla para ver los cambios.`,
+                });
+            } else {
+                 toast({
+                    title: "Rol Actualizado",
+                    description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
+                });
+            }
+            
+            // Force a refresh of the current user's token to reflect their own potential new abilities.
+            await refreshClaims();
+
         } catch (error: any) {
             console.error("Error setting role:", error);
             toast({
@@ -82,7 +95,6 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
 }
 
 export default function UsersAdminPage() {
-  // We use useUserClaims here primarily to get the user's role on the client-side for UI purposes.
   const { claims, isLoadingClaims } = useUserClaims();
   const firestore = useFirestore();
   const isAdmin = claims?.role === 'Admin';
