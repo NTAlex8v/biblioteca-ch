@@ -2,12 +2,12 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, getDocs } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -34,7 +34,7 @@ const ItemSkeleton = () => (
     <div className="flex flex-col gap-2">
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-5 w-3-4" />
-        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 w-1-2" />
     </div>
 );
 
@@ -49,7 +49,7 @@ function FolderCard({ folder }: { folder: Folder }) {
     }, [firestore, user]);
 
     const { data: userData } = useDoc<AppUser>(userDocRef);
-    const isAdmin = userData?.role === 'Admin';
+    const canManage = userData?.role === 'Admin' || userData?.role === 'Editor' || folder.createdBy === user?.uid;
 
     const handleDelete = async () => {
         if (!firestore) return;
@@ -68,27 +68,19 @@ function FolderCard({ folder }: { folder: Folder }) {
         
         const docRef = doc(firestore, 'folders', folder.id);
 
-        deleteDoc(docRef)
-            .then(() => {
-                toast({
-                    variant: "destructive",
-                    title: 'Carpeta eliminada',
-                    description: `La carpeta '${folder.name}' ha sido eliminada.`,
-                });
-            })
-            .catch(() => {
-                const permissionError = new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
+        deleteDocumentNonBlocking(docRef);
+        
+        toast({
+            variant: "destructive",
+            title: 'Carpeta eliminada',
+            description: `La carpeta '${folder.name}' ha sido eliminada.`,
+        });
     };
 
     return (
         <Card className="group relative flex h-full flex-col items-center justify-center p-6 text-center transition-all duration-300 hover:shadow-lg hover:border-primary">
             <Link key={folder.id} href={`/folders/${folder.id}`} className="absolute inset-0 z-0" />
-            {isAdmin && (
+            {canManage && (
                  <div className="absolute top-2 right-2 z-10">
                     <AlertDialog>
                         <DropdownMenu>
