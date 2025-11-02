@@ -26,7 +26,7 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId);
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
@@ -35,7 +35,7 @@ service cloud.firestore {
 
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
+      allow create, update, delete: if isSignedIn();
     }
 
     match /folders/{folderId} {
