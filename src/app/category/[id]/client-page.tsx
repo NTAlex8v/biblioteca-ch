@@ -1,14 +1,13 @@
-
 'use client';
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
-import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
+import type { Document as DocumentType, Category, Folder } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2, Edit } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -148,24 +147,22 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('categoryId', '==', categoryId));
+    return query(collection(firestore, 'documents'), where('categoryId', '==', categoryId), where('folderId', '==', null));
   }, [firestore, categoryId]);
 
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
-  const { data: allDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
+  const { data: rootDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
-  const rootDocuments = React.useMemo(() => {
-    if (!allDocuments) return [];
-    return allDocuments.filter(doc => !doc.folderId);
-  }, [allDocuments]);
-
-
-  if (isLoadingCategory || !category) {
+  if (isLoadingCategory) {
     return (
         <div className="container mx-auto flex justify-center items-center h-full">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
     );
+  }
+  
+  if (!category) {
+      return null;
   }
 
   if (categoryError) {
@@ -176,18 +173,16 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
                       <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                           <AlertTriangle className="h-8 w-8 text-destructive" />
                       </div>
-                      <CardTitle className="mt-4">Acceso Denegado</CardTitle>
+                      <CardTitle className="mt-4">Error</CardTitle>
                   </CardHeader>
                   <CardContent>
-                      <p className="text-muted-foreground">No tienes permisos para ver esta categoría.</p>
+                      <p className="text-muted-foreground">No se pudo cargar la categoría.</p>
                        <Button onClick={() => router.back()} className="mt-4">Volver</Button>
                   </CardContent>
               </Card>
           </div>
       );
   }
-
-  const isLoadingContent = isLoadingFolders || isLoadingDocuments;
 
   return (
     <div className="container mx-auto">

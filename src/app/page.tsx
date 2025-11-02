@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import DocumentCard from "@/components/document-card";
 import type { Document, Category } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Home() {
   const firestore = useFirestore();
@@ -25,7 +26,7 @@ export default function Home() {
   }, [firestore]);
 
   const { data: documentsData, isLoading: isLoadingDocuments } = useCollection<Document>(documentsQuery);
-  const { data: categoriesData, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+  const { data: categoriesData } = useCollection<Category>(categoriesQuery);
 
   const filteredDocuments = React.useMemo(() => {
     if (!documentsData) return [];
@@ -99,8 +100,14 @@ export default function Home() {
       </div>
       
       {isLoadingDocuments ? (
-        <div className="text-center py-16">
-          <p>Cargando documentos...</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+             <div key={i} className="flex flex-col gap-2">
+                <Skeleton className="h-56 w-full" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
         </div>
       ) : filteredDocuments.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -109,7 +116,7 @@ export default function Home() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16">
+        <div className="text-center py-16 border-2 border-dashed rounded-lg">
           <h2 className="text-xl font-semibold">No se encontraron documentos</h2>
           <p className="text-muted-foreground mt-2">Intenta ajustar tus filtros o términos de búsqueda.</p>
         </div>

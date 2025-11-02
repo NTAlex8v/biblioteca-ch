@@ -1,32 +1,41 @@
+'use client';
 
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
-import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase'; // Use client-side initialization
+import { useEffect } from 'react';
+import { notFound, useRouter } from 'next/navigation';
 import CategoryForm from "@/components/category-form";
 import type { Category } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Loader2 } from 'lucide-react';
 
-// Initialize firebase on the client
-const { firestore } = initializeFirebase();
+export default function EditCategoryPage({ params }: { params: { id: string } }) {
+    const firestore = useFirestore();
+    const router = useRouter();
 
-async function getCategory(id: string): Promise<Category | null> {
-    if (!firestore) return null;
-    const docRef = doc(firestore, 'categories', id);
-    const docSnap = await getDoc(docRef);
+    const categoryDocRef = useMemoFirebase(() => {
+        if (!firestore || !params.id) return null;
+        return doc(firestore, 'categories', params.id);
+    }, [firestore, params.id]);
 
-    if (!docSnap.exists()) {
-        return null;
-    }
-    return { id: docSnap.id, ...docSnap.data() } as Category;
-}
+    const { data: category, isLoading, error } = useDoc<Category>(categoryDocRef);
 
+    useEffect(() => {
+        if (!isLoading && !category && !error) {
+            notFound();
+        }
+        if (error) {
+            // Assuming the hook handles permission errors globally
+            // Redirect or show a message if needed
+            router.push('/admin/categories');
+        }
+    }, [isLoading, category, error, router]);
 
-export default async function EditCategoryPage({ params }: { params: { id: string } }) {
-    
-    const category = await getCategory(params.id);
-
-    if (!category) {
-        notFound();
+    if (isLoading || !category) {
+        return (
+            <div className="container mx-auto flex justify-center items-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
 
     return (

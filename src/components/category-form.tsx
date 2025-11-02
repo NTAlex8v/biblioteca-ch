@@ -55,34 +55,30 @@ export default function CategoryForm({ category }: CategoryFormProps) {
     addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
-  const onSubmit = (values: z.infer<typeof categorySchema>) => {
+  const onSubmit = async (values: z.infer<typeof categorySchema>) => {
     if (!firestore || !user) return;
     
     if (category) {
-      // Update existing category
       const docRef = doc(firestore, "categories", category.id);
-      setDocumentNonBlocking(docRef, values);
+      await setDocumentNonBlocking(docRef, values);
       logAction('update', category.id, values.name, `Se actualizó la categoría '${values.name}'.`);
       toast({
         title: "Categoría Actualizada",
         description: "La categoría ha sido actualizada exitosamente.",
       });
-      router.push("/admin/categories");
     } else {
-      // Create new category
       const collectionRef = collection(firestore, "categories");
-      addDocumentNonBlocking(collectionRef, values)
-        .then(newDocRef => {
-            if (newDocRef) {
-                logAction('create', newDocRef.id, values.name, `Se creó la nueva categoría '${values.name}'.`);
-            }
-        });
+      const newDocRef = await addDocumentNonBlocking(collectionRef, values)
+      if (newDocRef) {
+          logAction('create', newDocRef.id, values.name, `Se creó la nueva categoría '${values.name}'.`);
+      }
       toast({
         title: "Categoría Creada",
         description: "La nueva categoría ha sido añadida.",
       });
-      router.push("/admin/categories");
     }
+    router.push("/admin/categories");
+    router.refresh();
   };
 
   return (

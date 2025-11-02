@@ -1,21 +1,11 @@
 'use server';
 
-/**
- * @fileOverview Enhances search functionality by using AI tools to query the Firestore database for relevant documents, folders, and categories.
- *
- * - intelligentSearch - A function that orchestrates the search process using AI tools.
- * - IntelligentSearchInput - The input type for the intelligentSearch function.
- * - IntelligentSearchOutput - The return type for the intelligentSearch function.
- */
-
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { initializeFirebase } from '@/firebase/server-initialization';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder } from '@/lib/types';
 
-
-// Define input and output schemas
 const IntelligentSearchInputSchema = z.object({
   query: z.string().describe('The user\'s search query.'),
 });
@@ -44,8 +34,6 @@ const IntelligentSearchOutputSchema = z.object({
 });
 export type IntelligentSearchOutput = z.infer<typeof IntelligentSearchOutputSchema>;
 
-
-// Firestore search functions
 const searchDocuments = async (searchQuery: string): Promise<DocumentType[]> => {
     const { firestore } = initializeFirebase();
     const lowerCaseQuery = searchQuery.toLowerCase();
@@ -86,7 +74,6 @@ const searchDocuments = async (searchQuery: string): Promise<DocumentType[]> => 
     return Array.from(resultsMap.values());
 };
 
-
 const searchFolders = async (searchQuery: string): Promise<Folder[]> => {
     const { firestore } = initializeFirebase();
     const q = query(
@@ -109,8 +96,6 @@ const searchCategories = async (searchQuery: string): Promise<Category[]> => {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
 };
 
-
-// Define AI tools
 const findDocumentsTool = ai.defineTool(
   {
     name: 'findDocuments',
@@ -119,7 +104,6 @@ const findDocumentsTool = ai.defineTool(
     outputSchema: z.array(DocumentResultSchema),
   },
   async (input) => {
-    console.log(`[AI] Searching documents with query: "${input.query}"`);
     const documents = await searchDocuments(input.query);
     return documents.map(doc => ({ id: doc.id, title: doc.title, type: 'document' }));
   }
@@ -133,7 +117,6 @@ const findFoldersTool = ai.defineTool(
     outputSchema: z.array(FolderResultSchema),
   },
   async (input) => {
-    console.log(`[AI] Searching folders with query: "${input.query}"`);
     const folders = await searchFolders(input.query);
     return folders.map(folder => ({ id: folder.id, name: folder.name, type: 'folder' }));
   }
@@ -147,14 +130,11 @@ const findCategoriesTool = ai.defineTool(
     outputSchema: z.array(CategoryResultSchema),
   },
   async (input) => {
-    console.log(`[AI] Searching categories with query: "${input.query}"`);
     const categories = await searchCategories(input.query);
     return categories.map(cat => ({ id: cat.id, name: cat.name, type: 'category' }));
   }
 );
 
-
-// Define the main flow
 const intelligentSearchFlow = ai.defineFlow(
   {
     name: 'intelligentSearchFlow',
@@ -172,21 +152,14 @@ const intelligentSearchFlow = ai.defineFlow(
         tools: [findDocumentsTool, findFoldersTool, findCategoriesTool],
         toolChoice: 'auto'
     });
-
-    if (!llmResponse.requests) {
-        return { results: [] };
-    }
-
-    const toolOutputs = llmResponse.requests.map(request => request.output);
     
-    // Flatten the results from all tool calls into a single array
-    const allResults = (await Promise.all(toolOutputs)).flat();
-    
-    return { results: allResults };
+    const toolResults = await llmResponse.toolRequests();
+    const allResults = toolResults.map(r => r.output).flat();
+
+    return { results: allResults as any };
   }
 );
 
-// Exported function to be called from the frontend
 export async function intelligentSearch(input: IntelligentSearchInput): Promise<IntelligentSearchOutput> {
   return intelligentSearchFlow(input);
 }

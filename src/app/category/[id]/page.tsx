@@ -1,9 +1,7 @@
-
 import { notFound } from 'next/navigation';
 import CategoryClientPage from './client-page';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-
 
 function CategoryPageSkeleton() {
     return (

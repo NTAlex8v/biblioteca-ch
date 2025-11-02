@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Document, Tag } from '@/lib/types';
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -24,18 +24,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 
-
 interface DocumentCardProps {
   document: Document;
 }
 
 const DocumentCard = ({ document }: DocumentCardProps) => {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, userData } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
   const isOwner = user && document.createdBy === user.uid;
+  const canManage = isOwner || userData?.role === 'Admin' || userData?.role === 'Editor';
 
   const tagsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -67,28 +67,19 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     handleActionClick(e);
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
-    deleteDoc(docRef)
-      .then(() => {
-        toast({
-          variant: "destructive",
-          title: 'Documento eliminado',
-          description: 'El documento ha sido eliminado permanentemente.',
-        });
-      })
-      .catch(() => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    deleteDocumentNonBlocking(docRef);
+    toast({
+      variant: "destructive",
+      title: 'Documento eliminado',
+      description: 'El documento ha sido eliminado permanentemente.',
+    });
   };
 
   return (
     <Link href={`/documents/${document.id}`} className="block h-full group">
         <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 group-hover:shadow-lg group-hover:border-primary">
             <CardHeader className="p-0 relative">
-                {isOwner && (
+                {canManage && (
                     <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
                         <AlertDialog>
                             <DropdownMenu>
@@ -128,7 +119,7 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
                         </AlertDialog>
                     </div>
                 )}
-                <div className="relative aspect-[2/3] w-full">
+                <div className="relative aspect-[3/4] w-full">
                 <Image
                   src={thumbnailUrl}
                   alt={`Cover of ${document.title}`}

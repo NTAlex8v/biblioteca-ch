@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,51 +7,44 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserRole() {
-      // Reads the user's role from their document in the /users collection.
-      // This is secure because the rules for /users/{userId} control who can edit this role.
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
-    function isAdmin() {
-      return isSignedIn() && getUserRole() == 'Admin';
-    }
-
-    function isAdminOrEditor() {
-      let userRole = getUserRole();
-      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
-    }
-    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+    }
+
+    function isEditor() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Editor';
+    }
+
+    function isAdminOrEditor() {
+      let userRole = getUserRole(request.auth.uid);
+      return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
+    }
+
     match /users/{userId} {
-      // A user can always read their own profile. An admin can read any profile.
       allow get: if isOwner(userId) || isAdmin();
-      // Only an admin can list all users. This rule depends on the admin's own role check.
       allow list: if isAdmin();
-      // A user can create their own profile document.
       allow create: if isOwner(userId);
-      // An admin can update any profile. A user can only update their own, and cannot change their own role.
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
-      // Only an admin can delete a user.
-      allow delete: if isAdmin();
+      allow update: if isOwner(userId) || isAdmin(); 
+      allow delete: if false; 
     }
 
     match /categories/{categoryId} {
-      allow read, write: if true;
+      allow get, list: if true;
+      allow create, update, delete: if isAdminOrEditor();
     }
 
     match /folders/{folderId} {
       allow get, list: if true;
       allow create: if isSignedIn();
       allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
-    }
-
-    match /tags/{tagId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
     }
     
     match /documents/{documentId} {
@@ -64,7 +56,7 @@ service cloud.firestore {
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update, delete: if false; // Audit logs should be immutable
+      allow update, delete: if false;
     }
   }
 }

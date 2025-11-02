@@ -9,21 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Document as DocumentType, Category, AuditLog } from "@/lib/types";
 import { Loader2 } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { uploadFile } from "@/firebase/storage";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 const documentSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
   author: z.string().min(3, "El autor debe tener al menos 3 caracteres."),
-  year: z.coerce.number().min(1900, "El año debe ser válido.").max(new Date().getFullYear(), "El año no puede ser en el futuro."),
+  year: z.coerce.number().min(1900, "El año debe ser válido.").max(new Date().getFullYear() + 1, "El año no puede ser en el futuro."),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
-  fileUrl: z.string().url("Debe ser una URL válida."),
-  categoryId: z.string({ required_error: "Debes seleccionar una categoría." }),
+  fileUrl: z.string().url("Debe proporcionar una URL válida para el archivo PDF."),
+  categoryId: z.string({ required_error: "Debes seleccionar una categoría." }).min(1, "Debes seleccionar una categoría."),
   thumbnailUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
   subject: z.string().optional(),
   version: z.string().optional(),
@@ -40,6 +43,10 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const firestore = useFirestore();
   const { user } = useUser();
 
+  const [uploadType, setUploadType] = useState<'url' | 'pdf'>('url');
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
   const categoryIdFromParams = searchParams.get('categoryId');
   const folderIdFromParams = searchParams.get('folderId');
 
@@ -48,25 +55,37 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    defaultValues: document ? {
-        ...document,
-        year: document.year || new Date().getFullYear(),
-    } : {
+    defaultValues: {
       title: "",
       author: "",
       year: new Date().getFullYear(),
       description: "",
       fileUrl: "",
-      categoryId: categoryIdFromParams || undefined,
+      categoryId: "",
       thumbnailUrl: "",
       subject: "",
       version: "1.0",
     },
   });
 
-  const { formState: { isSubmitting } } = form;
+  const { formState: { isSubmitting }, reset, setValue, trigger } = form;
 
-  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+  useEffect(() => {
+        const initialValues = {
+            title: document?.title || "",
+            author: document?.author || "",
+            year: document?.year || new Date().getFullYear(),
+            description: document?.description || "",
+            fileUrl: document?.fileUrl || "",
+            categoryId: document?.categoryId || categoryIdFromParams || "",
+            thumbnailUrl: document?.thumbnailUrl || "",
+            subject: document?.subject || "",
+            version: document?.version || "1.0",
+        };
+        reset(initialValues);
+  }, [document, categoryIdFromParams, reset]);
+
+  const logAction = (action: 'create' | 'update', entityId: string, entityName: string, details: string) => {
     if (!firestore || !user) return;
     const log: Omit<AuditLog, 'id'> = {
         timestamp: new Date().toISOString(),
@@ -81,61 +100,80 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
   };
 
-  const handleRedirect = () => {
-      if (folderIdFromParams) {
-        router.push(`/folders/${folderIdFromParams}`);
-      } else if (categoryIdFromParams || document?.categoryId) {
-        router.push(`/category/${categoryIdFromParams || document?.categoryId}`);
+  const handleRedirect = (docData: any) => {
+      const targetFolderId = folderIdFromParams || docData.folderId;
+      const targetCategoryId = categoryIdFromParams || docData.categoryId;
+      if (targetFolderId) {
+        router.push(`/folders/${targetFolderId}`);
+      } else if (targetCategoryId) {
+        router.push(`/category/${targetCategoryId}`);
       } else {
         router.push('/my-documents');
       }
-      router.refresh(); // Forces a refresh to show the new data
+      router.refresh();
   }
 
-  const onSubmit = (values: z.infer<typeof documentSchema>) => {
-    if (!firestore || !user) return;
+  const onSubmit = async (values: z.infer<typeof documentSchema>) => {
+    if (!firestore || !user) {
+        toast({ variant: "destructive", title: "Error de autenticación", description: "Debes iniciar sesión." });
+        return;
+    }
+
+    let finalFileUrl = values.fileUrl;
+
+    if (uploadType === 'pdf' && fileToUpload) {
+        try {
+            setUploadProgress(0);
+            finalFileUrl = await uploadFile(fileToUpload, setUploadProgress, user.uid);
+            setValue('fileUrl', finalFileUrl);
+            setUploadProgress(null);
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error al subir archivo", description: error.message });
+            setUploadProgress(null);
+            return;
+        }
+    }
     
-    const commonData = {
+    // Re-validate after getting file URL from upload
+    const isValid = await trigger('fileUrl');
+    if (!isValid) return;
+
+    const dataToSave = {
         ...values,
+        fileUrl: finalFileUrl,
+        folderId: folderIdFromParams || document?.folderId || null,
         lastUpdated: new Date().toISOString(),
+        createdBy: document?.createdBy || user.uid,
     };
 
     if (document) {
-      // Update existing document
       const docRef = doc(firestore, "documents", document.id);
-      const dataToUpdate: Partial<DocumentType> = {
-          ...commonData,
-          folderId: document.folderId, // Preserve original folderId
-          createdBy: document.createdBy, // Preserve original creator
-      };
-      setDocumentNonBlocking(docRef, dataToUpdate);
+      await setDocumentNonBlocking(docRef, dataToSave);
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
-      toast({
-        title: "Documento Actualizado",
-        description: "El documento ha sido actualizado exitosamente.",
-      });
-      handleRedirect();
+      toast({ title: "Documento Actualizado", description: "El documento ha sido actualizado exitosamente." });
     } else {
-      // Create new document
       const collectionRef = collection(firestore, "documents");
-      const dataToCreate: Omit<DocumentType, 'id'> = {
-          ...commonData,
-          folderId: folderIdFromParams || null, // Explicitly set to null if not provided
-          createdBy: user.uid,
+      const newDocRef = await addDocumentNonBlocking(collectionRef, dataToSave);
+      if(newDocRef) {
+          logAction('create', newDocRef.id, values.title, `Se creó el nuevo documento '${values.title}'.`);
       }
-      addDocumentNonBlocking(collectionRef, dataToCreate)
-        .then(newDocRef => {
-            if(newDocRef) {
-                logAction('create', newDocRef.id, values.title, `Se creó el nuevo documento '${values.title}'.`);
-            }
-        });
-      toast({
-        title: "Documento Creado",
-        description: "El nuevo documento ha sido añadido a la biblioteca.",
-      });
-      handleRedirect();
+      toast({ title: "Documento Creado", description: "El nuevo documento ha sido añadido a la biblioteca." });
     }
+
+    handleRedirect(dataToSave);
   };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] || null;
+      setFileToUpload(file);
+      if (file) {
+          setValue('fileUrl', `fakepath/${file.name}`);
+      } else {
+          setValue('fileUrl', '');
+      }
+  };
+
+  const isFormDisabled = isSubmitting || uploadProgress !== null;
 
   return (
     <Form {...form}>
@@ -149,7 +187,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Título</FormLabel>
                   <FormControl>
-                    <Input placeholder="Título del documento" {...field} />
+                    <Input placeholder="Título del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -162,7 +200,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Autor</FormLabel>
                   <FormControl>
-                    <Input placeholder="Autor del documento" {...field} />
+                    <Input placeholder="Autor del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -175,7 +213,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Año de Publicación</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="2024" {...field} />
+                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -188,7 +226,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Descripción</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} />
+                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -200,7 +238,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingCategories || !!categoryIdFromParams}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!categoryIdFromParams || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
@@ -223,25 +261,50 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Materia</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: Fisiología" {...field} />
+                    <Input placeholder="Ej: Fisiología" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-             <FormField
-              control={form.control}
-              name="fileUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>URL del Archivo (PDF)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            
+            <div className="md:col-span-2">
+                <div className="flex border-b mb-4">
+                    <button type="button" onClick={() => setUploadType('url')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Usar URL</button>
+                    <button type="button" onClick={() => setUploadType('pdf')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'pdf' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Subir Archivo PDF</button>
+                </div>
+
+                <div className={cn(uploadType === 'url' ? 'block' : 'hidden')}>
+                    <FormField control={form.control} name="fileUrl" render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>URL del Archivo (PDF)</FormLabel>
+                        <FormControl>
+                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )} />
+                </div>
+                <div className={cn(uploadType === 'pdf' ? 'block' : 'hidden')}>
+                    <FormField control={form.control} name="fileUrl" render={() => (
+                        <FormItem>
+                        <FormLabel>Archivo PDF</FormLabel>
+                        <FormControl>
+                            <Input type="file" accept=".pdf" onChange={handleFileChange} disabled={isFormDisabled} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )} />
+                </div>
+
+                {uploadProgress !== null && (
+                    <div className="mt-4">
+                        <Progress value={uploadProgress} className="w-full" />
+                        <p className="text-sm text-muted-foreground mt-2">Subiendo archivo... {Math.round(uploadProgress)}%</p>
+                    </div>
+                )}
+            </div>
+            
             <FormField
               control={form.control}
               name="thumbnailUrl"
@@ -249,7 +312,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>URL de la Portada (Opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} />
+                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -262,7 +325,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Versión</FormLabel>
                   <FormControl>
-                    <Input placeholder="1.0" {...field} />
+                    <Input placeholder="1.0" {...field} disabled={isFormDisabled} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -270,11 +333,11 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
             />
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
-            <Button variant="outline" type="button" onClick={() => router.back()} disabled={isSubmitting}>
+            <Button variant="outline" type="button" onClick={() => router.back()} disabled={isFormDisabled}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button type="submit" disabled={isFormDisabled}>
+                {isFormDisabled ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {document ? "Guardar Cambios" : "Crear Documento"}
             </Button>
           </CardFooter>

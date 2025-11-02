@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from "next/link";
@@ -21,18 +20,18 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth } from "@/firebase";
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-
+import { collection, getDocs, doc } from "firebase/firestore";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Por favor, ingresa un correo válido." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 });
 
-
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -45,18 +44,32 @@ export default function LoginPage() {
     },
   });
 
-  // A simplified success handler that ONLY handles UI feedback and redirection.
-  // NO DATABASE WRITES ON LOGIN.
-  const handleSignInSuccess = (userCred: UserCredential) => {
-    toast({
-        title: "Inicio de sesión exitoso",
-        description: "¡Bienvenido de vuelta!",
-    });
+  const handleSignInSuccess = async (userCred: UserCredential) => {
+    const user = userCred.user;
+    const usersCollection = collection(firestore, 'users');
+    const userDocs = await getDocs(usersCollection);
+    
+    // Check if it's the first user
+    if (userDocs.empty) {
+        // It's the first user, make them an admin.
+        const userRef = doc(firestore, 'users', user.uid);
+        await setDocumentNonBlocking(userRef, { role: 'Admin' }, { merge: true });
+        toast({
+            title: "¡Bienvenido, Administrador!",
+            description: "Como primer usuario, se te ha asignado el rol de Administrador.",
+        });
+    } else {
+        toast({
+            title: "Inicio de sesión exitoso",
+            description: "¡Bienvenido de vuelta!",
+        });
+    }
+
     router.push('/');
   };
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsSubmitting(true);
     signInWithEmailAndPassword(auth, values.email, values.password)
         .then(handleSignInSuccess)
@@ -72,7 +85,7 @@ export default function LoginPage() {
   };
   
   const handleGoogleSignIn = () => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     const provider = new GoogleAuthProvider();
     setIsSubmitting(true);
     
@@ -82,8 +95,6 @@ export default function LoginPage() {
         let description = "No se pudo iniciar sesión con Google.";
         if (error.code === 'auth/popup-closed-by-user') {
             description = "La ventana de inicio de sesión fue cerrada. Inténtalo de nuevo.";
-        } else if (error.code === 'auth/cancelled-popup-request') {
-            description = "Se canceló la solicitud de inicio de sesión. Por favor, no tengas dos ventanas de inicio de sesión abiertas.";
         }
         console.error("Google Sign-In Error:", error);
         toast({
@@ -135,7 +146,7 @@ export default function LoginPage() {
                      <div className="flex items-center">
                        <FormLabel>Contraseña</FormLabel>
                        <Link
-                         href="#"
+                         href="/profile"
                          className="ml-auto inline-block text-sm underline"
                        >
                          ¿Olvidaste tu contraseña?

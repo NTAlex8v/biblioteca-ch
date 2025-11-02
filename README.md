@@ -58,7 +58,7 @@ La biblioteca está organizada de forma jerárquica para facilitar la navegació
 -   **Framework:** Next.js con App Router.
 -   **Base de Datos:** Cloud Firestore para almacenar todos los datos (documentos, usuarios, carpetas, etc.).
 -   **Autenticación:** Firebase Authentication (proveedores de correo/contraseña y Google).
--   **Almacenamiento de Archivos:** Firebase Storage para alojar los archivos PDF (funcionalidad de subida actualmente gestionada por URL).
+-   **Almacenamiento de Archivos:** Firebase Storage para alojar los archivos PDF.
 -   **Reglas de Seguridad:** Reglas de Firestore y Storage para controlar el acceso y las operaciones según el rol y la propiedad del contenido.
 -   **Funcionalidades de IA:** Genkit con un modelo de Google para la búsqueda inteligente.
 -   **UI y Estilos:** Tailwind CSS con componentes de ShadCN UI.

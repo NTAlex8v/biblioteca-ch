@@ -1,30 +1,13 @@
+'use client';
 
-import React from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase'; // Use client-side initialization
-import DocumentForm from "@/app/document-form";
+import React, { useEffect } from 'react';
+import { doc } from 'firebase/firestore';
+import { notFound, useRouter } from 'next/navigation';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import DocumentForm from "@/components/document-form";
 import type { Document as DocumentType } from "@/lib/types";
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Initialize firebase on the client
-const { firestore } = initializeFirebase();
-
-async function getDocument(id: string): Promise<DocumentType | null> {
-    if (!firestore || !id) return null;
-    try {
-        const docRef = doc(firestore, 'documents', id);
-        const docSnap = await getDoc(docRef);
-
-        if (!docSnap.exists()) {
-            return null;
-        }
-        return { id: docSnap.id, ...docSnap.data() } as DocumentType;
-    } catch (error) {
-        console.error("Error fetching document:", error);
-        return null;
-    }
-}
+import { Loader2 } from 'lucide-react';
 
 function EditDocumentPageSkeleton() {
     return (
@@ -38,12 +21,31 @@ function EditDocumentPageSkeleton() {
     );
 }
 
-export default async function EditDocumentPage({ params }: { params: { id: string } }) {
-    
-    const documentData = await getDocument(params.id);
+export default function EditDocumentPage({ params }: { params: { id: string } }) {
+    const firestore = useFirestore();
+    const router = useRouter();
+    const { user, userData } = useUser();
 
-    if (!documentData) {
-        notFound();
+    const docRef = useMemoFirebase(() => {
+        if (!firestore || !params.id) return null;
+        return doc(firestore, 'documents', params.id);
+    }, [firestore, params.id]);
+
+    const { data: documentData, isLoading, error } = useDoc<DocumentType>(docRef);
+
+    const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
+
+    useEffect(() => {
+        if (!isLoading && (!documentData || !isAuthorized)) {
+            notFound();
+        }
+        if(error) {
+            router.push('/my-documents');
+        }
+    }, [isLoading, documentData, isAuthorized, error, router]);
+
+    if (isLoading || !documentData || !isAuthorized) {
+        return <EditDocumentPageSkeleton />;
     }
 
     return (

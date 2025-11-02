@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -11,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { History, FileText, User as UserIcon, Folder, Shapes, Tag as TagIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useRouter } from 'next/navigation';
 
 const entityIcons: { [key: string]: React.ElementType } = {
     Document: FileText,
@@ -37,6 +37,7 @@ const actionTranslations: { [key: string]: string } = {
 export default function MyHistoryPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const router = useRouter();
 
   const auditLogQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -49,9 +50,10 @@ export default function MyHistoryPage() {
   const { data: logs, isLoading: isLoadingLogs } = useCollection<AuditLog>(auditLogQuery);
 
   if (!user) {
+    router.push('/login');
     return (
         <div className="container mx-auto text-center py-16">
-            <p className="text-muted-foreground">Debes iniciar sesión para ver tu historial de actividad.</p>
+            <p className="text-muted-foreground">Debes iniciar sesión para ver tu historial. Redirigiendo...</p>
         </div>
     )
   }
@@ -124,5 +126,3 @@ export default function MyHistoryPage() {
     </div>
   );
 }
-
-    

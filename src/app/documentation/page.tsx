@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -23,7 +22,6 @@ export default function DocumentationPage() {
   const { toast } = useToast();
 
   const handleExport = (format: 'pdf' | 'word') => {
-    // Placeholder function for export
     toast({
       title: 'Función en desarrollo',
       description: `La exportación a ${format.toUpperCase()} aún no está implementada.`,

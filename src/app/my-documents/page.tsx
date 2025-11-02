@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking, useUser, addDocumentNonBlocking } from '@/firebase';
-import { collection, doc, query, where, getDoc } from 'firebase/firestore';
+import { collection, doc, query, where } from 'firebase/firestore';
 import type { Document as DocumentType, Category, AuditLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useRouter } from 'next/navigation';
 
-function DocumentActions({ documentId }: { documentId: string }) {
+function DocumentActions({ document }: { document: DocumentType }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const router = useRouter();
@@ -48,12 +48,10 @@ function DocumentActions({ documentId }: { documentId: string }) {
 
   const handleDelete = () => {
     if (!firestore) return;
-    const docRef = doc(firestore, 'documents', documentId);
+    const docRef = doc(firestore, 'documents', document.id);
     
-    // We don't need to fetch the doc anymore, just delete and log.
-    // The name might be stale in the logs if it was just changed, but that's a minor trade-off.
     deleteDocumentNonBlocking(docRef);
-    logAction('delete', documentId, documentId, `Se eliminó el documento con ID '${documentId}'.`);
+    logAction('delete', document.id, document.title, `Se eliminó el documento '${document.title}'.`);
     toast({
       variant: "destructive",
       title: 'Documento eliminado',
@@ -62,7 +60,7 @@ function DocumentActions({ documentId }: { documentId: string }) {
   };
 
   const handleEdit = () => {
-    router.push(`/my-documents/edit/${documentId}`);
+    router.push(`/my-documents/edit/${document.id}`);
   };
 
   return (
@@ -82,7 +80,7 @@ function DocumentActions({ documentId }: { documentId: string }) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
              <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={e => e.preventDefault()}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Eliminar
                 </DropdownMenuItem>
@@ -126,7 +124,7 @@ export default function MyDocumentsPage() {
 
   if (!user) {
       return (
-          <div className="container mx-auto text-center">
+          <div className="container mx-auto text-center py-16">
               <p>Por favor, inicie sesión para ver sus documentos.</p>
           </div>
       )
@@ -181,7 +179,7 @@ export default function MyDocumentsPage() {
                     </TableCell>
                     <TableCell>{doc.year}</TableCell>
                     <TableCell className="text-right">
-                      <DocumentActions documentId={doc.id} />
+                      <DocumentActions document={doc} />
                     </TableCell>
                   </TableRow>
                 ))

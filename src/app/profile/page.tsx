@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -42,7 +41,7 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 export default function ProfilePage() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, userData } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -54,11 +53,9 @@ export default function ProfilePage() {
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
-
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
-    values: { // Use values to keep form in sync with firebase data
+    values: {
         name: userData?.name || user?.displayName || '',
         email: userData?.email || user?.email || '',
         avatarUrl: userData?.avatarUrl || user?.photoURL || '',
@@ -73,14 +70,12 @@ export default function ProfilePage() {
   const { handleSubmit, control, formState: { isSubmitting } } = form;
 
   const onSubmit = (values: z.infer<typeof profileSchema>) => {
-    if (!userDocRef) return;
+    if (!userDocRef || !auth?.currentUser) return;
     
     const dataToUpdate = { name: values.name };
 
     updateDocumentNonBlocking(userDocRef, dataToUpdate);
-    if(auth?.currentUser && values.name) {
-      updateProfile(auth.currentUser, { displayName: values.name });
-    }
+    updateProfile(auth.currentUser, { displayName: values.name });
 
     toast({
         title: "Perfil Actualizado",
@@ -89,13 +84,11 @@ export default function ProfilePage() {
   };
 
   const handleAvatarChange = async () => {
-    if (!user || !userDocRef || !newAvatarUrl) return;
+    if (!user || !userDocRef || !newAvatarUrl || !auth?.currentUser) return;
     setIsAvatarSubmitting(true);
 
     try {
-        if (auth?.currentUser) {
-            await updateProfile(auth.currentUser, { photoURL: newAvatarUrl });
-        }
+        await updateProfile(auth.currentUser, { photoURL: newAvatarUrl });
         updateDocumentNonBlocking(userDocRef, { avatarUrl: newAvatarUrl });
         
         toast({
@@ -104,7 +97,6 @@ export default function ProfilePage() {
         });
         
     } catch (error) {
-        console.error("Error updating avatar:", error);
         toast({
             variant: "destructive",
             title: "Error",
@@ -125,17 +117,16 @@ export default function ProfilePage() {
           description: "Revisa tu bandeja de entrada para restablecer tu contraseña.",
         });
       })
-      .catch((error) => {
-        console.error("Error sending password reset email:", error);
+      .catch(() => {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
+          description: "No se pudo enviar el correo de recuperación.",
         });
       });
   };
 
-  if (isUserLoading || isUserDataLoading) {
+  if (isUserLoading) {
     return <div className="container mx-auto max-w-2xl"><p>Cargando perfil...</p></div>;
   }
 
@@ -144,7 +135,6 @@ export default function ProfilePage() {
   }
 
   const effectiveAvatarUrl = user.photoURL || userData.avatarUrl;
-  // Use the role from the Firestore document as the source of truth for the UI
   const displayRole = userData?.role || 'User';
 
   return (

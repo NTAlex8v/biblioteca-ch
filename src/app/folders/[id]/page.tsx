@@ -1,9 +1,7 @@
-
 import { notFound } from 'next/navigation';
 import FolderClientPage from './client-page';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-
 
 function FolderPageSkeleton() {
     return (
@@ -29,7 +27,6 @@ function FolderPageSkeleton() {
     );
 }
 
-// This is now an async component to correctly handle params
 export default async function FolderPage({ params }: { params: { id: string } }) {
     
     if (!params.id) {

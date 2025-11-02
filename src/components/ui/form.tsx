@@ -5,11 +5,11 @@ import * as LabelPrimitive from "@radix-ui/react-label"
 import { Slot } from "@radix-ui/react-slot"
 import {
   Controller,
-  FormProvider,
-  useFormContext,
   type ControllerProps,
   type FieldPath,
   type FieldValues,
+  FormProvider,
+  useFormContext,
 } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
@@ -19,7 +19,7 @@ const Form = FormProvider
 
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,
-  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 > = {
   name: TName
 }
@@ -30,7 +30,7 @@ const FormFieldContext = React.createContext<FormFieldContextValue>(
 
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
-  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
@@ -135,7 +135,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-[0.8rem] text-muted-foreground", className)}
       {...props}
     />
   )
@@ -147,7 +147,7 @@ const FormMessage = React.forwardRef<
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField()
-  const body = error ? String(error?.message ?? "") : children
+  const body = error ? String(error?.message) : children
 
   if (!body) {
     return null
@@ -157,7 +157,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn("text-sm font-medium text-destructive", className)}
+      className={cn("text-[0.8rem] font-medium text-destructive", className)}
       {...props}
     >
       {body}

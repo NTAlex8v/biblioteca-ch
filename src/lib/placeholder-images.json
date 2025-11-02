@@ -3,49 +3,49 @@
     {
       "id": "cover_1",
       "description": "Abstract blue and gold cover for a science book.",
-      "imageUrl": "https://images.unsplash.com/photo-1562519493-06ebe4871278?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YWJzdHJhY3QlMjBzY2llbmNlfGVufDB8fHx8MTc2MTAwNjU3OXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1605350635929-0d66113e4536?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxhYnN0cmFjdCUyMHNjaWVuY2V8ZW58MHx8fHwxNzYyMDY3MTYyfDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "abstract science"
     },
     {
       "id": "cover_2",
       "description": "Minimalist cover with geometric shapes for a humanities book.",
-      "imageUrl": "https://images.unsplash.com/photo-1531504746770-bb82a403d311?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxtaW5pbWFsaXN0JTIwZ2VvbWV0cnl8ZW58MHx8fHwxNzYxMDQzNzc4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1629373624003-e688583b3e1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxtaW5pbWFsaXN0JTIwZ2VvbWV0cnl8ZW58MHx8fHwxNzYyMTE2NDIzfDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "minimalist geometry"
     },
     {
       "id": "cover_3",
       "description": "Medical illustration on a book cover.",
-      "imageUrl": "https://images.unsplash.com/photo-1743767587687-9ebaac2b55e3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtZWRpY2FsJTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc2MTAzODk0OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1743767588082-e754fc9874be?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtZWRpY2FsJTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc2MjExNjQyM3ww&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "medical illustration"
     },
     {
       "id": "cover_4",
       "description": "Vintage anatomy drawing on a book cover.",
-      "imageUrl": "https://images.unsplash.com/photo-1760380168738-5df190aa69cf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx2aW50YWdlJTIwYW5hdG9teXxlbnwwfHx8fDE3NjEwNjk3Mzd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1761080363348-3c17486b6f16?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx2aW50YWdlJTIwYW5hdG9teXxlbnwwfHx8fDE3NjIxMTY0MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "vintage anatomy"
     },
     {
       "id": "cover_5",
       "description": "Modern architecture photography for a book cover.",
-      "imageUrl": "https://images.unsplash.com/photo-1615406020658-6c4b805f1f30?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBhcmNoaXRlY3R1cmV8ZW58MHx8fHwxNzYwOTU4Njk3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1543071293-d91175a68672?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtb2Rlcm4lMjBhcmNoaXRlY3R1cmV8ZW58MHx8fHwxNzYyMDY5OTI2fDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "modern architecture"
     },
     {
       "id": "cover_6",
       "description": "A close-up of a DNA helix for a genetics book.",
-      "imageUrl": "https://images.unsplash.com/photo-1641903202531-bfa6bf0c6419?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxkbmElMjBnZW5ldGljc3xlbnwwfHx8fDE3NjEwNjk3Mzd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1681911046068-79bd605f8663?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxkbmElMjBnZW5ldGljc3xlbnwwfHx8fDE3NjIwMDM1MTB8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "dna genetics"
     },
     {
       "id": "cover_7",
       "description": "Social sciences concept art cover.",
-      "imageUrl": "https://images.unsplash.com/photo-1680602240863-04db687aa806?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzb2NpYWwlMjBzY2llbmNlfGVufDB8fHx8MTc2MTA2OTczN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1648604906986-8dcc85e94906?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8c29jaWFsJTIwc2NpZW5jZXxlbnwwfHx8fDE3NjIwNTkyODd8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "social science"
     },
     {
       "id": "cover_8",
       "description": "Philosophy book cover with an abstract thought cloud.",
-      "imageUrl": "https://images.unsplash.com/photo-1633121477177-e0395b6052fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxwaGlsb3NvcGh5JTIwYWJzdHJhY3R8ZW58MHx8fHwxNzYxMDY5NzM3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://images.unsplash.com/photo-1758923529965-d4018b4b6edb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxwaGlsb3NvcGh5JTIwYWJzdHJhY3R8ZW58MHx8fHwxNzYyMTE2NDIzfDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "philosophy abstract"
     }
   ]

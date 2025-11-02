@@ -2,12 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, getDocs } from 'firebase/firestore';
-import type { Document as DocumentType, Folder, User as AppUser } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc, getDocs } from 'firebase/firestore';
+import type { Document as DocumentType, Folder, Category } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2, Home as HomeIcon, ChevronRight } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -34,28 +34,20 @@ const ItemSkeleton = () => (
     <div className="flex flex-col gap-2">
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-5 w-3-4" />
-        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 w-1-2" />
     </div>
 );
 
 function FolderCard({ folder }: { folder: Folder }) {
-    const { user } = useUser();
-    const firestore = useFirestore();
-    const router = useRouter();
+    const { user, userData } = useUser();
     const { toast } = useToast();
+    const firestore = useFirestore();
 
-    const userDocRef = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return doc(firestore, "users", user.uid);
-    }, [firestore, user]);
-
-    const { data: userData } = useDoc<AppUser>(userDocRef);
-    const isAdmin = userData?.role === 'Admin';
+    const canManage = userData?.role === 'Admin' || userData?.role === 'Editor' || folder.createdBy === user?.uid;
 
     const handleDelete = async () => {
         if (!firestore) return;
 
-        // Check for documents within the folder
         const documentsQuery = query(collection(firestore, 'documents'), where('folderId', '==', folder.id));
         const documentSnapshot = await getDocs(documentsQuery);
 
@@ -63,39 +55,26 @@ function FolderCard({ folder }: { folder: Folder }) {
             toast({
                 variant: "destructive",
                 title: 'No se puede eliminar la carpeta',
-                description: 'Primero debe eliminar todos los documentos dentro de la carpeta antes de poder eliminarla.',
+                description: 'Primero debe eliminar todos los documentos dentro de la carpeta.',
             });
             return;
         }
-
-        const docRef = doc(firestore, 'folders', folder.id);
         
-        deleteDoc(docRef)
-            .then(() => {
-                toast({
-                    variant: "destructive",
-                    title: 'Carpeta eliminada',
-                    description: `La carpeta '${folder.name}' ha sido eliminada.`,
-                });
-                if (folder.parentFolderId) {
-                    router.push(`/folders/${folder.parentFolderId}`);
-                } else {
-                    router.push(`/category/${folder.categoryId}`);
-                }
-            })
-            .catch(() => {
-                const permissionError = new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
+        const docRef = doc(firestore, 'folders', folder.id);
+
+        deleteDocumentNonBlocking(docRef);
+        
+        toast({
+            variant: "destructive",
+            title: 'Carpeta eliminada',
+            description: `La carpeta '${folder.name}' ha sido eliminada.`,
+        });
     };
 
     return (
         <Card className="group relative flex h-full flex-col items-center justify-center p-6 text-center transition-all duration-300 hover:shadow-lg hover:border-primary">
             <Link key={folder.id} href={`/folders/${folder.id}`} className="absolute inset-0 z-0" />
-            {isAdmin && (
+            {canManage && (
                  <div className="absolute top-2 right-2 z-10">
                     <AlertDialog>
                         <DropdownMenu>
@@ -168,19 +147,22 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
     return query(collection(firestore, 'documents'), where('folderId', '==', folderId));
   }, [firestore, folderId]);
 
-  const { data: subFolders, isLoading: isLoadingFolders } = useCollection<Folder>(subFoldersQuery);
+  const { data: subFolders, isLoading: isLoadingSubFolders } = useCollection<Folder>(subFoldersQuery);
   const { data: documents, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
-  const isLoading = isLoadingFolders || isLoadingDocuments || isLoadingFolder;
+  const categoryDocRef = useMemoFirebase(() => {
+      if (!firestore || !folder?.categoryId) return null;
+      return doc(firestore, 'categories', folder.categoryId);
+  }, [firestore, folder?.categoryId]);
+  const { data: category } = useDoc<Category>(categoryDocRef);
 
-  // Handle not found after loading
   React.useEffect(() => {
     if (!isLoadingFolder && !folder && !folderError) {
         notFound();
     }
   }, [isLoadingFolder, folder, folderError]);
 
-  if (isLoadingFolder) {
+  if (isLoadingFolder || isLoadingSubFolders || isLoadingDocuments) {
       return (
          <div className="container mx-auto flex justify-center items-center h-full">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -190,8 +172,6 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
   }
 
   if (folderError) {
-      // The FirestorePermissionError is thrown globally by the useDoc hook,
-      // so we just need a local UI state.
        return (
           <div className="container mx-auto flex justify-center items-center h-full">
               <Card className="w-full max-w-md text-center">
@@ -211,15 +191,16 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
   }
 
   if (!folder) {
-      // This will be caught by the notFound() in the effect, but as a fallback:
       return null;
   }
 
   return (
     <div className="container mx-auto">
-        <nav className="mb-4 text-sm text-muted-foreground">
-            <Link href={`/category/${folder.categoryId}`} className="hover:underline">Categoría</Link>
-             {' > '}
+        <nav className="mb-4 text-sm text-muted-foreground flex items-center gap-1.5">
+            <Link href="/" className="hover:underline flex items-center gap-1.5"><HomeIcon className="h-4 w-4" /> Inicio</Link>
+            <ChevronRight className="h-4 w-4" />
+            <Link href={`/category/${folder.categoryId}`} className="hover:underline">{category?.name || 'Categoría'}</Link>
+            <ChevronRight className="h-4 w-4" />
             <span>{folder.name}</span>
         </nav>
       <div className="flex justify-between items-center mb-8">
@@ -235,7 +216,7 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
                     <Button asChild>
                         <Link href={`/folders/new?categoryId=${folder.categoryId}&parentFolderId=${folder.id}`}>
                             <PlusCircle className="mr-2 h-4 w-4" />
-                            Nueva Carpeta
+                            Nueva Sub-carpeta
                         </Link>
                     </Button>
                     <Button asChild variant="secondary">
@@ -260,11 +241,11 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
         </div>
       </div>
       
-      { (isLoadingFolders || (subFolders && subFolders.length > 0)) && (
+      { (isLoadingSubFolders || (subFolders && subFolders.length > 0)) && (
           <>
             <h2 className="text-2xl font-semibold tracking-tight mb-4">Sub-carpetas</h2>
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-                {isLoadingFolders ? (
+                {isLoadingSubFolders ? (
                     Array.from({ length: 2 }).map((_, i) => (
                         <Card key={i} className="p-4 flex flex-col items-center justify-center text-center">
                             <Skeleton className="h-12 w-12 mb-2 rounded-lg" />
@@ -295,7 +276,7 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
         ) : (
              <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
                   <h3 className="text-xl font-semibold text-muted-foreground">Esta carpeta está vacía</h3>
-                  <p className="text-muted-foreground mt-2">Puedes añadir una nueva carpeta o un documento.</p>
+                  <p className="text-muted-foreground mt-2">Puedes añadir una nueva sub-carpeta o un documento.</p>
               </div>
         )}
     </div>

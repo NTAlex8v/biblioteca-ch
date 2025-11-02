@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -19,7 +18,6 @@ import {
   Home,
   Shapes,
   Users,
-  LayoutDashboard,
   FolderKanban,
   History,
   FileText,
@@ -46,12 +44,12 @@ const SideNav = () => {
   const userRole = userData?.role;
 
   return (
-    <Sidebar collapsible="offcanvas" variant="sidebar">
+    <Sidebar>
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2">
           <Book className="h-7 w-7 text-primary" />
           <span className="text-lg font-semibold">
-            <span>CMI Tahuantinsuyo Bajo</span>
+            <span>Biblioteca Virtual</span>
           </span>
         </Link>
       </SidebarHeader>
@@ -101,15 +99,6 @@ const SideNav = () => {
           {(userRole === 'Admin' || userRole === 'Editor') && (
             <SidebarGroup>
               <SidebarGroupLabel>Administración</SidebarGroupLabel>
-              {/* This item can be uncommented if a general admin dashboard is created */}
-              {/* <SidebarMenuItem>
-                <Link href="/admin">
-                  <SidebarMenuButton isActive={isActive("/admin")} tooltip="Panel">
-                    <LayoutDashboard />
-                    <span>Panel</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem> */}
                <SidebarMenuItem>
                 <Link href="/admin/categories">
                   <SidebarMenuButton isActive={pathname.startsWith("/admin/categories")} tooltip="Categorías">

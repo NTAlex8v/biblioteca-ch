@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -21,13 +20,13 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
-    const { user: currentUser } = useUser();
+    const { user: currentUser, userData } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const firestore = useFirestore();
 
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id) return;
+        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id || userData?.role !== 'Admin') return;
         
         setIsSubmitting(true);
         
@@ -46,7 +45,7 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
             toast({
                 variant: "destructive",
                 title: "Error al cambiar el rol",
-                description: error.message || "La operación falló. Es posible que no tengas permisos de administrador.",
+                description: error.message || "La operación falló.",
             });
         } finally {
             setIsSubmitting(false);
@@ -99,7 +98,6 @@ export default function UsersAdminPage() {
         setUsers(usersData);
     }
   }, [usersData]);
-
 
   const handleRoleChange = (uid: string, newRole: string) => {
     setUsers(currentUsers => 
@@ -173,9 +171,6 @@ export default function UsersAdminPage() {
                         <div className="text-destructive">
                             <p className='font-bold mb-2'>Error de Permisos</p>
                             <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
-                            <pre className="mt-4 text-left bg-muted/50 p-2 rounded-md text-xs overflow-auto">
-                                <code>{error.message}</code>
-                            </pre>
                         </div>
                         </TableCell>
                     </TableRow>

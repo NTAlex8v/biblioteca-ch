@@ -1,4 +1,3 @@
-
 "use client";
 
 import CategoryForm from "@/components/category-form";

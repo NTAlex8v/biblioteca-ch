@@ -1,4 +1,3 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
@@ -8,13 +7,12 @@ import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
-// IMPORTANTE: NO MODIFICAR ESTA FUNCIÓN
 export function initializeFirebase() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const auth = getAuth(app);
   const firestore = getFirestore(app);
   const storage = getStorage(app);
-  const functions = getFunctions(app, 'us-central1'); // Specify region
+  const functions = getFunctions(app, 'us-central1');
   
   return {
     firebaseApp: app,

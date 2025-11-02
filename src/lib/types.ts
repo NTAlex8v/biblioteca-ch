@@ -8,22 +8,22 @@ export type Document = {
     description: string;
     fileUrl: string;
     categoryId: string;
-    folderId?: string | null; // Can be in a category root or a folder
+    folderId?: string | null;
     tagIds?: string[];
-    lastUpdated: string; // Should be a date-time string
+    lastUpdated: string;
     versionHistory?: string[];
-    thumbnailUrl?: string; // Added for card display
-    subject?: string; // Added for document info
-    version?: string; // Added for document info
-    tags?: string[]; // To hold tag names for display
-    createdBy: string; // ID of the user who created the document
+    thumbnailUrl?: string;
+    subject?: string;
+    version?: string;
+    tags?: string[];
+    createdBy: string;
 };
 
 export type Category = {
     id: string;
     name: string;
     description:string;
-    icon?: LucideIcon; // Icon is optional now
+    icon?: LucideIcon;
 };
 
 export type Folder = {
@@ -51,12 +51,12 @@ export type User = {
 
 export type AuditLog = {
     id: string;
-    timestamp: string; // ISO date string
+    timestamp: string;
     userId: string;
-    userName: string; // Name of the user who performed the action
+    userName: string;
     action: 'create' | 'update' | 'delete' | 'role_change';
     entityType: 'Document' | 'Category' | 'Folder' | 'User' | 'Tag';
     entityId: string;
-    entityName: string; // A display name for the entity (e.g., document title, user name)
+    entityName: string;
     details: string;
 };

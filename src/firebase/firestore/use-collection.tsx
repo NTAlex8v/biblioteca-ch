@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from "react";
@@ -9,7 +8,6 @@ import {
   Query,
   DocumentData,
   getFirestore,
-  setLogLevel,
   QuerySnapshot,
   FirestoreError,
   CollectionReference,
@@ -17,12 +15,6 @@ import {
 import { useUser } from "@/firebase/provider";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-
-
-// Optional: habilitar logs detallados solo en dev
-if (process.env.NODE_ENV === "development") {
-  try { setLogLevel("debug"); } catch (e) { /* ignore if unavailable */ }
-}
 
 type WithId<T> = T & { id: string };
 
@@ -32,19 +24,16 @@ type UseCollectionResult<T = any> = {
   error: Error | null;
 };
 
-// Helper function to get path from a query or collection reference
 const getPathFromRef = (ref: Query<DocumentData> | CollectionReference<DocumentData>): string => {
     if (ref instanceof CollectionReference) {
         return ref.path;
     }
-    // This is a more general way to get the path from a query.
     const internalQuery: any = ref;
     if (internalQuery?._query?.path?.segments) {
         return internalQuery._query.path.segments.join('/');
     }
     return 'unknown path';
 };
-
 
 export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<DocumentData> | null): UseCollectionResult<T> {
   const [data, setData] = useState<WithId<T>[]>([]);

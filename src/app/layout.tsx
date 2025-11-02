@@ -1,14 +1,18 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+import { Providers } from '@/components/providers';
 import SideNav from '@/components/side-nav';
 import Header from '@/components/header';
-import { Providers } from '@/components/providers';
+import { Toaster } from '@/components/ui/toaster';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'CMI Tahuantinsuyo Bajo',
-  description: 'Biblioteca virtual CMI Tahuantinsuyo Bajo',
+  title: 'Biblioteca Virtual CMI Tahuantinsuyo Bajo',
+  description: 'Sistema de gestión de documentos y biblioteca virtual.',
   icons: {
-    icon: '/images/libro_bibliotech.png',
+    icon: '/libro_bibliotech.png',
   },
 };
 
@@ -19,21 +23,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/images/libro_bibliotech.png" sizes="any" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased">
+      <body className={inter.className}>
         <Providers>
-          <div className="flex min-h-screen w-full bg-background">
+          <div className="flex h-screen w-full bg-secondary/50">
             <SideNav />
             <div className="flex flex-1 flex-col">
               <Header />
-              <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+              <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+                {children}
+              </main>
             </div>
           </div>
+          <Toaster />
         </Providers>
       </body>
     </html>

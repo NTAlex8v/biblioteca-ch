@@ -9,8 +9,8 @@ import Link from 'next/link';
 import type { Document as DocumentType, Category } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, deleteDoc, collection } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, notFound } from 'next/navigation';
 import {
@@ -32,7 +32,7 @@ type DocumentDetailProps = {
 export default function DocumentDetailClient({ documentId }: DocumentDetailProps) {
   const [isPdfVisible, setIsPdfVisible] = useState(false);
   const [formattedDate, setFormattedDate] = useState('');
-  const { user } = useUser();
+  const { user, userData } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -67,27 +67,8 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
         </div>
     );
   }
-
-  if (documentError) {
-    return (
-        <div className="container mx-auto flex justify-center items-center h-full">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader>
-                    <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
-                        <AlertTriangle className="h-8 w-8 text-destructive" />
-                    </div>
-                    <CardTitle className="mt-4">Acceso Denegado</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">No tienes permisos para ver este documento.</p>
-                     <Button onClick={() => router.back()} className="mt-4">Volver</Button>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
-
-  const isOwner = user && document.createdBy === user.uid;
+  
+  const canManage = user && (document.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
   
   const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
   const placeholderImage = PlaceHolderImages[placeholderIndex];
@@ -98,22 +79,13 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
     
-    deleteDoc(docRef)
-      .then(() => {
-        toast({
-          variant: "destructive",
-          title: 'Documento eliminado',
-          description: 'El documento ha sido eliminado permanentemente.',
-        });
-        router.push('/');
-      })
-      .catch(() => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    deleteDocumentNonBlocking(docRef);
+    toast({
+      variant: "destructive",
+      title: 'Documento eliminado',
+      description: 'El documento ha sido eliminado permanentemente.',
+    });
+    router.push('/');
   };
 
   const pdfViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(document.fileUrl)}&embedded=true`;
@@ -124,7 +96,7 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
             <Card className="overflow-hidden sticky top-24">
-              <div className="relative aspect-[2/3] w-full">
+              <div className="relative aspect-[3/4] w-full">
                 <Image
                   src={thumbnailUrl}
                   alt={`Cover of ${document.title}`}
@@ -145,7 +117,6 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
             </div>
 
             <p className="text-base leading-relaxed mb-8">{document.description}</p>
-
 
             <Card className="mb-8">
               <CardHeader>
@@ -179,7 +150,7 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
                 </Link>
               </Button>
             </div>
-             {isOwner && (
+             {canManage && (
                 <div className="flex flex-col sm:flex-row gap-4 mt-4">
                     <Button size="lg" variant="outline" className="flex-1" asChild>
                         <Link href={`/my-documents/edit/${document.id}`}>

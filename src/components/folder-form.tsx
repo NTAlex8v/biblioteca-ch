@@ -84,6 +84,7 @@ export default function FolderForm() {
     } else {
         router.push(`/category/${categoryId}`);
     }
+    router.refresh();
   };
 
   return (
@@ -119,5 +120,3 @@ export default function FolderForm() {
     </Form>
   );
 }
-
-    

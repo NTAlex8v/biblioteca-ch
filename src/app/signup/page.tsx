@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from "next/link";
@@ -8,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc } from "firebase/firestore";
+import { doc, getDocs, collection } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,13 +24,11 @@ import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import type { User as AppUser } from "@/lib/types";
 
-
 const signupSchema = z.object({
   fullName: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
   email: z.string().email({ message: "Por favor, ingresa un correo válido." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 });
-
 
 export default function SignupPage() {
   const auth = useAuth();
@@ -57,31 +54,33 @@ export default function SignupPage() {
       .then(async (userCredential) => {
         const user = userCredential.user;
         
-        // Update Firebase Auth profile
         await updateProfile(user, {
             displayName: values.fullName,
         });
 
-        // Create user document in Firestore with default 'User' role
+        const usersCollection = collection(firestore, 'users');
+        const userDocs = await getDocs(usersCollection);
+        const isFirstUser = userDocs.empty;
+        
         const userRef = doc(firestore, "users", user.uid);
         const userData: Omit<AppUser, 'id'> = {
           email: user.email!,
           name: user.displayName || values.fullName,
           avatarUrl: user.photoURL || '',
-          role: 'User',
+          role: isFirstUser ? 'Admin' : 'User',
           createdAt: new Date().toISOString(),
         };
-        // This write will now succeed because of the `create` rule for users.
-        setDocumentNonBlocking(userRef, userData, { merge: false });
+        
+        await setDocumentNonBlocking(userRef, userData, { merge: false });
 
         toast({
           title: "¡Cuenta Creada!",
-          description: "Hemos creado tu cuenta exitosamente. El primer usuario es asignado como Administrador. Por favor, vuelve a iniciar sesión para que los cambios tomen efecto.",
+          description: isFirstUser 
+            ? "Como primer usuario, se te ha asignado el rol de Administrador. ¡Bienvenido!"
+            : "Hemos creado tu cuenta exitosamente.",
         });
-        // Sign out the user immediately after sign up so they have to log back in
-        // to get their admin custom claim.
-        auth.signOut();
-        router.push("/login");
+        
+        router.push("/");
       })
       .catch((error) => {
         let description = "Ocurrió un error al registrarse.";

@@ -1,4 +1,3 @@
-
 "use client";
 
 import FolderForm from "@/components/folder-form";
@@ -16,7 +15,6 @@ function NewFolderPageContents() {
     );
 }
 
-
 export default function NewFolderPage() {
     return (
         <Suspense fallback={<div>Cargando...</div>}>
@@ -24,4 +22,3 @@ export default function NewFolderPage() {
         </Suspense>
     );
 }
-

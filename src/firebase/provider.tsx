@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
@@ -48,7 +47,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     userError: Error | null;
   }>({
     user: auth?.currentUser || null,
-    isUserLoading: !auth?.currentUser,
+    isUserLoading: true,
     userError: null,
   });
 
@@ -71,7 +70,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         setAuthState({ user, isUserLoading: false, userError: null });
       },
       (error) => {
-        console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
@@ -127,7 +125,7 @@ export const useFirebaseApp = (): FirebaseApp => {
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 
-export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList): T | (MemoFirebase<T>) {
+export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList): T {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoized = useMemo(factory, deps);
   
