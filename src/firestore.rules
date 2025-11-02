@@ -12,11 +12,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Reads the role from a separate /roles/{userId} document.
+    // This is more efficient and secure for role-based access control.
     function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+      return get(/databases/$(database)/documents/roles/$(userId)).data.role;
     }
 
     function isAdmin() {
+      // Check for Admin role by reading the dedicated role document.
       return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
     }
 
@@ -25,11 +28,26 @@ service cloud.firestore {
       return isSignedIn() && (role == 'Admin' || role == 'Editor');
     }
     
-    match /users/{userId} {
-      allow get: if true;
+    // The /roles collection holds the permission level for each user.
+    // Reading this collection is restricted. Writing is only allowed for Admins.
+    match /roles/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false; // Roles should be changed, not deleted.
+    }
+
+    match /users/{userId} {
+      // Any authenticated user can get a user's public profile.
+      allow get: if isSignedIn();
+      // Only admins can list all users.
+      allow list: if isAdmin();
+      // A user can create their own profile document.
       allow create: if isOwner(userId);
-      allow update: if isAdmin() || (isOwner(userId));
+      // An admin can update any user's profile.
+      // A user can update their own profile.
+      allow update: if isAdmin() || isOwner(userId);
+      // Only admins can delete user profiles.
       allow delete: if isAdmin();
     }
 
