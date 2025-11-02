@@ -35,7 +35,7 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
             const userDocRef = doc(firestore, 'users', targetUser.id);
             // Directamente actualizamos el documento del usuario.
             // Las reglas de seguridad permitirán esto porque el usuario actual es un Admin.
-            updateDocumentNonBlocking(userDocRef, { role: newRole });
+            await updateDocumentNonBlocking(userDocRef, { role: newRole });
 
             onRoleChange(targetUser.id, newRole);
 

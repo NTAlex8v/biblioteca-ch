@@ -77,30 +77,41 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const authUnsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => {
+      async (firebaseUser) => {
         // Unsubscribe from the previous user's role listener
         roleUnsubscribe();
 
         if (firebaseUser) {
-            setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-            setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
-            
-            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-            roleUnsubscribe = onSnapshot(userDocRef, 
-                (docSnap) => {
-                    if (docSnap.exists()) {
-                        const userData = docSnap.data() as AppUser;
-                        setClaimsState({ claims: { role: userData.role || 'User' }, isLoadingClaims: false });
-                    } else {
-                        console.warn(`User document not found for UID: ${firebaseUser.uid}. Defaulting to 'User' role.`);
+            try {
+                // Force refresh the token to get the latest custom claims
+                const idTokenResult = await firebaseUser.getIdTokenResult(true);
+                const userClaims = idTokenResult.claims as { role?: 'Admin' | 'Editor' | 'User' };
+                
+                setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
+                setClaimsState({ claims: userClaims, isLoadingClaims: false });
+
+            } catch (error) {
+                console.error("Error refreshing user token or getting claims:", error);
+                // Fallback to reading from Firestore if claims fail
+                setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
+                setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
+                
+                const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+                roleUnsubscribe = onSnapshot(userDocRef, 
+                    (docSnap) => {
+                        if (docSnap.exists()) {
+                            const userData = docSnap.data() as AppUser;
+                            setClaimsState({ claims: { role: userData.role || 'User' }, isLoadingClaims: false });
+                        } else {
+                            setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
+                        }
+                    },
+                    (err) => {
+                        console.error("Error fetching user document for role fallback:", err);
                         setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
                     }
-                },
-                (error) => {
-                    console.error("Error fetching user document for role:", error);
-                    setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
-                }
-            );
+                );
+            }
         } else {
             setUserState({ user: null, isUserLoading: false, userError: null });
             setClaimsState({ claims: null, isLoadingClaims: false });
@@ -185,4 +196,11 @@ export const useUser = (): UserHookResult => {
 export const useUserClaims = (): UserClaimsHookResult => {
   const { claims, isLoadingClaims } = useFirebaseContext();
   return { claims, isLoadingClaims };
+};
+
+export const refreshClaims = async (auth: Auth): Promise<void> => {
+    const user = auth.currentUser;
+    if (user) {
+        await user.getIdToken(true);
+    }
 };
