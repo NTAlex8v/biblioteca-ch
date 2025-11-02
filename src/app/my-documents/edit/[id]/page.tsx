@@ -2,12 +2,12 @@
 import React from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase/server-initialization';
+import { initializeFirebase } from '@/firebase'; // Use client-side initialization
 import DocumentForm from "@/app/document-form";
 import type { Document as DocumentType } from "@/lib/types";
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Initialize firebase admin on server
+// Initialize firebase on the client
 const { firestore } = initializeFirebase();
 
 async function getDocument(id: string): Promise<DocumentType | null> {

@@ -1,13 +1,12 @@
 
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase/server-initialization';
+import { initializeFirebase } from '@/firebase'; // Use client-side initialization
 import type { Document as DocumentType, Category, Tag } from '@/lib/types';
 import DocumentDetailClient from './client-page';
 
-const { firestore } = initializeFirebase();
-
 async function getDocumentData(id: string) {
+  const { firestore } = initializeFirebase();
   if (!firestore) return null;
 
   const docRef = doc(firestore, 'documents', id);

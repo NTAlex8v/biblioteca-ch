@@ -1,15 +1,16 @@
 
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase/server-initialization';
+import { initializeFirebase } from '@/firebase'; // Use client-side initialization
 import CategoryForm from "@/components/category-form";
 import type { Category } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Initialize firebase admin on server
+// Initialize firebase on the client
 const { firestore } = initializeFirebase();
 
 async function getCategory(id: string): Promise<Category | null> {
+    if (!firestore) return null;
     const docRef = doc(firestore, 'categories', id);
     const docSnap = await getDoc(docRef);
 

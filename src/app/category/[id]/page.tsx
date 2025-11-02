@@ -1,14 +1,15 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase/server-initialization';
+import { initializeFirebase } from '@/firebase'; // Use client-side initialization
 import type { Category } from '@/lib/types';
 import CategoryClientPage from './client-page';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const { firestore } = initializeFirebase();
-
+// This function will now run on the client as part of the initial load
+// but it's kept separate for clarity.
 async function getCategory(id: string): Promise<Category | null> {
+    const { firestore } = initializeFirebase();
     if (!firestore) return null;
     const docRef = doc(firestore, 'categories', id);
     const docSnap = await getDoc(docRef);
@@ -45,11 +46,16 @@ function CategoryPageSkeleton() {
     );
 }
 
+// This component remains async, but the data fetching part will be handled client-side.
+// To achieve this, we will pass the category data to the client component.
 export default async function CategoryPage({ params }: { params: { id: string } }) {
     if (!params.id) {
         return <CategoryPageSkeleton />;
     }
 
+    // We can't fetch server-side with the admin SDK, so we'll pass the ID 
+    // to the client page and let it fetch the data.
+    // To do this, we'll create a new component that fetches and then renders the client page.
     const category = await getCategory(params.id);
 
     if (!category) {
