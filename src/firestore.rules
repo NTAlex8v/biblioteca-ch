@@ -12,23 +12,24 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Correctly checks for 'Admin' role using custom claims on the ID token.
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'Admin';
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
-    // Correctly checks for 'Admin' or 'Editor' role using custom claims.
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+    }
+
     function isAdminOrEditor() {
-      return isSignedIn() && (request.auth.token.role == 'Admin' || request.auth.token.role == 'Editor');
+      let role = getUserRole(request.auth.uid);
+      return isSignedIn() && (role == 'Admin' || role == 'Editor');
     }
     
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      // An admin can update the role of any user.
-      // A user can update their own profile (except the role).
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      allow update: if isAdmin() || (isOwner(userId));
       allow delete: if isAdmin();
     }
 
