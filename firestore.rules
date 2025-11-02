@@ -41,10 +41,7 @@ service cloud.firestore {
     }
 
     match /categories/{categoryId} {
-      allow get, list: if true;
-      // Any authenticated user can create/update/delete categories.
-      // This simplifies development and unblocks the user. UI controls prevent non-admins from seeing these options.
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /folders/{folderId} {
