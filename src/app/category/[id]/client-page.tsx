@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, doc, deleteDoc, getDocs } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -24,9 +24,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 interface CategoryClientPageProps {
-  category: Category;
+  categoryId: string;
 }
 
 const ItemSkeleton = () => (
@@ -53,7 +54,6 @@ function FolderCard({ folder }: { folder: Folder }) {
     const handleDelete = async () => {
         if (!firestore) return;
 
-        // Check for documents within the folder
         const documentsQuery = query(collection(firestore, 'documents'), where('folderId', '==', folder.id));
         const documentSnapshot = await getDocs(documentsQuery);
 
@@ -129,11 +129,21 @@ function FolderCard({ folder }: { folder: Folder }) {
     );
 }
 
-export default function CategoryClientPage({ category }: CategoryClientPageProps) {
+export default function CategoryClientPage({ categoryId }: CategoryClientPageProps) {
   const firestore = useFirestore();
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  const categoryDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'categories', categoryId) : null, [firestore, categoryId]);
+  const { data: category, isLoading: isLoadingCategory, error: categoryError } = useDoc<Category>(categoryDocRef);
+
+  useEffect(() => {
+    if (!isLoadingCategory && !category) {
+      notFound();
+    }
+  }, [isLoadingCategory, category]);
+
 
   const handleActionClick = () => {
     toast({
@@ -146,13 +156,13 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
 
   const foldersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'folders'), where('categoryId', '==', category.id), where('parentFolderId', '==', null));
-  }, [firestore, category.id]);
+    return query(collection(firestore, 'folders'), where('categoryId', '==', categoryId), where('parentFolderId', '==', null));
+  }, [firestore, categoryId]);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'documents'), where('categoryId', '==', category.id));
-  }, [firestore, category.id]);
+    return query(collection(firestore, 'documents'), where('categoryId', '==', categoryId));
+  }, [firestore, categoryId]);
 
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
   const { data: allDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
@@ -163,7 +173,34 @@ export default function CategoryClientPage({ category }: CategoryClientPageProps
   }, [allDocuments]);
 
 
-  const isLoading = isLoadingFolders || isLoadingDocuments;
+  if (isLoadingCategory || !category) {
+    return (
+        <div className="container mx-auto flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
+  }
+
+  if (categoryError) {
+      return (
+          <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
+                          <AlertTriangle className="h-8 w-8 text-destructive" />
+                      </div>
+                      <CardTitle className="mt-4">Acceso Denegado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-muted-foreground">No tienes permisos para ver esta categoría.</p>
+                       <Button onClick={() => router.back()} className="mt-4">Volver</Button>
+                  </CardContent>
+              </Card>
+          </div>
+      );
+  }
+
+  const isLoadingContent = isLoadingFolders || isLoadingDocuments;
 
   return (
     <div className="container mx-auto">

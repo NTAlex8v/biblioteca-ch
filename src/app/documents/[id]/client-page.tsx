@@ -4,15 +4,15 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Eye, Edit, Trash2 } from 'lucide-react';
+import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import type { Document as DocumentType, Tag } from '@/lib/types';
+import type { Document as DocumentType, Category } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, deleteDoc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, notFound } from 'next/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,12 +26,10 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type DocumentDetailProps = {
-  document: DocumentType;
-  categoryName: string;
-  documentTags: Tag[];
+  documentId: string;
 };
 
-export default function DocumentDetailClient({ document, categoryName, documentTags }: DocumentDetailProps) {
+export default function DocumentDetailClient({ documentId }: DocumentDetailProps) {
   const [isPdfVisible, setIsPdfVisible] = useState(false);
   const [formattedDate, setFormattedDate] = useState('');
   const { user } = useUser();
@@ -39,15 +37,58 @@ export default function DocumentDetailClient({ document, categoryName, documentT
   const { toast } = useToast();
   const router = useRouter();
 
-  const isOwner = user && document.createdBy === user.uid;
+  const docRef = useMemoFirebase(() => firestore ? doc(firestore, 'documents', documentId) : null, [firestore, documentId]);
+  const { data: document, isLoading: isLoadingDocument, error: documentError } = useDoc<DocumentType>(docRef);
+  
+  const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
+
+  const categoryName = useMemo(() => {
+    if (!document || !categories) return 'Cargando...';
+    return categories.find(c => c.id === document.categoryId)?.name || 'Sin categoría';
+  }, [document, categories]);
 
   useEffect(() => {
-    if (document.lastUpdated) {
+    if (document?.lastUpdated) {
       setFormattedDate(new Date(document.lastUpdated).toLocaleDateString());
     }
-  }, [document.lastUpdated]);
+  }, [document?.lastUpdated]);
+
+  useEffect(() => {
+    if ((!isLoadingDocument && !document) || documentError) {
+      notFound();
+    }
+  }, [isLoadingDocument, document, documentError]);
+
+  if (isLoadingDocument || isLoadingCategories || !document) {
+    return (
+        <div className="container mx-auto flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
+  }
+
+  if (documentError) {
+    return (
+        <div className="container mx-auto flex justify-center items-center h-full">
+            <Card className="w-full max-w-md text-center">
+                <CardHeader>
+                    <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
+                        <AlertTriangle className="h-8 w-8 text-destructive" />
+                    </div>
+                    <CardTitle className="mt-4">Acceso Denegado</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">No tienes permisos para ver este documento.</p>
+                     <Button onClick={() => router.back()} className="mt-4">Volver</Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
+  }
+
+  const isOwner = user && document.createdBy === user.uid;
   
-  // Deterministic placeholder image based on document ID
   const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
   const placeholderImage = PlaceHolderImages[placeholderIndex];
   const thumbnailUrl = document?.thumbnailUrl || placeholderImage.imageUrl;
@@ -105,11 +146,6 @@ export default function DocumentDetailClient({ document, categoryName, documentT
 
             <p className="text-base leading-relaxed mb-8">{document.description}</p>
 
-            <div className="flex flex-wrap gap-2 mb-8">
-              {documentTags.map((tag) => (
-                <Badge key={tag.id} variant="secondary">{tag.name}</Badge>
-              ))}
-            </div>
 
             <Card className="mb-8">
               <CardHeader>

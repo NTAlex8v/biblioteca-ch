@@ -1,51 +1,45 @@
 
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+
 import { notFound } from 'next/navigation';
-import { initializeFirebase } from '@/firebase'; // Use client-side initialization
-import type { Document as DocumentType, Category, Tag } from '@/lib/types';
 import DocumentDetailClient from './client-page';
+import { Suspense } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-async function getDocumentData(id: string) {
-  const { firestore } = initializeFirebase();
-  if (!firestore) return null;
-
-  const docRef = doc(firestore, 'documents', id);
-  const categoriesCollection = collection(firestore, 'categories');
-  const tagsCollection = collection(firestore, 'tags');
-
-  try {
-    const [docSnap, categoriesSnap, tagsSnap] = await Promise.all([
-      getDoc(docRef),
-      getDocs(categoriesCollection),
-      getDocs(tagsCollection),
-    ]);
-
-    if (!docSnap.exists()) {
-      return null;
-    }
-
-    const document = { id: docSnap.id, ...docSnap.data() } as DocumentType;
-
-    const categoryMap = new Map(categoriesSnap.docs.map(doc => [doc.id, doc.data().name]));
-    const categoryName = categoryMap.get(document.categoryId) || 'Sin categoría';
-
-    const allTags = tagsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Tag[];
-    const documentTags = document.tagIds ? allTags.filter(tag => document.tagIds.includes(tag.id)) : [];
-
-    return { document, categoryName, documentTags };
-
-  } catch (error) {
-    console.error("Error fetching document data:", error);
-    return null;
-  }
+function DocumentPageSkeleton() {
+    return (
+        <div className="container mx-auto max-w-5xl">
+            <div className="grid md:grid-cols-3 gap-8">
+                <div className="md:col-span-1">
+                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                </div>
+                <div className="md:col-span-2 space-y-4">
+                    <Skeleton className="h-10 w-3/4" />
+                    <Skeleton className="h-6 w-1/2" />
+                    <div className="flex items-center gap-4">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                    <Skeleton className="h-24 w-full" />
+                    <div className="flex gap-4">
+                        <Skeleton className="h-12 flex-1" />
+                        <Skeleton className="h-12 flex-1" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
 
-export default async function DocumentPage({ params }: { params: { id: string } }) {
-  const data = await getDocumentData(params.id);
 
-  if (!data) {
+export default async function DocumentPage({ params }: { params: { id: string } }) {
+  
+  if (!params.id) {
     notFound();
   }
 
-  return <DocumentDetailClient {...data} />;
+  return (
+    <Suspense fallback={<DocumentPageSkeleton />}>
+      <DocumentDetailClient documentId={params.id} />
+    </Suspense>
+  );
 }
