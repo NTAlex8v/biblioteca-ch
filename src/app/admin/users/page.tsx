@@ -9,7 +9,7 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -33,11 +33,9 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         
         try {
             const userDocRef = doc(firestore, 'users', targetUser.id);
-            const roleDocRef = doc(firestore, 'roles', targetUser.id);
-
-            // Update both the user document and the role document
+            // Directamente actualizamos el documento del usuario.
+            // Las reglas de seguridad permitirán esto porque el usuario actual es un Admin.
             updateDocumentNonBlocking(userDocRef, { role: newRole });
-            setDocumentNonBlocking(roleDocRef, { role: newRole });
 
             onRoleChange(targetUser.id, newRole);
 

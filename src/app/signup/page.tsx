@@ -71,12 +71,8 @@ export default function SignupPage() {
           role: 'User', // New users always get the 'User' role
           createdAt: new Date().toISOString(),
         };
+        // This write will now succeed because of the `create` rule for users.
         setDocumentNonBlocking(userRef, userData, { merge: false });
-
-        // Also create the role document for security rules
-        const roleRef = doc(firestore, "roles", user.uid);
-        setDocumentNonBlocking(roleRef, { role: 'User' });
-
 
         toast({
           title: "¡Cuenta Creada!",
