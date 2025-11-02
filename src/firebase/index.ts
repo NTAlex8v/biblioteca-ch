@@ -15,19 +15,6 @@ export function initializeFirebase() {
   const firestore = getFirestore(app);
   const storage = getStorage(app);
   const functions = getFunctions(app, 'us-central1'); // Specify region
-
-  if (process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST) {
-    console.log("Using Firebase Emulators");
-    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST.split(':')[0];
-    
-    if (process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_PORT) {
-        try {
-            // connectFunctionsEmulator(functions, host, parseInt(process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_PORT));
-        } catch (e) {
-            console.warn("Could not connect to Functions emulator. Are you sure it's running?", e);
-        }
-    }
-  }
   
   return {
     firebaseApp: app,

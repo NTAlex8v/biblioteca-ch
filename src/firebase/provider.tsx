@@ -1,11 +1,13 @@
 
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, DependencyList, useCallback } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, getIdTokenResult, IdTokenResult } from 'firebase/auth';
+import { Firestore, doc } from 'firebase/firestore';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import type { User as AppUser } from '@/lib/types';
+import { useDoc } from './firestore/use-doc';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -20,24 +22,16 @@ export interface FirebaseContextState {
   auth: Auth | null;
   
   user: User | null;
+  userData: AppUser | null;
   isUserLoading: boolean;
   userError: Error | null;
-
-  claims: IdTokenResult['claims'] | null;
-  isLoadingClaims: boolean;
-  refreshClaims: () => Promise<void>;
 }
 
 export interface UserHookResult {
   user: User | null;
+  userData: AppUser | null;
   isUserLoading: boolean;
   userError: Error | null;
-  refreshClaims: () => Promise<void>;
-}
-
-export interface UserClaimsHookResult {
-    claims: IdTokenResult['claims'] | null;
-    isLoadingClaims: boolean;
 }
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
@@ -48,82 +42,54 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firestore,
   auth,
 }) => {
-  const [userState, setUserState] = useState<{
+  const [authState, setAuthState] = useState<{
     user: User | null;
     isUserLoading: boolean;
     userError: Error | null;
   }>({
-    user: null,
-    isUserLoading: true,
+    user: auth?.currentUser || null,
+    isUserLoading: !auth?.currentUser,
     userError: null,
   });
 
-  const [claimsState, setClaimsState] = useState<{
-    claims: IdTokenResult['claims'] | null;
-    isLoadingClaims: boolean;
-  }>({
-    claims: null,
-    isLoadingClaims: true,
-  });
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authState.user) return null;
+    return doc(firestore, 'users', authState.user.uid);
+  }, [firestore, authState.user]);
 
-  const refreshClaims = useCallback(async () => {
-    if (auth.currentUser) {
-      try {
-        const idTokenResult = await getIdTokenResult(auth.currentUser, true); // Force refresh
-        setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
-      } catch (error) {
-        console.error("Error refreshing claims:", error);
-        setClaimsState({ claims: null, isLoadingClaims: false });
-      }
-    }
-  }, [auth]);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
 
   useEffect(() => {
     if (!auth) {
-      setUserState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
-      setClaimsState({ claims: null, isLoadingClaims: false });
+      setAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       return;
     }
 
-    const authUnsubscribe = onAuthStateChanged(
+    const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => {
-        if (firebaseUser) {
-          setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-          try {
-            const idTokenResult = await getIdTokenResult(firebaseUser);
-            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
-          } catch (error) {
-             console.error("Error getting id token result on auth state change", error);
-             setClaimsState({ claims: null, isLoadingClaims: false });
-          }
-
-        } else {
-          // No user, clear all states
-          setUserState({ user: null, isUserLoading: false, userError: null });
-          setClaimsState({ claims: null, isLoadingClaims: false });
-        }
+      (user) => {
+        setAuthState({ user, isUserLoading: false, userError: null });
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserState({ user: null, isUserLoading: false, userError: error });
-        setClaimsState({ claims: null, isLoadingClaims: false });
+        setAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
 
-    return () => {
-      authUnsubscribe();
-    };
+    return () => unsubscribe();
   }, [auth]);
+
+  const isOverallLoading = authState.isUserLoading || (!!authState.user && isUserDataLoading);
 
   const contextValue = useMemo((): FirebaseContextState => ({
     firebaseApp,
     firestore,
     auth,
-    ...userState,
-    ...claimsState,
-    refreshClaims,
-  }), [firebaseApp, firestore, auth, userState, claimsState, refreshClaims]);
+    user: authState.user,
+    userData: userData as AppUser | null,
+    isUserLoading: isOverallLoading,
+    userError: authState.userError,
+  }), [firebaseApp, firestore, auth, authState, userData, isOverallLoading]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -161,7 +127,8 @@ export const useFirebaseApp = (): FirebaseApp => {
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
+export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList): T | (MemoFirebase<T>) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoized = useMemo(factory, deps);
   
   if(typeof memoized !== 'object' || memoized === null) return memoized;
@@ -171,11 +138,6 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 }
 
 export const useUser = (): UserHookResult => {
-  const { user, isUserLoading, userError, refreshClaims } = useFirebaseContext();
-  return { user, isUserLoading, userError, refreshClaims };
-};
-
-export const useUserClaims = (): UserClaimsHookResult => {
-  const { claims, isLoadingClaims } = useFirebaseContext();
-  return { claims, isLoadingClaims };
+  const { user, userData, isUserLoading, userError } = useFirebaseContext();
+  return { user, userData, isUserLoading, userError };
 };

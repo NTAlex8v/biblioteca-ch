@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, FirestorePermissionError, errorEmitter, deleteDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder, User as AppUser } from '@/lib/types';
 import { Card } from '@/components/ui/card';
@@ -39,16 +40,10 @@ const ItemSkeleton = () => (
 );
 
 function FolderCard({ folder }: { folder: Folder }) {
-    const { user } = useUser();
+    const { user, userData } = useUser();
     const { toast } = useToast();
     const firestore = useFirestore();
 
-    const userDocRef = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return doc(firestore, "users", user.uid);
-    }, [firestore, user]);
-
-    const { data: userData } = useDoc<AppUser>(userDocRef);
     const canManage = userData?.role === 'Admin' || userData?.role === 'Editor' || folder.createdBy === user?.uid;
 
     const handleDelete = async () => {

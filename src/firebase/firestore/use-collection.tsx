@@ -14,10 +14,9 @@ import {
   FirestoreError,
   CollectionReference,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { useUser } from "@/firebase/provider";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { useUserClaims } from "../provider";
 
 
 // Optional: habilitar logs detallados solo en dev
@@ -51,15 +50,13 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
   const [data, setData] = useState<WithId<T>[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
-
-  const db = getFirestore();
-  const auth = getAuth();
-  const { claims, isLoadingClaims } = useUserClaims();
+  const { isUserLoading } = useUser();
+  const firestore = getFirestore();
 
   useEffect(() => {
     let unsubscribe: Unsubscribe = () => {};
 
-    if (memoizedTargetRefOrQuery === null || isLoadingClaims) {
+    if (memoizedTargetRefOrQuery === null || isUserLoading) {
       setData([]);
       setIsLoading(true); 
       setError(null);
@@ -75,7 +72,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
       let query: Query<DocumentData>;
 
       if (typeof memoizedTargetRefOrQuery === 'string') {
-          query = collection(db, memoizedTargetRefOrQuery) as Query<DocumentData>;
+          query = collection(firestore, memoizedTargetRefOrQuery) as Query<DocumentData>;
       } else {
           query = memoizedTargetRefOrQuery;
       }
@@ -106,7 +103,7 @@ export function useCollection<T = any>(memoizedTargetRefOrQuery: string | Query<
     setup();
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery, auth?.currentUser, db, claims, isLoadingClaims]);
+  }, [memoizedTargetRefOrQuery, isUserLoading, firestore]);
 
   return { data, isLoading, error };
 }

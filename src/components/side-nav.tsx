@@ -24,7 +24,7 @@ import {
   History,
   FileText,
 } from "lucide-react";
-import { useCollection, useFirestore, useUserClaims, useMemoFirebase, useUser } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 import type { Category } from "@/lib/types";
 
@@ -33,8 +33,7 @@ const SideNav = () => {
   const isActive = (path: string) => pathname === path;
   
   const firestore = useFirestore();
-  const { user } = useUser();
-  const { claims } = useUserClaims();
+  const { user, userData } = useUser();
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -44,6 +43,7 @@ const SideNav = () => {
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
 
   const isUserLoggedIn = !!user;
+  const userRole = userData?.role;
 
   return (
     <Sidebar collapsible="offcanvas" variant="sidebar">
@@ -98,17 +98,18 @@ const SideNav = () => {
             </>
           )}
 
-          {(claims?.role === 'Admin' || claims?.role === 'Editor') && (
+          {(userRole === 'Admin' || userRole === 'Editor') && (
             <SidebarGroup>
               <SidebarGroupLabel>Administración</SidebarGroupLabel>
-              <SidebarMenuItem>
+              {/* This item can be uncommented if a general admin dashboard is created */}
+              {/* <SidebarMenuItem>
                 <Link href="/admin">
                   <SidebarMenuButton isActive={isActive("/admin")} tooltip="Panel">
                     <LayoutDashboard />
                     <span>Panel</span>
                   </SidebarMenuButton>
                 </Link>
-              </SidebarMenuItem>
+              </SidebarMenuItem> */}
                <SidebarMenuItem>
                 <Link href="/admin/categories">
                   <SidebarMenuButton isActive={pathname.startsWith("/admin/categories")} tooltip="Categorías">
@@ -117,7 +118,7 @@ const SideNav = () => {
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
-              {claims?.role === 'Admin' && (
+              {userRole === 'Admin' && (
                 <SidebarMenuItem>
                   <Link href="/admin/users">
                     <SidebarMenuButton isActive={pathname.startsWith("/admin/users")} tooltip="Usuarios">

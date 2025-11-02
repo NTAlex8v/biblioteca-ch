@@ -13,7 +13,6 @@ import {
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
 import React, { Suspense } from "react";
-import { doc } from "firebase/firestore";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -26,10 +25,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useAuth, useUser } from "@/firebase";
 import SearchInputHandler from "./search-input-handler";
-import type { User as AppUser } from "@/lib/types";
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -61,15 +59,7 @@ const ThemeToggle = () => {
 const Header = () => {
   const router = useRouter();
   const auth = useAuth();
-  const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
-
-  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const { user, userData, isUserLoading } = useUser();
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -111,9 +101,9 @@ const Header = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || ""} />
+                <AvatarImage src={userData?.avatarUrl || user.photoURL || undefined} alt={userData?.name || user.displayName || ""} />
                 <AvatarFallback>
-                  {user.displayName?.charAt(0) || user.email?.charAt(0)}
+                  {userData?.name?.charAt(0) || user.displayName?.charAt(0) || user.email?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -122,7 +112,7 @@ const Header = () => {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  {user.displayName || 'Usuario'}
+                  {userData?.name || user.displayName || 'Usuario'}
                 </p>
                 <p className="text-xs leading-none text-muted-foreground">
                   {user.email}
