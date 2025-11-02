@@ -9,7 +9,7 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useUser, useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUserClaims } from '@/firebase';
+import { useUser, useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -33,8 +33,8 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         
         try {
             const userDocRef = doc(firestore, 'users', targetUser.id);
-            // Directamente actualizamos el documento del usuario.
-            // Las reglas de seguridad permitirán esto porque el usuario actual es un Admin.
+            // Directamente actualizamos el documento del usuario con el nuevo rol.
+            // Las reglas de seguridad (isAdmin) permitirán esta operación.
             await updateDocumentNonBlocking(userDocRef, { role: newRole });
 
             onRoleChange(targetUser.id, newRole);
@@ -88,6 +88,7 @@ export default function UsersAdminPage() {
   const isAdmin = claims?.role === 'Admin';
   
   const usersQuery = useMemoFirebase(() => {
+    // Only attempt to fetch users if the client knows they are an admin
     if (isAdmin && firestore) {
       return collection(firestore, 'users');
     }
