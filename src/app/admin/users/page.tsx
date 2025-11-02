@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { initializeFirebase } from '@/firebase/index';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -33,7 +34,7 @@ function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRole
         setIsSubmitting(true);
         
         try {
-            const functions = getFunctions();
+            const { functions } = initializeFirebase();
             const setRole = httpsCallable(functions, 'setRole');
             await setRole({ uid: targetUser.id, role: newRole });
 
@@ -214,3 +215,4 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+

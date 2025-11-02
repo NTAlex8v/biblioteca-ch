@@ -4,7 +4,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, IdTokenResult } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 interface FirebaseProviderProps {
@@ -73,7 +73,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
       try {
         // Force refresh the token to get the latest custom claims
-        const idTokenResult = await currentUser.getIdTokenResult(true);
+        const idTokenResult = await getIdTokenResult(currentUser, true);
         const role = (idTokenResult.claims.role as 'Admin' | 'Editor' | 'User') || 'User';
         setClaimsState({ claims: { role }, isLoadingClaims: false });
       } catch (error) {
@@ -183,3 +183,4 @@ export const useUserClaims = (): UserClaimsHookResult => {
   const { claims, isLoadingClaims, refreshClaims } = useFirebaseContext();
   return { claims, isLoadingClaims, refreshClaims };
 };
+
