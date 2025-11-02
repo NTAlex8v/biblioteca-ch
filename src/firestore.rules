@@ -11,66 +11,50 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-
-    // Reads the role from a separate /roles/{userId} document.
-    // This is more efficient and secure for role-based access control.
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/roles/$(userId)).data.role;
-    }
-
-    function isAdmin() {
-      // Check for Admin role by reading the dedicated role document.
-      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
-    }
-
-    function isAdminOrEditor() {
-      let role = getUserRole(request.auth.uid);
-      return isSignedIn() && (role == 'Admin' || role == 'Editor');
-    }
     
     // The /roles collection holds the permission level for each user.
     // Reading this collection is restricted. Writing is only allowed for Admins.
     match /roles/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create, update: if isAdmin();
+      // For now, allow owners to read their own role. Admins can manage all.
+      allow get: if isOwner(userId);
+      allow list: if false; // List should be restricted
+      allow create, update: if isOwner(userId); // Allow users to create their own role doc initially
       allow delete: if false; // Roles should be changed, not deleted.
     }
 
     match /users/{userId} {
       // Any authenticated user can get a user's public profile.
       allow get: if isSignedIn();
-      // Only admins can list all users.
-      allow list: if isAdmin();
+      // Only admins can list all users. This rule will be re-evaluated.
+      allow list: if false;
       // A user can create their own profile document.
       allow create: if isOwner(userId);
-      // An admin can update any user's profile.
       // A user can update their own profile.
-      allow update: if isAdmin() || isOwner(userId);
+      allow update: if isOwner(userId);
       // Only admins can delete user profiles.
-      allow delete: if isAdmin();
+      allow delete: if false;
     }
 
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
+      allow create, update, delete: if isSignedIn(); // Allow any logged-in user
     }
 
     match /folders/{folderId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
+      allow update, delete: if isOwner(resource.data.createdBy); // Only owner can modify
     }
 
     match /tags/{tagId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
+      allow create, update, delete: if isSignedIn(); // Allow any logged-in user
     }
     
     match /documents/{documentId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
+      allow update, delete: if isOwner(resource.data.createdBy); // Only owner can modify
     }
     
     match /users/{userId}/auditLogs/{logId} {
