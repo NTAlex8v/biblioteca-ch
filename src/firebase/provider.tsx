@@ -66,49 +66,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isLoadingClaims: true,
   });
 
-  const fetchUserAndRole = useCallback(async (firebaseUser: User | null) => {
-    if (firebaseUser) {
-      setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-      setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
-
-      try {
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        
-        // Set up a real-time listener for the user's document
-        const unsubscribe = onSnapshot(userDocRef, 
-          (docSnap) => {
-            if (docSnap.exists()) {
-                // Document exists, get the role
-                const userData = docSnap.data() as AppUser;
-                const role = userData.role || 'User';
-                setClaimsState({ claims: { role }, isLoadingClaims: false });
-            } else {
-                // Document doesn't exist, default to 'User'
-                console.warn(`User document not found for UID: ${firebaseUser.uid}. Defaulting to 'User' role.`);
-                setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
-            }
-        }, 
-        (error) => {
-            console.error("Error fetching user document for role:", error);
-            setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false }); // Default on error
-        });
-
-        // The unsubscribe function will be returned by the onAuthStateChanged cleanup
-        return unsubscribe;
-
-      } catch (error) {
-        console.error("Error setting up user role listener:", error);
-        setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false }); // Default on error
-      }
-    } else {
-      // No user, clear all user-related state
-      setUserState({ user: null, isUserLoading: false, userError: null });
-      setClaimsState({ claims: null, isLoadingClaims: false });
-    }
-    return () => {}; // Return an empty unsubscribe function if no user
-  }, [firestore]);
-
-
   useEffect(() => {
     if (!auth) {
       setUserState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
@@ -120,11 +77,34 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const authUnsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => {
+      (firebaseUser) => {
         // Unsubscribe from the previous user's role listener
-        roleUnsubscribe(); 
-        
-        roleUnsubscribe = await fetchUserAndRole(firebaseUser) || (() => {});
+        roleUnsubscribe();
+
+        if (firebaseUser) {
+            setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
+            setClaimsState(prevState => ({ ...prevState, isLoadingClaims: true }));
+            
+            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+            roleUnsubscribe = onSnapshot(userDocRef, 
+                (docSnap) => {
+                    if (docSnap.exists()) {
+                        const userData = docSnap.data() as AppUser;
+                        setClaimsState({ claims: { role: userData.role || 'User' }, isLoadingClaims: false });
+                    } else {
+                        console.warn(`User document not found for UID: ${firebaseUser.uid}. Defaulting to 'User' role.`);
+                        setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
+                    }
+                },
+                (error) => {
+                    console.error("Error fetching user document for role:", error);
+                    setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
+                }
+            );
+        } else {
+            setUserState({ user: null, isUserLoading: false, userError: null });
+            setClaimsState({ claims: null, isLoadingClaims: false });
+        }
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
@@ -137,7 +117,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       authUnsubscribe();
       roleUnsubscribe();
     };
-  }, [auth, fetchUserAndRole]);
+  }, [auth, firestore]);
 
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);

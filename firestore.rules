@@ -12,14 +12,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // isAdmin() ahora lee el rol directamente desde el documento del usuario.
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    // getUserRole ahora lee el rol directamente desde el documento del usuario.
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // isAdminOrEditor() también lee desde el documento del usuario.
+    function isAdmin() {
+      return isSignedIn() && getUserRole() == 'Admin';
+    }
+
     function isAdminOrEditor() {
-      let userRole = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      let userRole = getUserRole();
       return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
     }
     

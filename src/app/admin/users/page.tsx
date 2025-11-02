@@ -9,7 +9,7 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUserClaims } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -138,7 +138,6 @@ export default function UsersAdminPage() {
   }
 
   const isLoading = isLoadingUsers || isLoadingClaims;
-  const isPermissionError = error instanceof FirestorePermissionError;
 
   return (
     <div className="container mx-auto">
@@ -147,64 +146,74 @@ export default function UsersAdminPage() {
         <p className="text-muted-foreground">Administra los roles de todos los usuarios del sistema.</p>
       </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Usuario</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
-                </TableRow>
-              ))
-            ) : isPermissionError ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
-                  <div className="text-destructive">
-                    <p className='font-bold mb-2'>Error de Permisos</p>
-                    <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
-                     <pre className="mt-4 text-left bg-muted/50 p-2 rounded-md text-xs overflow-auto">
-                      <code>{error.message}</code>
-                    </pre>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : users.length > 0 ? (
-              users.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={user.avatarUrl} alt={user.name} />
-                        <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="font-medium">{user.name || 'Sin Nombre'}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                      <Badge variant={roleColors[user.role] || 'outline'}>{user.role}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <UserActions user={user} onRoleChange={handleRoleChange} />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
-                  No se encontraron usuarios.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+        <Card>
+          <CardHeader>
+            <CardTitle>Usuarios del Sistema</CardTitle>
+            <CardDescription>
+                {isLoading ? 'Cargando usuarios...' : `Hay un total de ${users.length} usuarios registrados.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+             <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={i}>
+                        <TableCell colSpan={4} className="h-16"><div className="w-full h-8 animate-pulse rounded-md bg-muted"></div></TableCell>
+                        </TableRow>
+                    ))
+                    ) : error ? (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                        <div className="text-destructive">
+                            <p className='font-bold mb-2'>Error de Permisos</p>
+                            <p className='text-sm'>No se pudieron cargar los usuarios. Asegúrate de que las reglas de seguridad de Firestore permitan a los administradores listar la colección de usuarios.</p>
+                            <pre className="mt-4 text-left bg-muted/50 p-2 rounded-md text-xs overflow-auto">
+                                <code>{error.message}</code>
+                            </pre>
+                        </div>
+                        </TableCell>
+                    </TableRow>
+                    ) : users.length > 0 ? (
+                    users.map(user => (
+                        <TableRow key={user.id}>
+                        <TableCell>
+                            <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                                <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="font-medium">{user.name || 'Sin Nombre'}</div>
+                            </div>
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                            <Badge variant={roleColors[user.role] || 'outline'}>{user.role}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <UserActions user={user} onRoleChange={handleRoleChange} />
+                        </TableCell>
+                        </TableRow>
+                    ))
+                    ) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                        No se encontraron usuarios.
+                        </TableCell>
+                    </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
     </div>
   );
 }
