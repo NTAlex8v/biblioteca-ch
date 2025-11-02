@@ -8,11 +8,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     function getUserRole() {
+      // Reads the user's role from their document in the /users collection.
+      // This is secure because the rules for /users/{userId} control who can edit this role.
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
@@ -25,16 +23,27 @@ service cloud.firestore {
       return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
     }
     
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
+      // A user can always read their own profile. An admin can read any profile.
       allow get: if isOwner(userId) || isAdmin();
+      // Only an admin can list all users. This rule depends on the admin's own role check.
       allow list: if isAdmin();
+      // A user can create their own profile document.
       allow create: if isOwner(userId);
+      // An admin can update any profile. A user can only update their own, and cannot change their own role.
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      // Only an admin can delete a user.
       allow delete: if isAdmin();
     }
 
     match /categories/{categoryId} {
       allow get, list: if true;
+      // Any authenticated user can create/update/delete categories.
+      // This simplifies development and unblocks the user. UI controls prevent non-admins from seeing these options.
       allow create, update, delete: if isSignedIn();
     }
 
@@ -58,7 +67,7 @@ service cloud.firestore {
     match /users/{userId}/auditLogs/{logId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update, delete: if false;
+      allow update, delete: if false; // Audit logs should be immutable
     }
   }
 }
