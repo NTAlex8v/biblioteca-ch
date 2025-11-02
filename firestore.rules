@@ -12,7 +12,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // getUserRole ahora lee el rol directamente desde el documento del usuario.
     function getUserRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
@@ -27,42 +26,32 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      // Un usuario puede leer su propio perfil. Un admin puede leer cualquier perfil.
       allow get: if isOwner(userId) || isAdmin();
-      // Solo un admin puede listar todos los usuarios.
       allow list: if isAdmin();
-      // Un usuario puede crear su propio perfil.
       allow create: if isOwner(userId);
-      // Un admin puede actualizar el rol de cualquier usuario.
-      // Un usuario puede actualizar su propio perfil (pero no su rol).
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
-      // Solo un admin puede eliminar perfiles.
       allow delete: if isAdmin();
     }
 
     match /categories/{categoryId} {
       allow get, list: if true;
-      // Solo Admins o Editores pueden modificar categorías.
-      allow create, update, delete: if isAdminOrEditor();
+      allow create, update, delete: if isSignedIn();
     }
 
     match /folders/{folderId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      // El creador, un Admin o un Editor pueden modificar la carpeta.
       allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
     }
 
     match /tags/{tagId} {
       allow get, list: if true;
-      // Solo Admins o Editores pueden modificar etiquetas.
       allow create, update, delete: if isAdminOrEditor();
     }
     
     match /documents/{documentId} {
       allow get, list: if true;
       allow create: if isSignedIn();
-      // El creador, un Admin o un Editor pueden modificar el documento.
       allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
     }
     
