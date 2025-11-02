@@ -1,0 +1,197 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the library system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (e.g., Admin, Editor, User)."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    },
+    "Material": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Material",
+      "type": "object",
+      "description": "Represents a document or material available in the library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Material entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the material."
+        },
+        "author": {
+          "type": "string",
+          "description": "Author of the material."
+        },
+        "year": {
+          "type": "number",
+          "description": "Publication year of the material."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to Category. (Relationship: Category 1:N Material)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the material."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL of the PDF file stored in Google Drive.",
+          "format": "uri"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags associated with the material.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Date and time the material was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "author",
+        "year",
+        "categoryId",
+        "description",
+        "fileUrl",
+        "lastUpdated"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category for organizing materials.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the category."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the category."
+        },
+        "parentCategoryId": {
+          "type": "string",
+          "description": "Reference to parent Category. Null if it's a root category. (Relationship: Category 1:N Category)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. User's 'id' is used as the document ID. Path-based ownership for private user data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores categories for organizing materials.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}/materials/{materialId}",
+        "definition": {
+          "entityName": "Material",
+          "schema": {
+            "$ref": "#/backend/entities/Material"
+          },
+          "description": "Stores materials associated with a specific category. Includes denormalized 'categoryId' from the parent category for filtering and security purposes. The 'categoryId' within the Material document must match the parent category's ID for data integrity.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for the category."
+            },
+            {
+              "name": "materialId",
+              "description": "The unique identifier for the material."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection indicate admin role. Existence implies admin.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure prioritizes security, scalability, and ease of debugging based on the provided requirements. It employs denormalization to achieve Authorization Independence, eliminating the need for `get()` calls in security rules.  Structural Segregation ensures that all documents within a collection share the same security posture. Access Modeling standardizes authorization patterns using path-based ownership and membership maps where appropriate. Data clarity and predictability are achieved through explicit state modeling, predictable schemas, and radical consistency in naming conventions.  The structure also supports the QAPs requirements by segregating data based on access needs and using membership models where appropriate. \n\n**Authorization Independence:**\n*   Authorization data is denormalized into documents within collections and subcollections.\n*   For collaborative entities, the `members` map is included in each document, removing the need to query parent documents for authorization.\n\n**QAPs Support:**\n*   Segregation of data based on access needs is achieved by storing public resources and user-specific resources in separate collections with independent security rules.\n*   Membership maps facilitate secure `list` operations for collaborative entities by explicitly defining roles and permissions within each document."
+  }
+}
