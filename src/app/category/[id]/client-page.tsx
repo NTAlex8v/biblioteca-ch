@@ -161,10 +161,6 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
     );
   }
   
-  if (!category) {
-      return null;
-  }
-
   if (categoryError) {
       return (
           <div className="container mx-auto flex justify-center items-center h-full">
@@ -182,6 +178,10 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
               </Card>
           </div>
       );
+  }
+  
+  if (!category) {
+      return null;
   }
 
   return (
