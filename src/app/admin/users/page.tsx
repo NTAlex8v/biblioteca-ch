@@ -9,10 +9,12 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useUser, useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUserClaims, useFirebaseApp } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import type { SetRoleInput } from '@/ai/functions/set-role';
 
 const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
   Admin: 'destructive',
@@ -21,35 +23,50 @@ const roleColors: { [key: string]: 'default' | 'secondary' | 'destructive' | 'ou
 };
 
 function UserActions({ user: targetUser, onRoleChange }: { user: AppUser; onRoleChange: (uid: string, newRole: string) => void; }) {
-    const { user: currentUser } = useUser();
+    const { user: currentUser, refreshClaims } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const firestore = useFirestore();
-    
+    const firebaseApp = useFirebaseApp();
+
     const handleRoleChange = async (newRole: 'Admin' | 'Editor' | 'User') => {
-        if (isSubmitting || !currentUser || !firestore || currentUser?.uid === targetUser.id) return;
+        if (isSubmitting || !currentUser || !firebaseApp || currentUser?.uid === targetUser.id) return;
         
         setIsSubmitting(true);
         
         try {
-            const userDocRef = doc(firestore, 'users', targetUser.id);
-            // Directamente actualizamos el documento del usuario con el nuevo rol.
-            // Las reglas de seguridad (isAdmin) permitirán esta operación.
-            await updateDocumentNonBlocking(userDocRef, { role: newRole });
+            const functions = getFunctions(firebaseApp, 'us-central1');
+            const setRole = httpsCallable<SetRoleInput, { success?: boolean; error?: string }>(functions, 'setRole');
+            
+            const result = await setRole({ uid: targetUser.id, role: newRole });
 
-            onRoleChange(targetUser.id, newRole);
+            if (result.data.success) {
+                // Update the local state for immediate UI feedback
+                onRoleChange(targetUser.id, newRole);
 
-            toast({
-                title: "Rol Actualizado",
-                description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
-            });
+                // Also update the firestore document for consistency,
+                // as the 'role' field is used for display purposes in the profile.
+                const userDocRef = doc(useFirestore(), 'users', targetUser.id);
+                await updateDocumentNonBlocking(userDocRef, { role: newRole });
+
+                // IMPORTANT: If we changed our own role, we need to refresh the token
+                if (currentUser.uid === targetUser.id) {
+                    await refreshClaims();
+                }
+
+                toast({
+                    title: "Rol Actualizado",
+                    description: `El rol de ${targetUser.name || targetUser.email} ha sido cambiado a ${newRole}.`,
+                });
+            } else {
+                 throw new Error(result.data.error || 'No se pudo actualizar el rol.');
+            }
 
         } catch (error: any) {
             console.error("Error setting role:", error);
             toast({
                 variant: "destructive",
                 title: "Error al cambiar el rol",
-                description: error.message || "No se pudo actualizar el rol del usuario.",
+                description: error.message || "La operación falló. Es posible que no tengas permisos de administrador.",
             });
         } finally {
             setIsSubmitting(false);
@@ -88,7 +105,6 @@ export default function UsersAdminPage() {
   const isAdmin = claims?.role === 'Admin';
   
   const usersQuery = useMemoFirebase(() => {
-    // Only attempt to fetch users if the client knows they are an admin
     if (isAdmin && firestore) {
       return collection(firestore, 'users');
     }

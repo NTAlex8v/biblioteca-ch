@@ -1,32 +1,37 @@
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, cert, type App } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
-// This file is intended for server-side use ONLY.
+// This file is intended for server-side use ONLY, specifically in Firebase Functions.
 
 interface FirebaseServerServices {
-    firebaseApp: FirebaseApp;
+    firebaseApp: App;
     firestore: Firestore;
 }
 
-// Memoization variable to ensure Firebase is initialized only once on the server.
+// Memoization variable to ensure Firebase Admin is initialized only once.
 let services: FirebaseServerServices | null = null;
+const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  : undefined;
 
 /**
- * Initializes and/or returns the Firebase app and Firestore instances for server-side operations.
- * This function ensures that Firebase is initialized only once per server instance.
- *
- * IMPORTANT: This should ONLY be used in server components (pages, layouts) for data fetching.
- *
- * @returns An object containing the initialized FirebaseApp and Firestore instances.
+ * Initializes and/or returns the Firebase Admin app and Firestore instances for server-side operations.
+ * This function ensures that Firebase Admin is initialized only once per server instance.
  */
 export function initializeFirebase(): FirebaseServerServices {
     if (services) {
         return services;
     }
 
-    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    const app = !getApps().length 
+        ? initializeApp({
+            credential: serviceAccount ? cert(serviceAccount) : undefined,
+            databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`
+          }) 
+        : getApp();
+
     const firestore = getFirestore(app);
     
     services = {

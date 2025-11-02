@@ -68,7 +68,7 @@ export default function SignupPage() {
           email: user.email!,
           name: user.displayName || values.fullName,
           avatarUrl: user.photoURL || '',
-          role: 'User', // New users always get the 'User' role
+          role: 'User',
           createdAt: new Date().toISOString(),
         };
         // This write will now succeed because of the `create` rule for users.
@@ -76,9 +76,12 @@ export default function SignupPage() {
 
         toast({
           title: "¡Cuenta Creada!",
-          description: "Hemos creado tu cuenta exitosamente.",
+          description: "Hemos creado tu cuenta exitosamente. El primer usuario es asignado como Administrador. Por favor, vuelve a iniciar sesión para que los cambios tomen efecto.",
         });
-        router.push("/");
+        // Sign out the user immediately after sign up so they have to log back in
+        // to get their admin custom claim.
+        auth.signOut();
+        router.push("/login");
       })
       .catch((error) => {
         let description = "Ocurrió un error al registrarse.";

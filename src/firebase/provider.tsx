@@ -1,12 +1,11 @@
 
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, DependencyList } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, DependencyList, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore';
+import { Auth, User, onAuthStateChanged, getIdTokenResult, IdTokenResult } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import type { User as AppUser } from '@/lib/types';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -24,18 +23,20 @@ export interface FirebaseContextState {
   isUserLoading: boolean;
   userError: Error | null;
 
-  claims: { role?: 'Admin' | 'Editor' | 'User' } | null;
+  claims: IdTokenResult['claims'] | null;
   isLoadingClaims: boolean;
+  refreshClaims: () => Promise<void>;
 }
 
 export interface UserHookResult {
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
+  refreshClaims: () => Promise<void>;
 }
 
 export interface UserClaimsHookResult {
-    claims: { role?: 'Admin' | 'Editor' | 'User' } | null;
+    claims: IdTokenResult['claims'] | null;
     isLoadingClaims: boolean;
 }
 
@@ -58,12 +59,24 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   });
 
   const [claimsState, setClaimsState] = useState<{
-    claims: { role?: 'Admin' | 'Editor' | 'User' } | null;
+    claims: IdTokenResult['claims'] | null;
     isLoadingClaims: boolean;
   }>({
     claims: null,
     isLoadingClaims: true,
   });
+
+  const refreshClaims = useCallback(async () => {
+    if (auth.currentUser) {
+      try {
+        const idTokenResult = await getIdTokenResult(auth.currentUser, true); // Force refresh
+        setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
+      } catch (error) {
+        console.error("Error refreshing claims:", error);
+        setClaimsState({ claims: null, isLoadingClaims: false });
+      }
+    }
+  }, [auth]);
 
   useEffect(() => {
     if (!auth) {
@@ -72,37 +85,19 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       return;
     }
 
-    let roleUnsubscribe = () => {};
-
     const authUnsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => {
-        // Unsubscribe from any previous listener
-        roleUnsubscribe();
-
+      async (firebaseUser) => {
         if (firebaseUser) {
           setUserState({ user: firebaseUser, isUserLoading: false, userError: null });
-          setClaimsState({ claims: null, isLoadingClaims: true }); // Start loading role from Firestore
+          try {
+            const idTokenResult = await getIdTokenResult(firebaseUser);
+            setClaimsState({ claims: idTokenResult.claims, isLoadingClaims: false });
+          } catch (error) {
+             console.error("Error getting id token result on auth state change", error);
+             setClaimsState({ claims: null, isLoadingClaims: false });
+          }
 
-          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-          roleUnsubscribe = onSnapshot(
-            userDocRef,
-            (docSnap) => {
-              if (docSnap.exists()) {
-                const userData = docSnap.data() as AppUser;
-                // The role from Firestore is the source of truth
-                setClaimsState({ claims: { role: userData.role || 'User' }, isLoadingClaims: false });
-              } else {
-                // User document doesn't exist yet, default to 'User'
-                setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
-              }
-            },
-            (err) => {
-              console.error("Error fetching user document for role:", err);
-              // Fallback to 'User' role on error
-              setClaimsState({ claims: { role: 'User' }, isLoadingClaims: false });
-            }
-          );
         } else {
           // No user, clear all states
           setUserState({ user: null, isUserLoading: false, userError: null });
@@ -118,9 +113,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     return () => {
       authUnsubscribe();
-      roleUnsubscribe(); // Cleanup listener on unmount
     };
-  }, [auth, firestore]);
+  }, [auth]);
 
   const contextValue = useMemo((): FirebaseContextState => ({
     firebaseApp,
@@ -128,7 +122,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     auth,
     ...userState,
     ...claimsState,
-  }), [firebaseApp, firestore, auth, userState, claimsState]);
+    refreshClaims,
+  }), [firebaseApp, firestore, auth, userState, claimsState, refreshClaims]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -176,8 +171,8 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 }
 
 export const useUser = (): UserHookResult => {
-  const { user, isUserLoading, userError } = useFirebaseContext();
-  return { user, isUserLoading, userError };
+  const { user, isUserLoading, userError, refreshClaims } = useFirebaseContext();
+  return { user, isUserLoading, userError, refreshClaims };
 };
 
 export const useUserClaims = (): UserClaimsHookResult => {

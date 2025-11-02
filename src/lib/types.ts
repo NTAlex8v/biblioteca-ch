@@ -16,7 +16,7 @@ export type Document = {
     subject?: string; // Added for document info
     version?: string; // Added for document info
     tags?: string[]; // To hold tag names for display
-    createdBy?: string; // ID of the user who created the document
+    createdBy: string; // ID of the user who created the document
 };
 
 export type Category = {
