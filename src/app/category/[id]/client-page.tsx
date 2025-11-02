@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import type { Document as DocumentType, Category, Folder } from '@/lib/types';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { notFound } from 'next/navigation';
 
 interface CategoryClientPageProps {
   categoryId: string;
@@ -124,13 +123,6 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
   const categoryDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'categories', categoryId) : null, [firestore, categoryId]);
   const { data: category, isLoading: isLoadingCategory, error: categoryError } = useDoc<Category>(categoryDocRef);
 
-  useEffect(() => {
-    if (!isLoadingCategory && !category) {
-      notFound();
-    }
-  }, [isLoadingCategory, category]);
-
-
   const handleActionClick = () => {
     toast({
         variant: "destructive",
@@ -169,10 +161,10 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
                       <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                           <AlertTriangle className="h-8 w-8 text-destructive" />
                       </div>
-                      <CardTitle className="mt-4">Error</CardTitle>
+                      <CardTitle className="mt-4">Error al Cargar</CardTitle>
                   </CardHeader>
                   <CardContent>
-                      <p className="text-muted-foreground">No se pudo cargar la categoría.</p>
+                      <p className="text-muted-foreground">No se pudo cargar la categoría. Es posible que no tengas permisos o que haya ocurrido un error de red.</p>
                        <Button onClick={() => router.back()} className="mt-4">Volver</Button>
                   </CardContent>
               </Card>
@@ -181,7 +173,22 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
   }
   
   if (!category) {
-      return null;
+      return (
+           <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit">
+                          <AlertTriangle className="h-8 w-8 text-primary" />
+                      </div>
+                      <CardTitle className="mt-4">Categoría no encontrada</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-muted-foreground">La categoría que estás buscando no existe o ha sido eliminada.</p>
+                       <Button onClick={() => router.push('/')} className="mt-4">Ir a Inicio</Button>
+                  </CardContent>
+              </Card>
+          </div>
+      );
   }
 
   return (
