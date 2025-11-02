@@ -34,7 +34,7 @@ service cloud.firestore {
 
     match /categories/{categoryId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdminOrEditor();
+      allow create, update, delete: if isSignedIn();
     }
 
     match /folders/{folderId} {
