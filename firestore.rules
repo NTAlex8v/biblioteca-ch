@@ -68,6 +68,11 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.createdBy || isAdminOrEditor());
     }
     
+    match /tags/{tagId} {
+        allow get, list: if true; // Publicly readable
+        allow create, update, delete: if isAdminOrEditor();
+    }
+
     match /users/{userId}/auditLogs/{logId} {
       // Users can only read and write to their own audit log.
       allow read, write: if isOwner(userId);

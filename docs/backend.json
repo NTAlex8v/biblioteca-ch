@@ -81,6 +81,17 @@
             "details": { "type": "string" }
         },
         "required": ["id", "timestamp", "userId", "userName", "action", "entityType", "entityId", "details"]
+    },
+    "Tag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tag",
+      "type": "object",
+      "description": "Represents a tag that can be applied to documents for cross-classification.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the tag." },
+        "name": { "type": "string", "description": "Name of the tag." }
+      },
+      "required": ["id", "name"]
     }
   },
   "auth": {
@@ -129,6 +140,14 @@
             "entityName": "AuditLog",
             "schema": { "$ref": "#/backend/entities/AuditLog" },
             "description": "Stores a user's activity log."
+        }
+      },
+      {
+        "path": "/tags/{tagId}",
+        "definition": {
+            "entityName": "Tag",
+            "schema": { "$ref": "#/backend/entities/Tag" },
+            "description": "Stores all tags for documents."
         }
       }
     ]
