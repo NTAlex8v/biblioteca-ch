@@ -15,6 +15,7 @@ service cloud.firestore {
 
     // Role is fetched from the user's document in Firestore.
     function getUserRole() {
+      // Use exists() to prevent errors if the user document doesn't exist yet.
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
