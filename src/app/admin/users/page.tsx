@@ -9,7 +9,7 @@ import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useCollection, useFirestore, useMemoFirebase, FirestorePermissionError, useUserClaims } from '@/firebase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -215,4 +215,3 @@ export default function UsersAdminPage() {
     </div>
   );
 }
-

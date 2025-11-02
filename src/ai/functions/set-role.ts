@@ -3,57 +3,60 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 
-// Inicializa Firebase Admin SDK si no se ha hecho antes.
+// Initialize Firebase Admin SDK if not already done.
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }
 
 /**
- * Cloud Function para asignar un rol a un usuario como un Custom Claim.
- * Solo puede ser llamada por un usuario que ya sea administrador.
+ * Cloud Function to assign a role to a user as a Custom Claim.
+ * Can only be called by a user who is already an administrator.
  */
 export const setRole = onCall(async ({ data, context }) => {
-  // 1. Verificación de Autenticación y Permisos
-  // Asegurarse de que el usuario que llama está autenticado y es un Admin.
+  // 1. Authentication and Permission Check
+  // Ensure the calling user is authenticated and is an Admin.
+  // The first Admin must be created manually via a server-side script or the gcloud CLI.
   if (!context.auth || context.auth.token.role !== 'Admin') {
     throw new HttpsError(
       'permission-denied',
-      'Esta función solo puede ser llamada por un administrador.'
+      'This function can only be called by an administrator.'
     );
   }
 
   const { uid, role } = data;
 
-  // 2. Validación de Datos de Entrada
+  // 2. Input Data Validation
   if (
     !uid ||
     typeof uid !== 'string' ||
     !role ||
-    typeof role !== 'string'
+    typeof role !== 'string' ||
+    !['Admin', 'Editor', 'User'].includes(role)
   ) {
     throw new HttpsError(
       'invalid-argument',
-      'La función requiere un "uid" y un "role" como strings.'
+      'The function requires a "uid" and a valid "role" ("Admin", "Editor", "User") as strings.'
     );
   }
 
   try {
-    // 3. Asignación del Custom Claim
+    // 3. Set the Custom Claim
     await admin.auth().setCustomUserClaims(uid, { role: role });
 
-    // (Opcional pero recomendado) Mantener sincronizado el documento de Firestore
+    // 4. (Recommended) Keep the Firestore document in sync
     await admin.firestore().collection('users').doc(uid).update({ role: role });
 
-    // 4. Devolver una respuesta exitosa
+    // 5. Return a successful response
     return {
       status: 'success',
-      message: `El rol '${role}' ha sido asignado al usuario ${uid}.`,
+      message: `Role '${role}' has been assigned to user ${uid}.`,
     };
   } catch (error: any) {
-    console.error('Error al asignar el rol:', error);
+    console.error('Error assigning role:', error);
+    // Throw a generic error to the client to avoid leaking implementation details.
     throw new HttpsError(
       'internal',
-      'Ocurrió un error al intentar asignar el rol.',
+      'An error occurred while trying to assign the role.',
       error.message
     );
   }

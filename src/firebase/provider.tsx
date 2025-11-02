@@ -183,4 +183,3 @@ export const useUserClaims = (): UserClaimsHookResult => {
   const { claims, isLoadingClaims, refreshClaims } = useFirebaseContext();
   return { claims, isLoadingClaims, refreshClaims };
 };
-
