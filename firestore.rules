@@ -13,34 +13,50 @@ service cloud.firestore {
     }
 
     function getUserRole() {
+      // Lee el rol del usuario directamente desde el documento en la colección /users.
+      // Esta operación es segura y eficiente para la evaluación de reglas.
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
     function isAdmin() {
+      // Un usuario es Admin si está autenticado y su rol en Firestore es 'Admin'.
       return isSignedIn() && getUserRole() == 'Admin';
     }
 
     function isAdminOrEditor() {
+      // Un usuario es Admin o Editor si está autenticado y su rol cumple la condición.
       let userRole = getUserRole();
       return isSignedIn() && (userRole == 'Admin' || userRole == 'Editor');
     }
     
     match /users/{userId} {
+      // Un usuario puede leer su propio perfil. Un admin puede leer cualquier perfil.
       allow get: if isOwner(userId) || isAdmin();
+      // Solo los administradores pueden listar todos los usuarios. 
+      // Esta regla ahora funciona porque `isAdmin()` ya no crea una dependencia circular.
       allow list: if isAdmin();
+      // Un usuario puede crear su propio perfil.
       allow create: if isOwner(userId);
+      // Un usuario puede actualizar su propio perfil. Un administrador puede actualizar el de cualquiera (para cambiar roles).
+      // Se añade una validación para que un usuario no-admin no pueda escalar sus propios privilegios.
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      // Solo los administradores pueden eliminar perfiles.
       allow delete: if isAdmin();
     }
 
     match /categories/{categoryId} {
+      // Cualquiera puede ver las categorías.
       allow get, list: if true;
-      allow create, update, delete: if isSignedIn();
+      // Solo Admins o Editores pueden crear, actualizar o eliminar categorías.
+      allow create, update, delete: if isAdminOrEditor();
     }
 
     match /folders/{folderId} {
+      // Cualquiera puede ver carpetas.
       allow get, list: if true;
+      // Solo usuarios autenticados pueden crear carpetas.
       allow create: if isSignedIn();
+      // Solo el creador de la carpeta, un Admin o un Editor pueden modificarla o borrarla.
       allow update, delete: if isOwner(resource.data.createdBy) || isAdminOrEditor();
     }
 
