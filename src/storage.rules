@@ -1,0 +1,20 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Allow public read access to all files.
+    // This simplifies displaying images and documents.
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+    
+    // Restrict write access. Only an authenticated user can write
+    // to their own designated folder in storage.
+    // e.g., /documents/USER_ID/some-file.pdf
+    match /documents/{userId}/{allPaths=**} {
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
