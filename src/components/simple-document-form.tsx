@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -21,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 
 const simpleDocumentSchema = z.object({
   title: z.string().optional(),
-  fileUrl: z.string().url("Debe proporcionar una URL o subir un archivo."),
+  fileUrl: z.string().url("Debe proporcionar una URL o subir un archivo válido.").min(1, "Debe proporcionar una URL o subir un archivo."),
   categoryId: z.string({ required_error: "Debes seleccionar una categoría." }).min(1, "Debes seleccionar una categoría."),
 });
 
@@ -32,7 +33,7 @@ function SimpleDocumentFormComponent() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const [uploadType, setUploadType] = useState<'url' | 'pdf'>('pdf');
+  const [uploadType, setUploadType] = useState<'pdf' | 'url'>('pdf');
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   
@@ -51,7 +52,7 @@ function SimpleDocumentFormComponent() {
     },
   });
 
-  const { formState: { isSubmitting }, setValue, trigger } = form;
+  const { formState: { isSubmitting }, setValue, trigger, handleSubmit } = form;
 
   const logAction = (action: 'create', entityId: string, entityName: string, details: string) => {
     if (!firestore || !user) return;
@@ -105,7 +106,13 @@ function SimpleDocumentFormComponent() {
             return;
         }
     } else if (!finalTitle) {
-        finalTitle = "Documento sin título";
+        // Create a title from URL if empty
+        try {
+            const url = new URL(finalFileUrl);
+            finalTitle = url.pathname.split('/').pop()?.replace(/\.[^/.]+$/, '') || "Documento sin título";
+        } catch {
+            finalTitle = "Documento sin título";
+        }
     }
     
     const isValid = await trigger('fileUrl');
@@ -140,17 +147,24 @@ function SimpleDocumentFormComponent() {
       const file = e.target.files?.[0] || null;
       setFileToUpload(file);
       if (file) {
-          setValue('fileUrl', `http://fakepath.com/${file.name}`); // Dummy value for validation
+          setValue('fileUrl', `https://placeholder.com/${file.name}`, { shouldValidate: true });
       } else {
-          setValue('fileUrl', '');
+          setValue('fileUrl', '', { shouldValidate: true });
       }
+  };
+
+  const handleUploadTypeChange = (type: 'pdf' | 'url') => {
+    setUploadType(type);
+    setValue('fileUrl', '');
+    setFileToUpload(null);
+    trigger('fileUrl');
   };
 
   const isFormDisabled = isSubmitting || uploadProgress !== null;
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <Card className="max-w-2xl mx-auto">
            <CardHeader>
               <CardTitle>Formulario Simple</CardTitle>
@@ -195,8 +209,8 @@ function SimpleDocumentFormComponent() {
 
             <div>
                 <div className="flex border-b mb-4">
-                    <button type="button" onClick={() => setUploadType('pdf')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'pdf' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Subir Archivo PDF</button>
-                    <button type="button" onClick={() => setUploadType('url')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Usar URL</button>
+                    <button type="button" onClick={() => handleUploadTypeChange('pdf')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'pdf' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Subir Archivo PDF</button>
+                    <button type="button" onClick={() => handleUploadTypeChange('url')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Usar URL</button>
                 </div>
 
                 <div className={cn(uploadType === 'pdf' ? 'block' : 'hidden')}>
@@ -204,7 +218,7 @@ function SimpleDocumentFormComponent() {
                         <FormItem>
                         <FormLabel>Archivo PDF</FormLabel>
                         <FormControl>
-                            <Input type="file" accept=".pdf" onChange={handleFileChange} disabled={isFormDisabled} />
+                            <Input type="file" accept=".pdf" onChange={handleFileChange} disabled={isFormDisabled || uploadType !== 'pdf'} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -215,7 +229,7 @@ function SimpleDocumentFormComponent() {
                         <FormItem>
                         <FormLabel>URL del Archivo (PDF)</FormLabel>
                         <FormControl>
-                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled || uploadType !== 'url'} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -253,3 +267,4 @@ export default function SimpleDocumentForm() {
         </Suspense>
     );
 }
+

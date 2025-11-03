@@ -1,0 +1,15 @@
+[
+  {
+    "origin": [
+      "https://*.cloudworkstations.dev",
+      "https://*.firebaseapp.com",
+      "https://*.web.app"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Access-Control-Allow-Origin"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

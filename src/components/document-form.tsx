@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -25,7 +26,7 @@ const documentSchema = z.object({
   author: z.string().min(3, "El autor debe tener al menos 3 caracteres."),
   year: z.coerce.number().min(1900, "El año debe ser válido.").max(new Date().getFullYear() + 1, "El año no puede ser en el futuro."),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
-  fileUrl: z.string().url("Debe proporcionar una URL válida para el archivo PDF."),
+  fileUrl: z.string().url("Debe proporcionar una URL o subir un archivo válido.").min(1, "Debe proporcionar una URL o subir un archivo."),
   categoryId: z.string({ required_error: "Debes seleccionar una categoría." }).min(1, "Debes seleccionar una categoría."),
   thumbnailUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
   subject: z.string().optional(),
@@ -43,7 +44,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const [uploadType, setUploadType] = useState<'url' | 'pdf'>('url');
+  const [uploadType, setUploadType] = useState<'url' | 'pdf'>(document?.fileUrl.startsWith('http') ? 'url' : 'pdf');
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
@@ -83,6 +84,9 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
             version: document?.version || "1.0",
         };
         reset(initialValues);
+        if (document?.fileUrl) {
+            setUploadType(document.fileUrl.startsWith('http') ? 'url' : 'pdf');
+        }
   }, [document, categoryIdFromParams, reset]);
 
   const logAction = (action: 'create' | 'update', entityId: string, entityName: string, details: string) => {
@@ -134,7 +138,6 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         }
     }
     
-    // Re-validate after getting file URL from upload
     const isValid = await trigger('fileUrl');
     if (!isValid) return;
 
@@ -167,12 +170,19 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
       const file = e.target.files?.[0] || null;
       setFileToUpload(file);
       if (file) {
-          // Use a dummy value to satisfy validation, it will be replaced on submit.
-          setValue('fileUrl', `http://fakepath.com/${file.name}`);
+          setValue('fileUrl', `https://placeholder.com/${file.name}`, { shouldValidate: true });
       } else {
-          setValue('fileUrl', '');
+          setValue('fileUrl', '', { shouldValidate: true });
       }
   };
+  
+  const handleUploadTypeChange = (type: 'url' | 'pdf') => {
+    setUploadType(type);
+    setValue('fileUrl', '');
+    setFileToUpload(null);
+    trigger('fileUrl');
+  };
+
 
   const isFormDisabled = isSubmitting || uploadProgress !== null;
 
@@ -275,8 +285,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
             
             <div className="md:col-span-2">
                 <div className="flex border-b mb-4">
-                    <button type="button" onClick={() => setUploadType('url')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Usar URL</button>
-                    <button type="button" onClick={() => setUploadType('pdf')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'pdf' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Subir Archivo PDF</button>
+                    <button type="button" onClick={() => handleUploadTypeChange('url')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'url' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Usar URL</button>
+                    <button type="button" onClick={() => handleUploadTypeChange('pdf')} className={cn("px-4 py-2 text-sm font-medium", uploadType === 'pdf' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground')}>Subir Archivo PDF</button>
                 </div>
 
                 <div className={cn(uploadType === 'url' ? 'block' : 'hidden')}>
@@ -284,7 +294,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                         <FormItem>
                         <FormLabel>URL del Archivo (PDF)</FormLabel>
                         <FormControl>
-                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                            <Input placeholder="https://ejemplo.com/archivo.pdf" {...field} disabled={isFormDisabled || uploadType !== 'url'} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -295,7 +305,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                         <FormItem>
                         <FormLabel>Archivo PDF</FormLabel>
                         <FormControl>
-                            <Input type="file" accept=".pdf" onChange={handleFileChange} disabled={isFormDisabled} />
+                            <Input type="file" accept=".pdf" onChange={handleFileChange} disabled={isFormDisabled || uploadType !== 'pdf'} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -359,3 +369,4 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
