@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, setDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
@@ -148,7 +148,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
     if (document) {
       const docRef = doc(firestore, "documents", document.id);
-      await setDocumentNonBlocking(docRef, dataToSave);
+      await setDocumentNonBlocking(docRef, dataToSave, { merge: true });
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
       toast({ title: "Documento Actualizado", description: "El documento ha sido actualizado exitosamente." });
     } else {
@@ -167,7 +167,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
       const file = e.target.files?.[0] || null;
       setFileToUpload(file);
       if (file) {
-          setValue('fileUrl', `fakepath/${file.name}`);
+          // Use a dummy value to satisfy validation, it will be replaced on submit.
+          setValue('fileUrl', `http://fakepath.com/${file.name}`);
       } else {
           setValue('fileUrl', '');
       }
@@ -178,8 +179,12 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <Card>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <Card className="max-w-4xl mx-auto">
+          <CardHeader>
+              <CardTitle>Formulario Completo</CardTitle>
+              <CardDescription>Rellena todos los detalles para catalogar el documento de forma precisa.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
               control={form.control}
               name="title"
