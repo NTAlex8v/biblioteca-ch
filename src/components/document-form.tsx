@@ -44,7 +44,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const [uploadType, setUploadType] = useState<'url' | 'pdf'>(document?.fileUrl.startsWith('http') ? 'url' : 'pdf');
+  const [uploadType, setUploadType] = useState<'url' | 'pdf'>(document?.fileUrl?.startsWith('http') ? 'url' : 'pdf');
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
@@ -56,37 +56,45 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    defaultValues: {
-      title: "",
-      author: "",
-      year: new Date().getFullYear(),
-      description: "",
-      fileUrl: "",
-      categoryId: "",
-      thumbnailUrl: "",
-      subject: "",
-      version: "1.0",
-    },
+    defaultValues: document 
+      ? { ...document, year: document.year || new Date().getFullYear() } 
+      : {
+        title: "",
+        author: "",
+        year: new Date().getFullYear(),
+        description: "",
+        fileUrl: "",
+        categoryId: categoryIdFromParams || "",
+        thumbnailUrl: "",
+        subject: "",
+        version: "1.0",
+      },
   });
 
   const { formState: { isSubmitting }, reset, setValue, trigger } = form;
 
   useEffect(() => {
-        const initialValues = {
-            title: document?.title || "",
-            author: document?.author || "",
-            year: document?.year || new Date().getFullYear(),
-            description: document?.description || "",
-            fileUrl: document?.fileUrl || "",
-            categoryId: document?.categoryId || categoryIdFromParams || "",
-            thumbnailUrl: document?.thumbnailUrl || "",
-            subject: document?.subject || "",
-            version: document?.version || "1.0",
-        };
-        reset(initialValues);
-        if (document?.fileUrl) {
-            setUploadType(document.fileUrl.startsWith('http') ? 'url' : 'pdf');
-        }
+    if (document) {
+      reset({
+        ...document,
+        categoryId: document.categoryId || categoryIdFromParams || "",
+      });
+      if (document.fileUrl) {
+        setUploadType(document.fileUrl.startsWith('http') ? 'url' : 'pdf');
+      }
+    } else {
+        reset({
+            title: "",
+            author: "",
+            year: new Date().getFullYear(),
+            description: "",
+            fileUrl: "",
+            categoryId: categoryIdFromParams || "",
+            thumbnailUrl: "",
+            subject: "",
+            version: "1.0",
+        });
+    }
   }, [document, categoryIdFromParams, reset]);
 
   const logAction = (action: 'create' | 'update', entityId: string, entityName: string, details: string) => {
@@ -106,7 +114,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const handleRedirect = (docData: any) => {
       const targetFolderId = folderIdFromParams || docData.folderId;
-      const targetCategoryId = categoryIdFromParams || docData.categoryId;
+      const targetCategoryId = docData.categoryId;
       if (targetFolderId) {
         router.push(`/folders/${targetFolderId}`);
       } else if (targetCategoryId) {

@@ -14,7 +14,7 @@ import { useFirestore, addDocumentNonBlocking, useMemoFirebase, useUser, useColl
 import { collection } from "firebase/firestore";
 import type { AuditLog, Category } from "@/lib/types";
 import { Loader2 } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { uploadFile } from "@/firebase/storage";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,15 @@ function SimpleDocumentFormComponent() {
     },
   });
 
-  const { formState: { isSubmitting }, setValue, trigger, handleSubmit } = form;
+  const { formState: { isSubmitting }, setValue, trigger, handleSubmit, reset } = form;
+
+  useEffect(() => {
+    reset({
+      title: "",
+      fileUrl: "",
+      categoryId: categoryIdFromParams || "",
+    });
+  }, [categoryIdFromParams, reset]);
 
   const logAction = (action: 'create', entityId: string, entityName: string, details: string) => {
     if (!firestore || !user) return;
@@ -71,7 +79,7 @@ function SimpleDocumentFormComponent() {
 
   const handleRedirect = (docData: any) => {
       const targetFolderId = folderIdFromParams || docData.folderId;
-      const targetCategoryId = categoryIdFromParams || docData.categoryId;
+      const targetCategoryId = docData.categoryId;
       if (targetFolderId) {
         router.push(`/folders/${targetFolderId}`);
       } else if (targetCategoryId) {
