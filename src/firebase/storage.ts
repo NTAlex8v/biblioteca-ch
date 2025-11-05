@@ -1,6 +1,6 @@
 'use client';
 
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot, Storage } from "firebase/storage";
 import { initializeFirebase } from "./index";
 
 export const uploadFile = (
@@ -9,6 +9,7 @@ export const uploadFile = (
   userId: string,
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // We get the storage instance from the centralized initializeFirebase function
     const { storage } = initializeFirebase();
 
     if (!storage) {
