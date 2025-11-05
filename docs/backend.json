@@ -4,100 +4,117 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user in the library system, including their role.",
+      "description": "Represents a user of the Cayetano Library Hub.",
       "properties": {
-        "id": { "type": "string", "description": "User's unique ID (from Firebase Auth)." },
-        "name": { "type": "string", "description": "User's full name." },
-        "email": { "type": "string", "description": "User's email address.", "format": "email" },
-        "avatarUrl": { "type": "string", "description": "URL for the user's profile picture.", "format": "uri" },
-        "role": { "type": "string", "description": "User's role.", "enum": ["Admin", "Editor", "User"] },
-        "createdAt": { "type": "string", "description": "Timestamp of user creation.", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (Admin, Editor, User)."
+        }
       },
-      "required": ["id", "name", "email", "role", "createdAt"]
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    },
+    "Material": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Material",
+      "type": "object",
+      "description": "Represents a document or material in the Cayetano Library Hub.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Material entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the material."
+        },
+        "author": {
+          "type": "string",
+          "description": "Author of the material."
+        },
+        "year": {
+          "type": "number",
+          "description": "Publication year of the material."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to Category. (Relationship: Category 1:N Material)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the material."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags associated with the material.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL of the PDF file (stored in Google Drive).",
+          "format": "uri"
+        },
+        "lastUpdateDate": {
+          "type": "string",
+          "description": "Date of last update.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "author",
+        "year",
+        "categoryId",
+        "description",
+        "tags",
+        "fileUrl",
+        "lastUpdateDate"
+      ]
     },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Category",
       "type": "object",
-      "description": "Represents a top-level category for organizing documents.",
+      "description": "Represents a category or subfolder for organizing materials.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the category." },
-        "name": { "type": "string", "description": "Name of the category." },
-        "description": { "type": "string", "description": "A brief description of the category." }
-      },
-      "required": ["id", "name", "description"]
-    },
-    "Folder": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Folder",
-      "type": "object",
-      "description": "Represents a folder within a category or another folder, for nested organization.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the folder." },
-        "name": { "type": "string", "description": "Name of the folder." },
-        "categoryId": { "type": "string", "description": "ID of the parent category." },
-        "parentFolderId": { "type": ["string", "null"], "description": "ID of the parent folder, if nested." },
-        "createdBy": { "type": "string", "description": "User ID of the creator." }
-      },
-      "required": ["id", "name", "categoryId", "createdBy"]
-    },
-    "Document": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Document",
-      "type": "object",
-      "description": "Represents a single document/resource in the library.",
-      "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "author": { "type": "string" },
-        "year": { "type": "number" },
-        "description": { "type": "string" },
-        "fileUrl": { "type": "string", "format": "uri" },
-        "categoryId": { "type": "string" },
-        "folderId": { "type": ["string", "null"] },
-        "createdBy": { "type": "string" },
-        "lastUpdated": { "type": "string", "format": "date-time" },
-        "thumbnailUrl": { "type": "string", "format": "uri" },
-        "subject": { "type": "string" },
-        "version": { "type": "string" },
-        "tagIds": { "type": "array", "items": { "type": "string" } }
-      },
-      "required": ["id", "title", "author", "year", "fileUrl", "categoryId", "createdBy", "lastUpdated"]
-    },
-    "AuditLog": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "AuditLog",
-        "type": "object",
-        "description": "Represents a log of a user's action in the system.",
-        "properties": {
-            "id": { "type": "string" },
-            "timestamp": { "type": "string", "format": "date-time" },
-            "userId": { "type": "string" },
-            "userName": { "type": "string" },
-            "action": { "type": "string", "enum": ["create", "update", "delete", "role_change"] },
-            "entityType": { "type": "string", "enum": ["Document", "Category", "Folder", "User", "Tag"] },
-            "entityId": { "type": "string" },
-            "entityName": { "type": "string" },
-            "details": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
         },
-        "required": ["id", "timestamp", "userId", "userName", "action", "entityType", "entityId", "details"]
-    },
-    "Tag": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Tag",
-      "type": "object",
-      "description": "Represents a tag that can be applied to documents for cross-classification.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the tag." },
-        "name": { "type": "string", "description": "Name of the tag." }
+        "name": {
+          "type": "string",
+          "description": "Name of the category."
+        },
+        "parentCategoryId": {
+          "type": "string",
+          "description": "Reference to parent Category. (Relationship: Category 1:N Category). Null if it is a root category."
+        }
       },
-      "required": ["id", "name"]
+      "required": [
+        "id",
+        "name"
+      ]
     }
   },
   "auth": {
     "providers": [
       "password",
-      "google.com"
+      "anonymous"
     ]
   },
   "firestore": {
@@ -106,50 +123,67 @@
         "path": "/users/{userId}",
         "definition": {
           "entityName": "User",
-          "schema": { "$ref": "#/backend/entities/User" },
-          "description": "Stores user profiles and roles."
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Uses path-based ownership for private data. The 'userId' parameter corresponds to the Firebase Auth UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            }
+          ]
         }
       },
       {
         "path": "/categories/{categoryId}",
         "definition": {
           "entityName": "Category",
-          "schema": { "$ref": "#/backend/entities/Category" },
-          "description": "Stores all categories."
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores categories for organizing materials.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "Unique identifier for the category."
+            }
+          ]
         }
       },
       {
-        "path": "/folders/{folderId}",
+        "path": "/materials/{materialId}",
         "definition": {
-          "entityName": "Folder",
-          "schema": { "$ref": "#/backend/entities/Folder" },
-          "description": "Stores all folders, linked to categories and parent folders."
+          "entityName": "Material",
+          "schema": {
+            "$ref": "#/backend/entities/Material"
+          },
+          "description": "Stores material documents. Includes 'categoryId' which is denormalized from Category for authorization independence and efficient querying.",
+          "params": [
+            {
+              "name": "materialId",
+              "description": "Unique identifier for the material."
+            }
+          ]
         }
       },
       {
-        "path": "/documents/{documentId}",
+        "path": "/roles_admin/{userId}",
         "definition": {
-          "entityName": "Document",
-          "schema": { "$ref": "#/backend/entities/Document" },
-          "description": "Stores all documents."
-        }
-      },
-      {
-        "path": "/users/{userId}/auditLogs/{logId}",
-        "definition": {
-            "entityName": "AuditLog",
-            "schema": { "$ref": "#/backend/entities/AuditLog" },
-            "description": "Stores a user's activity log."
-        }
-      },
-      {
-        "path": "/tags/{tagId}",
-        "definition": {
-            "entityName": "Tag",
-            "schema": { "$ref": "#/backend/entities/Tag" },
-            "description": "Stores all tags for documents."
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection denote admin users. Authorization relies on existence over content.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the administrator."
+            }
+          ]
         }
       }
-    ]
+    ],
+    "reasoning": "This Firestore structure is designed to support the Cayetano Library Hub's core features, emphasizing security, scalability, and ease of debugging, while adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. The structure incorporates denormalization to eliminate `get()` calls in security rules, enabling atomic operations and simplifying authorization logic.\n\n1.  **Authorization Independence:** The structure achieves authorization independence primarily through denormalization. The `Material` documents contain the `categoryId` that links to a category and through this, we can create rules that give users access to all the Materials of a Category without needing to execute a `get()` call on the category itself.\n2.  **Structural Segregation:** The structure uses structural segregation. For instance, the `/users/{userId}` collection is separated from the `/categories` and `/materials` collections, ensuring that documents with different security requirements are not mixed.\n3.  **Access Modeling:** The structure leverages path-based ownership for user-specific data (e.g., `/users/{userId}`). Collaborative access to categories is implicitly managed based on user roles (Admin, Editor, User). Editors can create, modify, and delete categories. Material documents store `categoryId` enabling easy filtering, and QAPs.\n4.  **QAPs:** The structure supports QAPs by using structural segregation and by storing the `categoryId` in the Material documents. This allows secure `list` operations since rules can check permissions based on user role and/or the value of the categoryId field, without needing to filter based on the content of the documents."
   }
 }

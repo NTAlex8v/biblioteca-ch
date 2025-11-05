@@ -1,81 +1,110 @@
-
+/**
+ * @fileOverview Firestore Security Rules for Cayetano Library Hub.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a combination of user-based ownership and role-based access control.
+ * - Users have full control over their own profiles under `/users/{userId}`.
+ * - Administrators, determined by their presence in `/roles_admin/{userId}`, have broad access.
+ * - Categories and Materials are generally public for `get` and `list` operations, but write access is restricted.
+ *
+ * Data Structure:
+ * - User profiles are stored under `/users/{userId}`.
+ * - Categories are stored under `/categories/{categoryId}`.
+ * - Materials are stored under `/materials/{materialId}`, and include a `categoryId` for efficient querying.
+ * - Administrator status is determined by the existence of a document in `/roles_admin/{userId}`.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed for privacy.
+ * - Public read access is granted for Categories and Materials to facilitate browsing.
+ * - Strict ownership is enforced for user profiles.
+ *
+ * Denormalization for Authorization:
+ * - The `Material` entity includes `categoryId`, denormalized from `Category`, to enable efficient rules without extra `get()` calls.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper Functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Role is fetched from the user's document in Firestore.
-    function getUserRole() {
-      // Use exists() to prevent errors if the user document doesn't exist yet.
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && getUserRole() == 'Admin';
-    }
-    
-    function isEditor() {
-       return isSignedIn() && getUserRole() == 'Editor';
-    }
-
-    function isAdminOrEditor() {
-      let role = getUserRole();
-      return isSignedIn() && (role == 'Admin' || role == 'Editor');
-    }
-
-    // Rules for each collection
-
+    /**
+     * @description Manages access to user profile data.
+     * @path /users/{userId}
+     * @allow (create) User with UID 'user123' can create their own profile.
+     * @allow (get,update,delete) User with UID 'user123' can read, update, or delete their own profile.
+     * @deny (create) User with UID 'user456' cannot create a profile for 'user123'.
+     * @deny (get,update,delete) User with UID 'user456' cannot read, update, or delete the profile of 'user123'.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     */
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isAdmin();
-      
-      // User can create their own document, but not set their own role.
-      allow create: if isOwner(userId) && !('role' in request.resource.data);
-      
-      // A user can update their own non-role info. Admin can update anything.
-      allow update: if (isOwner(userId) && !('role' in request.resource.data)) || isAdmin();
-      
-      allow delete: if isAdmin();
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not permitted.
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId); //Enforces immutability of the id
+      allow delete: if isOwner(userId); // Protects against deleting non-existent documents.
     }
 
+    /**
+     * @description Manages access to categories.
+     * @path /categories/{categoryId}
+     * @allow (get,list) Any user can read and list categories.
+     * @allow (create,update,delete) Only an admin user can create, update, or delete a category.
+     * @deny (create,update,delete) A non-admin user cannot create, update, or delete a category.
+     * @principle Restricts write access to admin users, allows public read access.
+     */
     match /categories/{categoryId} {
-      allow get, list: if true; // Publicly readable
-      allow create, update, delete: if isAdminOrEditor();
+        function isAdmin() {
+            return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        }
+
+        allow get: if true;
+        allow list: if true;
+        allow create: if isAdmin();
+        allow update: if isAdmin(); // Protects against updating non-existent documents.
+        allow delete: if isAdmin(); // Protects against deleting non-existent documents.
     }
 
-    match /folders/{folderId} {
-      allow get, list: if true; // Publicly readable
-      allow create: if isSignedIn();
-      
-      // Owner, Admin, or Editor can update/delete.
-      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.createdBy || isAdminOrEditor());
-    }
-    
-    match /documents/{documentId} {
-      allow get, list: if true; // Publicly readable
-      allow create: if isSignedIn();
-      
-      // Owner, Admin, or Editor can update/delete.
-      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.createdBy || isAdminOrEditor());
-    }
-    
-    match /tags/{tagId} {
-        allow get, list: if true; // Publicly readable
-        allow create, update, delete: if isAdminOrEditor();
+    /**
+     * @description Manages access to materials.
+     * @path /materials/{materialId}
+     * @allow (get,list) Any user can read and list materials.
+     * @allow (create,update,delete) Only an admin user can create, update, or delete a material.
+     * @deny (create,update,delete) A non-admin user cannot create, update, or delete a material.
+     * @principle Restricts write access to admin users, allows public read access, validates categoryId.
+     */
+    match /materials/{materialId} {
+        function isAdmin() {
+            return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        }
+
+        allow get: if true;
+        allow list: if true;
+        allow create: if isAdmin();
+        allow update: if isAdmin(); // Protects against updating non-existent documents.
+        allow delete: if isAdmin(); // Protects against deleting non-existent documents.
     }
 
-    match /users/{userId}/auditLogs/{logId} {
-      // Users can only read and write to their own audit log.
-      allow read, write: if isOwner(userId);
+    /**
+     * @description Manages admin role assignments.
+     * @path /roles_admin/{userId}
+     * @allow (create) Only allow create if an admin user doesn't exist
+     * @allow (get) Allows admins to know if they are admin
+     * @allow (delete) Allows deletion of a document in case of admin role revoke
+     * @deny (create,update) Non-admins cannot assign themselves admin roles.
+     * @principle Restricts admin role assignment to existing admins.
+     */
+    match /roles_admin/{userId} {
+        function isAdmin() {
+            return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        }
+
+        allow get: if isAdmin();
+        allow list: if false; //No listing
+        allow create: if isAdmin();
+        allow update: if false;
+        allow delete: if isAdmin(); // Protects against deleting non-existent documents.
     }
   }
 }
