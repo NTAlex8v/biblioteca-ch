@@ -159,7 +159,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
     if (document) {
       const docRef = doc(firestore, "documents", document.id);
-      await setDocumentNonBlocking(docRef, dataToSave, { merge: true });
+      await setDocumentNonBlocking(docRef, dataToSave);
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
       toast({ title: "Documento Actualizado", description: "El documento ha sido actualizado exitosamente." });
     } else {
