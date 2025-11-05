@@ -1,10 +1,6 @@
 [
   {
-    "origin": [
-      "https://*.cloudworkstations.dev",
-      "https://*.firebaseapp.com",
-      "https://*.web.app"
-    ],
+    "origin": ["*"],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "responseHeader": [
       "Content-Type",
