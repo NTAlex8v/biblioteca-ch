@@ -8,7 +8,7 @@ import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-reac
 import Link from 'next/link';
 import type { Document as DocumentType, Category } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
