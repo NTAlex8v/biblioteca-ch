@@ -12,7 +12,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter, notFound } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,18 +54,53 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
     }
   }, [document?.lastUpdated]);
 
-  useEffect(() => {
-    if ((!isLoadingDocument && !document) || documentError) {
-      notFound();
-    }
-  }, [isLoadingDocument, document, documentError]);
+  const isLoading = isLoadingDocument || isLoadingCategories;
 
-  if (isLoadingDocument || isLoadingCategories || !document) {
+  if (isLoading) {
     return (
-        <div className="container mx-auto flex justify-center items-center h-full">
+        <div className="container mx-auto flex justify-center items-center h-[calc(100vh-10rem)]">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+             <p className="ml-4 text-muted-foreground">Cargando documento...</p>
         </div>
     );
+  }
+
+  if (documentError) {
+      return (
+          <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
+                          <AlertTriangle className="h-8 w-8 text-destructive" />
+                      </div>
+                      <CardTitle className="mt-4">Error al Cargar</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-muted-foreground">No se pudo cargar el documento. Es posible que no tengas permisos o que haya ocurrido un error de red.</p>
+                       <Button onClick={() => router.push('/')} className="mt-4">Volver al inicio</Button>
+                  </CardContent>
+              </Card>
+          </div>
+      );
+  }
+  
+  if (!document) {
+      return (
+           <div className="container mx-auto flex justify-center items-center h-full">
+              <Card className="w-full max-w-md text-center">
+                  <CardHeader>
+                      <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit">
+                          <AlertTriangle className="h-8 w-8 text-primary" />
+                      </div>
+                      <CardTitle className="mt-4">Documento no encontrado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-muted-foreground">El documento que estás buscando no existe o ha sido eliminado.</p>
+                       <Button onClick={() => router.push('/')} className="mt-4">Ir a Inicio</Button>
+                  </CardContent>
+              </Card>
+          </div>
+      );
   }
   
   const canManage = user && (document.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
