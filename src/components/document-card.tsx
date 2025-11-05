@@ -6,7 +6,6 @@ import type { Document, Tag } from '@/lib/types';
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -49,9 +48,7 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     return allTags.filter(tag => document.tagIds?.includes(tag.id));
   }, [document, allTags]);
 
-  const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
-  const placeholderImage = PlaceHolderImages[placeholderIndex];
-  const thumbnailUrl = document.thumbnailUrl || placeholderImage.imageUrl;
+  const thumbnailUrl = document.thumbnailUrl;
 
   const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -78,57 +75,59 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
   return (
     <Link href={`/documents/${document.id}`} className="block h-full group">
         <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 group-hover:shadow-lg group-hover:border-primary">
-            <CardHeader className="p-0 relative">
-                {canManage && (
-                    <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
-                        <AlertDialog>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="secondary" size="icon" className="h-8 w-8">
-                                        <span className="sr-only">Abrir menú</span>
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    <DropdownMenuItem onClick={handleEdit}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        Editar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
-                                            <Trash2 className="mr-2 h-4 w-4" />
-                                            Eliminar
+            {thumbnailUrl && (
+                <CardHeader className="p-0 relative">
+                    {canManage && (
+                        <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
+                            <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="secondary" size="icon" className="h-8 w-8">
+                                            <span className="sr-only">Abrir menú</span>
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={handleEdit}>
+                                            <Edit className="mr-2 h-4 w-4" />
+                                            Editar
                                         </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </div>
-                )}
-                <div className="relative aspect-[3/4] w-full">
-                <Image
-                  src={thumbnailUrl}
-                  alt={`Cover of ${document.title}`}
-                  fill
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  data-ai-hint="book cover"
-                />
-              </div>
-            </CardHeader>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                Eliminar
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    )}
+                    <div className="relative aspect-[3/4] w-full">
+                    <Image
+                      src={thumbnailUrl}
+                      alt={`Cover of ${document.title}`}
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      data-ai-hint="book cover"
+                    />
+                  </div>
+                </CardHeader>
+            )}
             <CardContent className="p-4 flex-grow">
               <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2">
                 {document.title}

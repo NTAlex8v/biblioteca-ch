@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import type { Document as DocumentType, Category } from '@/lib/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -105,9 +104,7 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
   
   const canManage = user && (document.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
   
-  const placeholderIndex = document.id.charCodeAt(0) % PlaceHolderImages.length;
-  const placeholderImage = PlaceHolderImages[placeholderIndex];
-  const thumbnailUrl = document?.thumbnailUrl || placeholderImage.imageUrl;
+  const thumbnailUrl = document?.thumbnailUrl;
 
 
   const handleDelete = () => {
@@ -128,22 +125,24 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
   return (
     <>
       <div className="container mx-auto max-w-5xl">
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-1">
-            <Card className="overflow-hidden sticky top-24">
-              <div className="relative aspect-[3/4] w-full">
-                <Image
-                  src={thumbnailUrl}
-                  alt={`Cover of ${document.title}`}
-                  fill
-                  className="object-cover"
-                  data-ai-hint="book cover"
-                />
-              </div>
-            </Card>
-          </div>
+        <div className={thumbnailUrl ? "grid md:grid-cols-3 gap-8" : ""}>
+          {thumbnailUrl && (
+            <div className="md:col-span-1">
+                <Card className="overflow-hidden sticky top-24">
+                <div className="relative aspect-[3/4] w-full">
+                    <Image
+                    src={thumbnailUrl}
+                    alt={`Cover of ${document.title}`}
+                    fill
+                    className="object-cover"
+                    data-ai-hint="book cover"
+                    />
+                </div>
+                </Card>
+            </div>
+          )}
 
-          <div className="md:col-span-2">
+          <div className={thumbnailUrl ? "md:col-span-2" : "w-full"}>
             <h1 className="text-3xl lg:text-4xl font-bold tracking-tight mb-2">{document.title}</h1>
             <p className="text-xl text-muted-foreground mb-4">{document.author}</p>
             <div className="flex items-center gap-4 mb-6">
