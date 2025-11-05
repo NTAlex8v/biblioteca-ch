@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2, Home as HomeIcon, ChevronRight } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
+import DocumentListItem from '@/components/document-list-item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -155,6 +156,12 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
   }, [firestore, folder?.categoryId]);
   const { data: category } = useDoc<Category>(categoryDocRef);
 
+  const { documentsWithThumb, documentsWithoutThumb } = useMemo(() => {
+    const withThumb = documents?.filter(doc => doc.thumbnailUrl) || [];
+    const withoutThumb = documents?.filter(doc => !doc.thumbnailUrl) || [];
+    return { documentsWithThumb: withThumb, documentsWithoutThumb: withoutThumb };
+  }, [documents]);
+
   const isLoading = isLoadingFolder || isLoadingSubFolders || isLoadingDocuments;
 
   if (isLoading) {
@@ -277,18 +284,32 @@ export default function FolderClientPage({ folderId }: FolderClientPageProps) {
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, i) => <ItemSkeleton key={i} />)}
             </div>
-       ) : documents && documents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {documents.map(doc => (
-                    <DocumentCard key={doc.id} document={doc} />
-                ))}
+       ) : (
+        <>
+          {documentsWithThumb.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+              {documentsWithThumb.map(doc => (
+                <DocumentCard key={doc.id} document={doc} />
+              ))}
             </div>
-        ) : (
-             <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
-                  <h3 className="text-xl font-semibold text-muted-foreground">Esta carpeta está vacía</h3>
-                  <p className="text-muted-foreground mt-2">Puedes añadir una nueva sub-carpeta o un documento.</p>
-              </div>
-        )}
+          )}
+
+          {documentsWithoutThumb.length > 0 && (
+            <div className="space-y-3">
+              {documentsWithoutThumb.map(doc => (
+                <DocumentListItem key={doc.id} document={doc} />
+              ))}
+            </div>
+          )}
+
+          {documents && documents.length === 0 && (
+            <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
+              <h3 className="text-xl font-semibold text-muted-foreground">Esta carpeta está vacía</h3>
+              <p className="text-muted-foreground mt-2">Puedes añadir una nueva sub-carpeta o un documento.</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

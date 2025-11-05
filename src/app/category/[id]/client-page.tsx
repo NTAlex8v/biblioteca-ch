@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Folder as FolderIcon, PlusCircle, MoreHorizontal, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import DocumentCard from '@/components/document-card';
+import DocumentListItem from '@/components/document-list-item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -145,6 +146,12 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
   const { data: folders, isLoading: isLoadingFolders } = useCollection<Folder>(foldersQuery);
   const { data: rootDocuments, isLoading: isLoadingDocuments } = useCollection<DocumentType>(documentsQuery);
 
+  const { documentsWithThumb, documentsWithoutThumb } = useMemo(() => {
+    const withThumb = rootDocuments?.filter(doc => doc.thumbnailUrl) || [];
+    const withoutThumb = rootDocuments?.filter(doc => !doc.thumbnailUrl) || [];
+    return { documentsWithThumb: withThumb, documentsWithoutThumb: withoutThumb };
+  }, [rootDocuments]);
+
   if (isLoadingCategory) {
     return (
         <div className="container mx-auto flex justify-center items-center h-full">
@@ -190,6 +197,8 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
           </div>
       );
   }
+
+  const isLoading = isLoadingFolders || isLoadingDocuments;
 
   return (
     <div className="container mx-auto">
@@ -249,23 +258,37 @@ export default function CategoryClientPage({ categoryId }: CategoryClientPagePro
           </>
       )}
 
-       <h2 className="text-2xl font-semibold tracking-tight mb-4">Documentos</h2>
-       {isLoadingDocuments ? (
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {Array.from({ length: 4 }).map((_, i) => <ItemSkeleton key={i} />)}
+      <h2 className="text-2xl font-semibold tracking-tight mb-4">Documentos</h2>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => <ItemSkeleton key={i} />)}
+        </div>
+      ) : (
+        <>
+          {documentsWithThumb.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+              {documentsWithThumb.map(doc => (
+                <DocumentCard key={doc.id} document={doc} />
+              ))}
             </div>
-       ) : rootDocuments && rootDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {rootDocuments.map(doc => (
-                    <DocumentCard key={doc.id} document={doc} />
-                ))}
+          )}
+
+          {documentsWithoutThumb.length > 0 && (
+            <div className="space-y-3">
+              {documentsWithoutThumb.map(doc => (
+                <DocumentListItem key={doc.id} document={doc} />
+              ))}
             </div>
-        ) : (
-             <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
-                  <h3 className="text-xl font-semibold text-muted-foreground">No hay documentos aquí</h3>
-                  <p className="text-muted-foreground mt-2">Puedes ser el primero en añadir un documento a esta categoría.</p>
-              </div>
-        )}
+          )}
+
+          {rootDocuments && rootDocuments.length === 0 && (
+            <div className="text-center py-16 border-2 border-dashed rounded-lg mt-4">
+              <h3 className="text-xl font-semibold text-muted-foreground">No hay documentos aquí</h3>
+              <p className="text-muted-foreground mt-2">Puedes ser el primero en añadir un documento a esta categoría.</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
