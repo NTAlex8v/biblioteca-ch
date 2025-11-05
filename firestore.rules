@@ -73,6 +73,11 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow update, delete: if isSignedIn() && (isOwner(resource.data.createdBy) || isAdminOrEditor());
     }
+    
+    match /tags/{tagId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdminOrEditor();
+    }
 
     match /users/{userId}/auditLogs/{logId} {
         allow read, create: if isOwner(userId);
