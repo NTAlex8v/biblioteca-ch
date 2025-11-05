@@ -24,7 +24,8 @@ export function initializeFirebase(): FirebaseServerServices {
     const app = !getApps().length 
         ? initializeApp({
             credential: cert(serviceAccount),
-            databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`
+            databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`,
+            storageBucket: `${firebaseConfig.projectId}.appspot.com`
           }) 
         : getApp();
 
