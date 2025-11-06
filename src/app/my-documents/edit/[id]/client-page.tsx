@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { notFound, useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import DocumentForm from "@/components/document-form";
+import DocumentForm from "@/app/document-form";
 import type { Document as DocumentType } from "@/lib/types";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -33,19 +33,20 @@ export default function EditDocumentClientPage({ documentId }: { documentId: str
     const { data: documentData, isLoading: isLoadingDocument, error } = useDoc<DocumentType>(docRef);
 
     useEffect(() => {
-        // Don't run this effect until both user and document data have finished loading
+        // Wait until both user and document data have finished loading
         if (isLoadingDocument || isUserLoading) {
             return;
         }
-
-        const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
 
         if (error) {
             router.push('/my-documents');
             return;
         }
         
-        if (!documentData || !isAuthorized) {
+        // Now that loading is complete, we can safely check authorization
+        const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
+        
+        if (!isAuthorized) {
             notFound();
         }
 

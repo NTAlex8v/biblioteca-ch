@@ -34,16 +34,18 @@ export default function EditCategoryClientPage({ categoryId }: { categoryId: str
     const { data: category, isLoading: isLoadingCategory, error } = useDoc<Category>(categoryDocRef);
 
     useEffect(() => {
+        // Wait until both user and category data have finished loading
         if (isLoadingCategory || isUserLoading) {
             return;
         }
-
-        const isAuthorized = userData?.role === 'Admin' || userData?.role === 'Editor';
 
         if (error) {
             router.push('/admin/categories');
             return;
         }
+
+        // Now that loading is complete, we can safely check authorization
+        const isAuthorized = userData?.role === 'Admin' || userData?.role === 'Editor';
 
         if (!category || !isAuthorized) {
             notFound();
