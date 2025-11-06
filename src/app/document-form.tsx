@@ -57,33 +57,33 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {
-      title: "",
-      author: "",
-      year: new Date().getFullYear(),
-      description: "",
-      fileUrl: "",
-      categoryId: "",
-      thumbnailUrl: "",
-      subject: "",
-      version: "1.0",
+      title: document?.title || "",
+      author: document?.author || "",
+      year: document?.year || new Date().getFullYear(),
+      description: document?.description || "",
+      fileUrl: document?.fileUrl || "",
+      categoryId: document?.categoryId || categoryIdFromParams || "",
+      thumbnailUrl: document?.thumbnailUrl || "",
+      subject: document?.subject || "",
+      version: document?.version || "1.0",
     },
   });
 
   const { formState: { isSubmitting }, reset } = form;
 
   useEffect(() => {
-        const initialValues = {
-            title: document?.title || "",
-            author: document?.author || "",
-            year: document?.year || new Date().getFullYear(),
-            description: document?.description || "",
-            fileUrl: document?.fileUrl || "",
-            categoryId: document?.categoryId || categoryIdFromParams || "",
-            thumbnailUrl: document?.thumbnailUrl || "",
-            subject: document?.subject || "",
-            version: document?.version || "1.0",
-        };
-        reset(initialValues);
+    const initialValues = {
+        title: document?.title || "",
+        author: document?.author || "",
+        year: document?.year || new Date().getFullYear(),
+        description: document?.description || "",
+        fileUrl: document?.fileUrl || "",
+        categoryId: document?.categoryId || categoryIdFromParams || "",
+        thumbnailUrl: document?.thumbnailUrl || "",
+        subject: document?.subject || "",
+        version: document?.version || "1.0",
+    };
+    reset(initialValues);
   }, [document, categoryIdFromParams, reset]);
 
 
@@ -199,7 +199,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!categoryIdFromParams || isFormDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!!document?.id || !!categoryIdFromParams || isLoadingCategories || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
