@@ -56,7 +56,6 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    // Use `values` to ensure the form is controlled and re-renders with new props.
     values: {
       title: document?.title || "",
       author: document?.author || "",
@@ -70,13 +69,10 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     },
   });
 
-  const { formState: { isSubmitting }, setValue, trigger, handleSubmit, watch } = form;
-
-  const watchedCategoryId = watch('categoryId');
+  const { formState: { isSubmitting }, setValue, trigger, handleSubmit } = form;
 
   useEffect(() => {
-    // This effect is ONLY for setting the category from the URL on NEW documents.
-    if (!document && categoryIdFromParams) {
+    if (!document?.id && categoryIdFromParams) {
       setValue('categoryId', categoryIdFromParams, { shouldValidate: true });
     }
   }, [document, categoryIdFromParams, setValue]);
@@ -142,7 +138,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
         createdBy: document?.createdBy || user.uid,
     };
 
-    if (document) {
+    if (document?.id) {
       const docRef = doc(firestore, "documents", document.id);
       await setDocumentNonBlocking(docRef, dataToSave, { merge: true });
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
@@ -246,7 +242,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!!document || !!categoryIdFromParams || isLoadingCategories || isFormDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!!document?.id || !!categoryIdFromParams || isLoadingCategories || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
@@ -346,7 +342,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
             </Button>
             <Button type="submit" disabled={isFormDisabled}>
                 {isFormDisabled ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {document ? "Guardar Cambios" : "Crear Documento"}
+                {document?.id ? "Guardar Cambios" : "Crear Documento"}
             </Button>
           </CardFooter>
         </Card>
@@ -362,5 +358,3 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
-
-    
