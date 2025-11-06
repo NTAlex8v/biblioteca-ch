@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { notFound, useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import DocumentForm from "@/app/document-form";
+import DocumentForm from "@/components/document-form";
 import type { Document as DocumentType } from "@/lib/types";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -23,27 +23,37 @@ function EditDocumentPageSkeleton() {
 export default function EditDocumentClientPage({ documentId }: { documentId: string }) {
     const firestore = useFirestore();
     const router = useRouter();
-    const { user, userData } = useUser();
+    const { user, userData, isUserLoading } = useUser();
 
     const docRef = useMemoFirebase(() => {
         if (!firestore || !documentId) return null;
         return doc(firestore, 'documents', documentId);
     }, [firestore, documentId]);
 
-    const { data: documentData, isLoading, error } = useDoc<DocumentType>(docRef);
-
-    const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
+    const { data: documentData, isLoading: isLoadingDocument, error } = useDoc<DocumentType>(docRef);
 
     useEffect(() => {
-        if (!isLoading && (!documentData || !isAuthorized)) {
+        // Don't run this effect until both user and document data have finished loading
+        if (isLoadingDocument || isUserLoading) {
+            return;
+        }
+
+        const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
+
+        if (error) {
+            router.push('/my-documents');
+            return;
+        }
+        
+        if (!documentData || !isAuthorized) {
             notFound();
         }
-        if(error) {
-            router.push('/my-documents');
-        }
-    }, [isLoading, documentData, isAuthorized, error, router]);
 
-    if (isLoading || !documentData || !isAuthorized) {
+    }, [isLoadingDocument, isUserLoading, documentData, userData, user, error, router]);
+
+    const isLoading = isLoadingDocument || isUserLoading;
+
+    if (isLoading || !documentData) {
         return <EditDocumentPageSkeleton />;
     }
 

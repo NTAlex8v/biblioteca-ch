@@ -4,9 +4,8 @@ import { useEffect } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import CategoryForm from "@/components/category-form";
 import type { Category } from '@/lib/types';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function EditCategorySkeleton() {
@@ -25,24 +24,33 @@ function EditCategorySkeleton() {
 export default function EditCategoryClientPage({ categoryId }: { categoryId: string }) {
     const firestore = useFirestore();
     const router = useRouter();
+    const { userData, isUserLoading } = useUser();
 
     const categoryDocRef = useMemoFirebase(() => {
         if (!firestore || !categoryId) return null;
         return doc(firestore, 'categories', categoryId);
     }, [firestore, categoryId]);
 
-    const { data: category, isLoading, error } = useDoc<Category>(categoryDocRef);
+    const { data: category, isLoading: isLoadingCategory, error } = useDoc<Category>(categoryDocRef);
 
     useEffect(() => {
-        if (!isLoading && !category && !error) {
+        if (isLoadingCategory || isUserLoading) {
+            return;
+        }
+
+        const isAuthorized = userData?.role === 'Admin' || userData?.role === 'Editor';
+
+        if (error) {
+            router.push('/admin/categories');
+            return;
+        }
+
+        if (!category || !isAuthorized) {
             notFound();
         }
-        if (error) {
-            // Assuming the hook handles permission errors globally
-            // Redirect or show a message if needed
-            router.push('/admin/categories');
-        }
-    }, [isLoading, category, error, router]);
+    }, [isLoadingCategory, isUserLoading, category, userData, error, router]);
+
+    const isLoading = isLoadingCategory || isUserLoading;
 
     if (isLoading || !category) {
         return <EditCategorySkeleton />;
