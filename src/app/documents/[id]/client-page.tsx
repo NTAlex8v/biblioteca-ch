@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import type { Document as DocumentType, Category, AuditLog } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import MoveDocumentDialog from '@/components/move-document-dialog';
 
 type DocumentDetailProps = {
   documentId: string;
@@ -30,6 +31,7 @@ type DocumentDetailProps = {
 export default function DocumentDetailClient({ documentId }: DocumentDetailProps) {
   const [isPdfVisible, setIsPdfVisible] = useState(false);
   const [formattedDate, setFormattedDate] = useState('');
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const { user, userData } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -138,6 +140,10 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
     router.push('/');
   };
 
+  const handleMove = () => {
+    setIsMoveDialogOpen(true);
+  };
+
   const pdfViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(document.fileUrl)}&embedded=true`;
 
   return (
@@ -207,6 +213,9 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
                     <Button size="lg" variant="outline" className="flex-1" onClick={handleEdit}>
                         <Edit className="mr-2" /> Editar
                     </Button>
+                     <Button size="lg" variant="outline" className="flex-1" onClick={handleMove}>
+                        <ArrowRightLeft className="mr-2" /> Mover
+                    </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button size="lg" variant="destructive" className="flex-1">
@@ -248,6 +257,13 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
           </div>
         </div>
       </div>
+       {document && isMoveDialogOpen && (
+        <MoveDocumentDialog 
+          document={document} 
+          isOpen={isMoveDialogOpen} 
+          onOpenChange={setIsMoveDialogOpen} 
+        />
+      )}
     </>
   );
 }

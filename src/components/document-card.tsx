@@ -3,10 +3,10 @@ import Image from 'next/image';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Document, Tag, AuditLog } from '@/lib/types';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ArrowRightLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
+import MoveDocumentDialog from './move-document-dialog';
 
 interface DocumentCardProps {
   document: Document;
@@ -32,6 +33,7 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
   const { user, userData } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 
   const isOwner = user && document.createdBy === user.uid;
   const canManage = isOwner || userData?.role === 'Admin' || userData?.role === 'Editor';
@@ -88,77 +90,95 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     });
   };
 
+  const handleMove = (e: React.MouseEvent) => {
+    handleActionClick(e);
+    setIsMoveDialogOpen(true);
+  };
+
   return (
-    <Link href={`/documents/${document.id}`} className="block h-full group">
-        <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 group-hover:shadow-lg group-hover:border-primary">
-            {thumbnailUrl && (
-                <CardHeader className="p-0 relative">
-                    {canManage && (
-                        <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
-                            <AlertDialog>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="secondary" size="icon" className="h-8 w-8">
-                                            <span className="sr-only">Abrir menú</span>
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                        <DropdownMenuItem onClick={handleEdit}>
-                                            <Edit className="mr-2 h-4 w-4" />
-                                            Editar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                Eliminar
+    <>
+        <Link href={`/documents/${document.id}`} className="block h-full group">
+            <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 group-hover:shadow-lg group-hover:border-primary">
+                {thumbnailUrl && (
+                    <CardHeader className="p-0 relative">
+                        {canManage && (
+                            <div className="absolute top-2 right-2 z-10" onClick={handleActionClick}>
+                                <AlertDialog>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8">
+                                                <span className="sr-only">Abrir menú</span>
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                            <DropdownMenuItem onClick={handleEdit}>
+                                                <Edit className="mr-2 h-4 w-4" />
+                                                Editar
                                             </DropdownMenuItem>
-                                        </AlertDialogTrigger>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-                    )}
-                    <div className="relative aspect-[3/4] w-full">
-                    <Image
-                      src={thumbnailUrl}
-                      alt={`Cover of ${document.title}`}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      data-ai-hint="book cover"
-                    />
+                                            <DropdownMenuItem onClick={handleMove}>
+                                              <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                              Mover
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    Eliminar
+                                                </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el documento.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        )}
+                        <div className="relative aspect-[3/4] w-full">
+                        <Image
+                          src={thumbnailUrl}
+                          alt={`Cover of ${document.title}`}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          data-ai-hint="book cover"
+                        />
+                      </div>
+                    </CardHeader>
+                )}
+                <CardContent className="p-4 flex-grow">
+                  <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2">
+                    {document.title}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground line-clamp-1">{document.author}</p>
+                </CardContent>
+                <CardFooter className="p-4 pt-0">
+                   <div className="flex flex-wrap gap-1">
+                    {documentTags.slice(0, 2).map(tag => (
+                      <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                    ))}
                   </div>
-                </CardHeader>
-            )}
-            <CardContent className="p-4 flex-grow">
-              <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2">
-                {document.title}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground line-clamp-1">{document.author}</p>
-            </CardContent>
-            <CardFooter className="p-4 pt-0">
-               <div className="flex flex-wrap gap-1">
-                {documentTags.slice(0, 2).map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
-              </div>
-            </CardFooter>
-          </Card>
-    </Link>
+                </CardFooter>
+              </Card>
+        </Link>
+        {isMoveDialogOpen && (
+          <MoveDocumentDialog 
+            document={document} 
+            isOpen={isMoveDialogOpen} 
+            onOpenChange={setIsMoveDialogOpen} 
+          />
+        )}
+    </>
   );
 };
 
