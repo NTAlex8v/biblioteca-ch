@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { collection, getDocs, doc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Por favor, ingresa un correo válido." }),
@@ -46,26 +46,27 @@ export default function LoginPage() {
 
   const handleSignInSuccess = async (userCred: UserCredential) => {
     const user = userCred.user;
-    const usersCollection = collection(firestore, 'users');
-    const userDocs = await getDocs(usersCollection);
-    
-    // Check if it's the first user
-    if (userDocs.empty) {
-        // It's the first user, make them an admin.
-        const userRef = doc(firestore, 'users', user.uid);
-        await setDocumentNonBlocking(userRef, { role: 'Admin' }, { merge: true });
-        toast({
-            title: "¡Bienvenido, Administrador!",
-            description: "Como primer usuario, se te ha asignado el rol de Administrador.",
-        });
-    } else {
-        toast({
-            title: "Inicio de sesión exitoso",
-            description: "¡Bienvenido de vuelta!",
-        });
-    }
+    if (!firestore) return;
+
+    // Ensure a user document exists.
+    // Using merge: true will create it if it doesn't exist, or do nothing if it does.
+    // This avoids querying the whole collection, which is restricted by security rules.
+    const userRef = doc(firestore, 'users', user.uid);
+    const userData = {
+        email: user.email,
+        name: user.displayName,
+        avatarUrl: user.photoURL,
+    };
+    // This is a non-blocking write. The user is redirected immediately.
+    setDocumentNonBlocking(userRef, userData, { merge: true });
+
+    toast({
+        title: "Inicio de sesión exitoso",
+        description: "¡Bienvenido de vuelta!",
+    });
 
     router.push('/');
+    router.refresh();
   };
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
@@ -75,10 +76,14 @@ export default function LoginPage() {
         .then(handleSignInSuccess)
         .catch(error => {
             console.error("Login Error:", error);
+            let description = "Las credenciales son incorrectas o el usuario no existe.";
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                description = "Las credenciales son incorrectas o el usuario no existe.";
+            }
             toast({
                 variant: "destructive",
                 title: "Error de inicio de sesión",
-                description: "Las credenciales son incorrectas o el usuario no existe.",
+                description: description,
             });
         })
         .finally(() => setIsSubmitting(false));
