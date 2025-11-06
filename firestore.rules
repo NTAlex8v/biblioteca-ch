@@ -4,22 +4,19 @@
  * Core Philosophy:
  * This ruleset enforces a combination of user-based ownership and role-based access control.
  * - Users have full control over their own profiles under `/users/{userId}`.
- * - Administrators, determined by their presence in `/roles_admin/{userId}`, have broad access.
+ * - Administrators, determined by their `role` field, have broad access.
+ * - Editors have broad content management access.
  * - Categories and Materials are generally public for `get` and `list` operations, but write access is restricted.
  *
  * Data Structure:
- * - User profiles are stored under `/users/{userId}`.
+ * - User profiles are stored under `/users/{userId}` and contain a `role` field ('Admin', 'Editor', 'User').
  * - Categories are stored under `/categories/{categoryId}`.
- * - Materials are stored under `/materials/{materialId}`, and include a `categoryId` for efficient querying.
- * - Administrator status is determined by the existence of a document in `/roles_admin/{userId}`.
+ * - Documents are stored under `/documents/{documentId}`.
  *
  * Key Security Decisions:
- * - User listing is disallowed for privacy.
- * - Public read access is granted for Categories and Materials to facilitate browsing.
- * - Strict ownership is enforced for user profiles.
- *
- * Denormalization for Authorization:
- * - The `Material` entity includes `categoryId`, denormalized from `Category`, to enable efficient rules without extra `get()` calls.
+ * - User listing is disallowed for non-admins for privacy.
+ * - Public read access is granted for Categories and Documents to facilitate browsing.
+ * - Strict ownership is enforced for user profiles, with admins having override capabilities.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -33,22 +30,31 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    // Role verification functions
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
-    
-    function hasRole(role) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+
+    function isAdmin() {
+      return isSignedIn() && getRole() == 'Admin';
+    }
+
+    function isEditor() {
+       return isSignedIn() && getRole() == 'Editor';
     }
 
     function isAdminOrEditor() {
-      return hasRole('Admin') || hasRole('Editor');
+      let role = getRole();
+      return isSignedIn() && (role == 'Admin' || role == 'Editor');
     }
 
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isOwner(userId);
+      // Allow creation if it's the user's own doc.
+      // Allow role to be set only if it's 'User' or if no users exist yet (first admin).
+      allow create: if isOwner(userId) && 
+                     (request.resource.data.role == 'User' || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -64,13 +70,17 @@ service cloud.firestore {
     match /documents/{documentId} {
       allow get: if true;
       allow list: if true;
+      // Any signed-in user can create a document.
       allow create: if isSignedIn();
+      // Only the owner, an admin, or an editor can update/delete.
       allow update, delete: if isSignedIn() && (isOwner(resource.data.createdBy) || isAdminOrEditor());
     }
 
     match /folders/{folderId} {
         allow get, list: if true;
+        // Any signed-in user can create a folder.
         allow create: if isSignedIn();
+        // Only the owner, an admin, or an editor can update/delete.
         allow update, delete: if isSignedIn() && (isOwner(resource.data.createdBy) || isAdminOrEditor());
     }
     
@@ -80,16 +90,15 @@ service cloud.firestore {
     }
 
     match /users/{userId}/auditLogs/{logId} {
+        // A user can only read and create their own audit logs.
         allow read, create: if isOwner(userId);
-        allow update, delete: if false;
+        allow update, delete: if false; // Logs are immutable.
     }
 
-    match /roles_admin/{userId} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
-        allow create: if isAdmin();
-        allow update: if false;
-        allow delete: if isAdmin();
+    // This collection is no longer used for role management but kept for other potential admin data.
+    // Access is restricted to admins only.
+    match /roles_admin/{adminId} {
+        allow read, write: if isAdmin();
     }
   }
 }

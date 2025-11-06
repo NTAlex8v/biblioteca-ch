@@ -166,22 +166,6 @@
             }
           ]
         }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Documents in this collection denote admin users. Authorization relies on existence over content.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The Firebase Auth UID of the administrator."
-            }
-          ]
-        }
       }
     ],
     "reasoning": "This Firestore structure is designed to support the Cayetano Library Hub's core features, emphasizing security, scalability, and ease of debugging, while adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. The structure incorporates denormalization to eliminate `get()` calls in security rules, enabling atomic operations and simplifying authorization logic.\n\n1.  **Authorization Independence:** The structure achieves authorization independence primarily through denormalization. The `Material` documents contain the `categoryId` that links to a category and through this, we can create rules that give users access to all the Materials of a Category without needing to execute a `get()` call on the category itself.\n2.  **Structural Segregation:** The structure uses structural segregation. For instance, the `/users/{userId}` collection is separated from the `/categories` and `/materials` collections, ensuring that documents with different security requirements are not mixed.\n3.  **Access Modeling:** The structure leverages path-based ownership for user-specific data (e.g., `/users/{userId}`). Collaborative access to categories is implicitly managed based on user roles (Admin, Editor, User). Editors can create, modify, and delete categories. Material documents store `categoryId` enabling easy filtering, and QAPs.\n4.  **QAPs:** The structure supports QAPs by using structural segregation and by storing the `categoryId` in the Material documents. This allows secure `list` operations since rules can check permissions based on user role and/or the value of the categoryId field, without needing to filter based on the content of the documents."
