@@ -1,13 +1,7 @@
-'use client';
-
-import React, { useEffect, Suspense } from 'react';
-import { doc } from 'firebase/firestore';
-import { notFound, useRouter, useSearchParams } from 'next/navigation';
-import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import DocumentForm from "@/components/document-form";
-import type { Document as DocumentType } from "@/lib/types";
+import { notFound } from 'next/navigation';
+import EditDocumentClientPage from './client-page';
+import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2 } from 'lucide-react';
 
 function EditDocumentPageSkeleton() {
     return (
@@ -17,44 +11,6 @@ function EditDocumentPageSkeleton() {
                 <Skeleton className="h-6 w-3/4" />
             </div>
             <Skeleton className="h-[500px] w-full" />
-        </div>
-    );
-}
-
-function EditDocumentClientPage({ documentId }: { documentId: string }) {
-    const firestore = useFirestore();
-    const router = useRouter();
-    const { user, userData } = useUser();
-
-    const docRef = useMemoFirebase(() => {
-        if (!firestore || !documentId) return null;
-        return doc(firestore, 'documents', documentId);
-    }, [firestore, documentId]);
-
-    const { data: documentData, isLoading, error } = useDoc<DocumentType>(docRef);
-
-    const isAuthorized = documentData && user && (documentData.createdBy === user.uid || userData?.role === 'Admin' || userData?.role === 'Editor');
-
-    useEffect(() => {
-        if (!isLoading && (!documentData || !isAuthorized)) {
-            notFound();
-        }
-        if(error) {
-            router.push('/my-documents');
-        }
-    }, [isLoading, documentData, isAuthorized, error, router]);
-
-    if (isLoading || !documentData || !isAuthorized) {
-        return <EditDocumentPageSkeleton />;
-    }
-
-    return (
-        <div className="container mx-auto">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Editar Documento</h1>
-                <p className="text-muted-foreground">Actualiza la información del documento.</p>
-            </div>
-            <DocumentForm document={documentData} />
         </div>
     );
 }
