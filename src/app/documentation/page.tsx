@@ -81,15 +81,18 @@ export default function DocumentationPage() {
                 El sistema cuenta con tres roles de usuario definidos para gestionar el acceso y los permisos:
                 <ul className="list-disc pl-6 mt-2 space-y-2">
                   <li>
-                    <strong>Admin:</strong> Tiene control total sobre el sistema. Puede gestionar usuarios, categorías, carpetas y todos los documentos. Es el único rol que puede cambiar los roles de otros usuarios.
+                    <strong>Admin:</strong> Tiene control total sobre el sistema. Puede gestionar usuarios (cambiar roles), categorías, carpetas y todos los documentos. Es el único rol que puede ver y administrar la lista completa de usuarios.
                   </li>
                   <li>
-                    <strong>Editor:</strong> Puede gestionar categorías y todos los documentos del sistema, pero no puede administrar usuarios.
+                    <strong>Editor:</strong> Puede gestionar categorías y todos los documentos y carpetas del sistema. Este rol está pensado para supervisores de contenido que no necesitan administrar usuarios.
                   </li>
                   <li>
-                    <strong>User:</strong> Es el rol estándar. Puede ver todos los recursos públicos, subir sus propios documentos, crear carpetas y gestionar únicamente el contenido que ha creado.
+                    <strong>User:</strong> Es el rol estándar. Puede ver todos los recursos públicos, subir sus propios documentos, crear carpetas y gestionar únicamente el contenido que ha creado (editarlo, moverlo o eliminarlo).
                   </li>
                 </ul>
+                 <p className="mt-4 text-sm text-muted-foreground">
+                  <strong>Nota:</strong> El primer usuario que se registra en el sistema es asignado automáticamente como Administrador.
+                </p>
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-3">
@@ -99,43 +102,50 @@ export default function DocumentationPage() {
                     <AccordionItem value="sub-item-1">
                         <AccordionTrigger className="text-sm">Gestión de Documentos</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                            Los usuarios pueden subir nuevos documentos especificando título, autor, año, descripción, categoría y un enlace al archivo PDF. También pueden editar la información de sus documentos o eliminarlos. Los Admins y Editores pueden gestionar todos los documentos.
+                            Los usuarios pueden subir nuevos documentos a través de dos formularios:
+                            <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li><strong>Formato Simple:</strong> Permite subir un archivo PDF rápidamente, especificando solo la categoría. El sistema asignará el nombre del archivo como título.</li>
+                                <li><strong>Formato Completo:</strong> Un formulario detallado para catalogar el documento con título, autor, año, descripción, materia, versión y URL de portada opcional.</li>
+                            </ul>
+                            Los usuarios pueden editar la información de sus documentos, moverlos entre categorías/carpetas o eliminarlos. Los Admins y Editores pueden gestionar todos los documentos.
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="sub-item-2">
                         <AccordionTrigger className="text-sm">Organización por Categorías y Carpetas</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                           La estructura principal se basa en <strong>Categorías</strong>, que son gestionadas por Admins/Editores. Dentro de cada categoría, cualquier usuario autenticado puede crear <strong>Carpetas</strong>. Estas carpetas pueden anidarse para crear una jerarquía organizativa flexible y profunda.
+                           La estructura principal se basa en <strong>Categorías</strong>, que son los contenedores de nivel superior (ej. "Cardiología", "Pediatría") y son gestionadas exclusivamente por Admins/Editores. Dentro de cada categoría, cualquier usuario autenticado puede crear <strong>Carpetas</strong> para organizar mejor los documentos. Estas carpetas pueden anidarse unas dentro de otras para crear una jerarquía organizativa flexible y profunda.
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="sub-item-3">
-                        <AccordionTrigger className="text-sm">Búsqueda y Filtrado</AccordionTrigger>
+                        <AccordionTrigger className="text-sm">Búsqueda y Filtrado en la Página Principal</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                            La página principal ofrece una barra de búsqueda para encontrar documentos por título, autor o descripción. Adicionalmente, se puede filtrar por categoría y año de publicación para refinar los resultados.
-                        </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem value="sub-item-4">
-                        <AccordionTrigger className="text-sm">Búsqueda Mejorada con IA</AccordionTrigger>
-                        <AccordionContent className="pl-4">
-                            <p className="mb-2">La búsqueda con IA va más allá de una simple coincidencia de palabras. El sistema utiliza un modelo de lenguaje avanzado que actúa como un asistente inteligente:</p>
-                            <ul className="list-disc pl-5 space-y-2">
-                                <li><strong>Análisis de Intención:</strong> La IA interpreta tu consulta para entender qué estás buscando realmente (documentos, carpetas o categorías).</li>
-                                <li><strong>Uso de Herramientas:</strong> El modelo tiene acceso a "herramientas" que le permiten buscar directamente en la base de datos de la biblioteca. Por ejemplo, si buscas "guías de pediatría", la IA usará su herramienta para buscar documentos y carpetas con esos términos.</li>
-                                <li><strong>Resultados Reales:</strong> A diferencia de un chatbot que genera texto, esta IA devuelve una lista de resultados reales y existentes en la biblioteca.</li>
-                                <li><strong>Presentación Unificada:</strong> Los resultados (ya sean documentos, carpetas o categorías) se presentan en una lista clara y unificada, con enlaces directos para que puedas acceder al contenido inmediatamente.</li>
+                            La página principal ofrece herramientas para encontrar contenido rápidamente:
+                             <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li><strong>Barra de Búsqueda:</strong> Permite buscar documentos por texto coincidente en el título, autor o descripción.</li>
+                                <li><strong>Filtro de Categoría:</strong> Permite mostrar únicamente los documentos que pertenecen a una categoría específica.</li>
+                                <li><strong>Filtro de Año:</strong> Permite filtrar los documentos por su año de publicación.</li>
                             </ul>
                         </AccordionContent>
                     </AccordionItem>
-                     <AccordionItem value="sub-item-5">
-                        <AccordionTrigger className="text-sm">Visualizador de PDF</AccordionTrigger>
+                    <AccordionItem value="sub-item-4">
+                        <AccordionTrigger className="text-sm">Movimiento de Documentos</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                            En la página de detalle de cada documento, existe la opción de "Ver PDF Embebido", que abre el archivo directamente en la página utilizando un visor seguro, sin necesidad de descargarlo.
+                           Los usuarios con permisos de gestión sobre un documento (el creador, un Editor o un Admin) pueden moverlo a una nueva ubicación. La opción "Mover" en el menú de acciones de un documento abrirá un diálogo que permite seleccionar una nueva categoría y, opcionalmente, una carpeta dentro de esa categoría como nuevo destino.
+                        </AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="sub-item-5">
+                        <AccordionTrigger className="text-sm">Visualizador de PDF Embebido</AccordionTrigger>
+                        <AccordionContent className="pl-4">
+                            En la página de detalle de cada documento, existe la opción de "Ver PDF Embebido", que abre el archivo directamente en la página utilizando un visor seguro proporcionado por Google, sin necesidad de descargar el archivo.
                         </AccordionContent>
                     </AccordionItem>
                      <AccordionItem value="sub-item-6">
-                        <AccordionTrigger className="text-sm">Historial de Actividad</AccordionTrigger>
+                        <AccordionTrigger className="text-sm">Historial de Actividad y Perfil</AccordionTrigger>
                         <AccordionContent className="pl-4">
-                            Cada usuario tiene una sección "Mi Historial" donde puede ver un registro de todas las acciones que ha realizado en el sistema, como crear, actualizar o eliminar contenido.
+                           <ul className="list-disc pl-5 mt-2 space-y-2">
+                                <li><strong>Mi Historial:</strong> Cada usuario tiene una sección donde puede ver un registro cronológico de todas las acciones que ha realizado en el sistema, como crear, actualizar o eliminar contenido.</li>
+                                <li><strong>Perfil de Usuario:</strong> Los usuarios pueden actualizar su nombre y foto de perfil. También pueden solicitar un restablecimiento de contraseña desde esta página.</li>
+                           </ul>
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
