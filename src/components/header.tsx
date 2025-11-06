@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { signOut } from "firebase/auth";
-import React, { Suspense } from "react";
+import React from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth, useUser } from "@/firebase";
-import SearchInputHandler from "./search-input-handler";
 
 const ThemeToggle = () => {
     const { setTheme } = useTheme();
@@ -59,15 +58,6 @@ const Header = () => {
   const router = useRouter();
   const auth = useAuth();
   const { user, userData, isUserLoading } = useUser();
-
-  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const query = formData.get('search') as string;
-    if (query) {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
-    }
-  };
 
   const handleSignOut = () => {
     if(!auth) return;
@@ -148,11 +138,7 @@ const Header = () => {
       </div>
 
       <div className="flex w-full flex-1 items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-        <form onSubmit={handleSearch} className="ml-auto flex-1 sm:flex-initial">
-          <Suspense fallback={<div>Loading search...</div>}>
-            <SearchInputHandler />
-          </Suspense>
-        </form>
+        <div className="ml-auto flex-1 sm:flex-initial" />
         
         <ThemeToggle />
         <UserMenu />
