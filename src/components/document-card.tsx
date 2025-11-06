@@ -2,9 +2,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Document, Tag } from '@/lib/types';
+import type { Document, Tag, AuditLog } from '@/lib/types';
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -50,6 +50,21 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
 
   const thumbnailUrl = document.thumbnailUrl;
 
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Document',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
+  };
+
   const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -65,6 +80,7 @@ const DocumentCard = ({ document }: DocumentCardProps) => {
     if (!firestore) return;
     const docRef = doc(firestore, 'documents', document.id);
     deleteDocumentNonBlocking(docRef);
+    logAction('delete', document.id, document.title, `Se eliminó el documento '${document.title}'.`);
     toast({
       variant: "destructive",
       title: 'Documento eliminado',

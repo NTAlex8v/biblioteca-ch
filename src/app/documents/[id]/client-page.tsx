@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import type { Document as DocumentType, Category } from '@/lib/types';
+import type { Document as DocumentType, Category, AuditLog } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -54,6 +54,21 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
   }, [document?.lastUpdated]);
 
   const isLoading = isLoadingDocument || isLoadingCategories;
+
+  const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
+    if (!firestore || !user) return;
+    const log: Omit<AuditLog, 'id'> = {
+        timestamp: new Date().toISOString(),
+        userId: user.uid,
+        userName: user.displayName || user.email || "Sistema",
+        action: action,
+        entityType: 'Document',
+        entityId,
+        entityName,
+        details,
+    };
+    addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'auditLogs'), log);
+  };
 
   if (isLoading) {
     return (
@@ -108,10 +123,11 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
 
 
   const handleDelete = () => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const docRef = doc(firestore, 'documents', document.id);
     
     deleteDocumentNonBlocking(docRef);
+    logAction('delete', document.id, document.title, `Se eliminó el documento '${document.title}'.`);
     toast({
       variant: "destructive",
       title: 'Documento eliminado',
