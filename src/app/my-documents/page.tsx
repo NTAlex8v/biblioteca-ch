@@ -28,7 +28,6 @@ import { useRouter } from 'next/navigation';
 function DocumentActions({ document }: { document: DocumentType }) {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const router = useRouter();
   const { user } = useUser();
 
   const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
@@ -60,7 +59,7 @@ function DocumentActions({ document }: { document: DocumentType }) {
   };
 
   const handleEdit = () => {
-    router.push(`/my-documents/edit/${document.id}`);
+    window.location.href = `/my-documents/edit/${document.id}`;
   };
 
   return (

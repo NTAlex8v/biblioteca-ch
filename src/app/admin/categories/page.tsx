@@ -22,11 +22,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useRouter } from 'next/navigation';
 
 function CategoryActions({ category }: { category: Category }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const router = useRouter();
 
   const logAction = (action: 'create' | 'update' | 'delete', entityId: string, entityName: string, details: string) => {
     if (!firestore || !user) return;
@@ -54,6 +56,10 @@ function CategoryActions({ category }: { category: Category }) {
       description: 'La categoría ha sido eliminada permanentemente.',
     });
   };
+  
+  const handleEdit = () => {
+    window.location.href = `/admin/categories/edit/${category.id}`;
+  }
 
   return (
     <AlertDialog>
@@ -66,15 +72,13 @@ function CategoryActions({ category }: { category: Category }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <Link href={`/admin/categories/edit/${category.id}`}>
-                <DropdownMenuItem>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                </DropdownMenuItem>
-            </Link>
+            <DropdownMenuItem onClick={handleEdit}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
              <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Eliminar
                 </DropdownMenuItem>

@@ -44,7 +44,7 @@ const DocumentListItem = ({ document }: DocumentListItemProps) => {
 
   const handleEdit = (e: React.MouseEvent) => {
     handleActionClick(e);
-    router.push(`/my-documents/edit/${document.id}`);
+    window.location.href = `/my-documents/edit/${document.id}`;
   };
 
   const handleDelete = (e: React.MouseEvent) => {

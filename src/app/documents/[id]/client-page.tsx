@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
-import Link from 'next/link';
 import type { Document as DocumentType, Category, AuditLog } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
@@ -121,6 +120,9 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
   
   const thumbnailUrl = document?.thumbnailUrl;
 
+  const handleEdit = () => {
+    window.location.href = `/my-documents/edit/${document.id}`;
+  };
 
   const handleDelete = () => {
     if (!firestore || !user) return;
@@ -195,17 +197,15 @@ export default function DocumentDetailClient({ documentId }: DocumentDetailProps
                 <Eye className="mr-2" /> {isPdfVisible ? 'Ocultar PDF' : 'Ver PDF Embebido'}
               </Button>
               <Button size="lg" variant="secondary" className="flex-1" asChild>
-                <Link href={document.fileUrl} target="_blank" rel="noopener noreferrer" download>
+                <a href={document.fileUrl} target="_blank" rel="noopener noreferrer" download>
                   <Download className="mr-2" /> Descargar Archivo
-                </Link>
+                </a>
               </Button>
             </div>
              {canManage && (
                 <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                    <Button size="lg" variant="outline" className="flex-1" asChild>
-                        <Link href={`/my-documents/edit/${document.id}`}>
-                            <Edit className="mr-2" /> Editar
-                        </Link>
+                    <Button size="lg" variant="outline" className="flex-1" onClick={handleEdit}>
+                        <Edit className="mr-2" /> Editar
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
