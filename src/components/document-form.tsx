@@ -44,58 +44,45 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
   const firestore = useFirestore();
   const { user } = useUser();
 
+  const categoryIdFromParams = searchParams.get('categoryId');
+  const folderIdFromParams = searchParams.get('folderId');
+
   const [uploadType, setUploadType] = useState<'url' | 'pdf'>(document?.fileUrl?.startsWith('http') ? 'url' : 'pdf');
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-
-  const categoryIdFromParams = searchParams.get('categoryId');
-  const folderIdFromParams = searchParams.get('folderId');
 
   const categoriesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'categories') : null, [firestore]);
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesQuery);
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    defaultValues: document 
-      ? { ...document, year: document.year || new Date().getFullYear() } 
-      : {
-        title: "",
-        author: "",
-        year: new Date().getFullYear(),
-        description: "",
-        fileUrl: "",
-        categoryId: categoryIdFromParams || "",
-        thumbnailUrl: "",
-        subject: "",
-        version: "1.0",
-      },
+    defaultValues: {
+      title: document?.title || "",
+      author: document?.author || "",
+      year: document?.year || new Date().getFullYear(),
+      description: document?.description || "",
+      fileUrl: document?.fileUrl || "",
+      categoryId: document?.categoryId || categoryIdFromParams || "",
+      thumbnailUrl: document?.thumbnailUrl || "",
+      subject: document?.subject || "",
+      version: document?.version || "1.0",
+    },
   });
 
-  const { formState: { isSubmitting }, reset, setValue, trigger } = form;
+  const { formState: { isSubmitting }, setValue, trigger, handleSubmit, reset } = form;
 
   useEffect(() => {
+    // This effect now only handles resetting the form if the document prop itself changes,
+    // or to inject the categoryId from URL params when creating a new doc.
     if (document) {
       reset({
         ...document,
-        categoryId: document.categoryId || categoryIdFromParams || "",
       });
-      if (document.fileUrl) {
-        setUploadType(document.fileUrl.startsWith('http') ? 'url' : 'pdf');
-      }
-    } else {
-        reset({
-            title: "",
-            author: "",
-            year: new Date().getFullYear(),
-            description: "",
-            fileUrl: "",
-            categoryId: categoryIdFromParams || "",
-            thumbnailUrl: "",
-            subject: "",
-            version: "1.0",
-        });
+    } else if (categoryIdFromParams) {
+       setValue('categoryId', categoryIdFromParams);
     }
-  }, [document, categoryIdFromParams, reset]);
+  }, [document, categoryIdFromParams, reset, setValue]);
+
 
   const logAction = (action: 'create' | 'update', entityId: string, entityName: string, details: string) => {
     if (!firestore || !user) return;
@@ -159,7 +146,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
     if (document) {
       const docRef = doc(firestore, "documents", document.id);
-      await setDocumentNonBlocking(docRef, dataToSave);
+      await setDocumentNonBlocking(docRef, dataToSave, { merge: true });
       logAction('update', document.id, values.title, `Se actualizó el documento '${values.title}'.`);
       toast({ title: "Documento Actualizado", description: "El documento ha sido actualizado exitosamente." });
     } else {
