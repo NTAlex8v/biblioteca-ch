@@ -27,7 +27,7 @@ function FolderPageSkeleton() {
     );
 }
 
-export default async function FolderPage({ params }: { params: { id: string } }) {
+export default function FolderPage({ params }: { params: { id: string } }) {
     
     if (!params.id) {
         notFound();

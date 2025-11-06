@@ -28,7 +28,7 @@ function DocumentPageSkeleton() {
     );
 }
 
-export default async function DocumentPage({ params }: { params: { id: string } }) {
+export default function DocumentPage({ params }: { params: { id: string } }) {
   
   if (!params.id) {
     notFound();

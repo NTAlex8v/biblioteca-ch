@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { doc } from 'firebase/firestore';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import DocumentForm from "@/components/document-form";
 import type { Document as DocumentType } from "@/lib/types";
@@ -21,15 +21,15 @@ function EditDocumentPageSkeleton() {
     );
 }
 
-export default function EditDocumentPage({ params }: { params: { id: string } }) {
+function EditDocumentClientPage({ documentId }: { documentId: string }) {
     const firestore = useFirestore();
     const router = useRouter();
     const { user, userData } = useUser();
 
     const docRef = useMemoFirebase(() => {
-        if (!firestore || !params.id) return null;
-        return doc(firestore, 'documents', params.id);
-    }, [firestore, params.id]);
+        if (!firestore || !documentId) return null;
+        return doc(firestore, 'documents', documentId);
+    }, [firestore, documentId]);
 
     const { data: documentData, isLoading, error } = useDoc<DocumentType>(docRef);
 
@@ -56,5 +56,17 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
             </div>
             <DocumentForm document={documentData} />
         </div>
+    );
+}
+
+export default function EditDocumentPage({ params }: { params: { id: string } }) {
+    if (!params.id) {
+        notFound();
+    }
+    
+    return (
+       <Suspense fallback={<EditDocumentPageSkeleton />}>
+            <EditDocumentClientPage documentId={params.id} />
+       </Suspense>
     );
 }

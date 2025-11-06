@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import CategoryForm from "@/components/category-form";
 import type { Category } from '@/lib/types';
@@ -8,14 +8,14 @@ import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 
-export default function EditCategoryPage({ params }: { params: { id: string } }) {
+function EditCategoryClientPage({ categoryId }: { categoryId: string }) {
     const firestore = useFirestore();
     const router = useRouter();
 
     const categoryDocRef = useMemoFirebase(() => {
-        if (!firestore || !params.id) return null;
-        return doc(firestore, 'categories', params.id);
-    }, [firestore, params.id]);
+        if (!firestore || !categoryId) return null;
+        return doc(firestore, 'categories', categoryId);
+    }, [firestore, categoryId]);
 
     const { data: category, isLoading, error } = useDoc<Category>(categoryDocRef);
 
@@ -46,5 +46,17 @@ export default function EditCategoryPage({ params }: { params: { id: string } })
             </div>
             <CategoryForm category={category} />
         </div>
+    );
+}
+
+export default function EditCategoryPage({ params }: { params: { id: string } }) {
+    if (!params.id) {
+        notFound();
+    }
+    
+    return (
+        <Suspense fallback={<Loader2 className="h-8 w-8 animate-spin" />}>
+            <EditCategoryClientPage categoryId={params.id} />
+        </Suspense>
     );
 }

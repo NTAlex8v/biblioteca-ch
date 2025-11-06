@@ -28,7 +28,7 @@ function CategoryPageSkeleton() {
     );
 }
 
-export default async function CategoryPage({ params }: { params: { id: string } }) {
+export default function CategoryPage({ params }: { params: { id: string } }) {
     if (!params.id) {
         notFound();
     }
