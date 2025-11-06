@@ -1,13 +1,13 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import type { AuditLog } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { History, FileText, User as UserIcon, Folder, Shapes, Tag as TagIcon } from 'lucide-react';
+import { History, FileText, User as UserIcon, Folder, Shapes, Tag as TagIcon, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
@@ -36,8 +36,14 @@ const actionTranslations: { [key: string]: string } = {
 
 export default function MyHistoryPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const auditLogQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -49,11 +55,11 @@ export default function MyHistoryPage() {
   
   const { data: logs, isLoading: isLoadingLogs } = useCollection<AuditLog>(auditLogQuery);
 
-  if (!user) {
-    router.push('/login');
+  if (isUserLoading || !user) {
     return (
-        <div className="container mx-auto text-center py-16">
-            <p className="text-muted-foreground">Debes iniciar sesión para ver tu historial. Redirigiendo...</p>
+        <div className="container mx-auto flex justify-center items-center h-[calc(100vh-10rem)]">
+             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+             <p className="ml-4 text-muted-foreground">Cargando historial...</p>
         </div>
     )
   }

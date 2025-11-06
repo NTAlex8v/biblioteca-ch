@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking, useUser, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -105,7 +105,14 @@ function DocumentActions({ document }: { document: DocumentType }) {
 
 export default function MyDocumentsPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -122,10 +129,11 @@ export default function MyDocumentsPage() {
     return new Map(categories.map(cat => [cat.id, cat.name]));
   }, [categories]);
 
-  if (!user) {
+  if (isUserLoading || !user) {
       return (
-          <div className="container mx-auto text-center py-16">
-              <p>Por favor, inicie sesión para ver sus documentos.</p>
+          <div className="container mx-auto flex justify-center items-center h-[calc(100vh-10rem)]">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="ml-4 text-muted-foreground">Cargando tus documentos...</p>
           </div>
       )
   }
