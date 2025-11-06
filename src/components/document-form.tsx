@@ -261,7 +261,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!categoryIdFromParams || isFormDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!document || !!categoryIdFromParams || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
@@ -377,4 +377,3 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
-
