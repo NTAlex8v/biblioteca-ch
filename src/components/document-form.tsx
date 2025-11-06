@@ -56,7 +56,8 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
 
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
-    defaultValues: {
+    // Use `values` to ensure the form is controlled and re-renders with new props.
+    values: {
       title: document?.title || "",
       author: document?.author || "",
       year: document?.year || new Date().getFullYear(),
@@ -69,19 +70,16 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
     },
   });
 
-  const { formState: { isSubmitting }, setValue, trigger, handleSubmit, reset } = form;
+  const { formState: { isSubmitting }, setValue, trigger, handleSubmit, watch } = form;
+
+  const watchedCategoryId = watch('categoryId');
 
   useEffect(() => {
-    // This effect now only handles resetting the form if the document prop itself changes,
-    // or to inject the categoryId from URL params when creating a new doc.
-    if (document) {
-      reset({
-        ...document,
-      });
-    } else if (categoryIdFromParams) {
-       setValue('categoryId', categoryIdFromParams);
+    // This effect is ONLY for setting the category from the URL on NEW documents.
+    if (!document && categoryIdFromParams) {
+      setValue('categoryId', categoryIdFromParams, { shouldValidate: true });
     }
-  }, [document, categoryIdFromParams, reset, setValue]);
+  }, [document, categoryIdFromParams, setValue]);
 
 
   const logAction = (action: 'create' | 'update', entityId: string, entityName: string, details: string) => {
@@ -197,7 +195,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Título</FormLabel>
                   <FormControl>
-                    <Input placeholder="Título del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input placeholder="Título del documento" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -210,7 +208,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Autor</FormLabel>
                   <FormControl>
-                    <Input placeholder="Autor del documento" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input placeholder="Autor del documento" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -223,7 +221,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Año de Publicación</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input type="number" placeholder="2024" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -236,7 +234,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Descripción</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Textarea placeholder="Una breve descripción del contenido del documento..." {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -248,7 +246,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingCategories || !!document || !!categoryIdFromParams || isFormDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!!document || !!categoryIdFromParams || isLoadingCategories || isFormDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona una categoría" />
@@ -271,7 +269,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Materia</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: Fisiología" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input placeholder="Ej: Fisiología" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -322,7 +320,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>URL de la Portada (Opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input placeholder="https://ejemplo.com/portada.jpg" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -335,7 +333,7 @@ function DocumentFormComponent({ document }: DocumentFormProps) {
                 <FormItem>
                   <FormLabel>Versión</FormLabel>
                   <FormControl>
-                    <Input placeholder="1.0" {...field} disabled={isFormDisabled} value={field.value || ''} />
+                    <Input placeholder="1.0" {...field} disabled={isFormDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -364,3 +362,5 @@ export default function DocumentForm({ document }: DocumentFormProps) {
         </Suspense>
     );
 }
+
+    
